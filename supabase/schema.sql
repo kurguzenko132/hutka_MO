@@ -93,6 +93,7 @@ create table if not exists public.surveys (
   type text,
   description text,
   status text default 'draft' check (status in ('draft', 'active', 'archived')),
+  slug text,
   created_at timestamptz default now()
 );
 
@@ -111,6 +112,9 @@ create table if not exists public.survey_answers (
   survey_id uuid references public.surveys(id) on delete cascade,
   lead_id uuid references public.leads(id) on delete set null,
   question_id uuid references public.survey_questions(id) on delete cascade,
+  response_group_id uuid,
+  respondent_name text,
+  respondent_contact text,
   answer jsonb,
   created_at timestamptz default now()
 );
@@ -159,6 +163,14 @@ create table if not exists public.hypotheses (
   next_action text,
   created_at timestamptz default now()
 );
+
+
+-- Step 7 migrations for existing MVP databases
+alter table public.surveys add column if not exists slug text;
+create unique index if not exists surveys_slug_unique_idx on public.surveys(slug) where slug is not null;
+alter table public.survey_answers add column if not exists response_group_id uuid;
+alter table public.survey_answers add column if not exists respondent_name text;
+alter table public.survey_answers add column if not exists respondent_contact text;
 
 -- Basic seed data
 insert into public.sources (name, type) values
@@ -244,3 +256,28 @@ begin
     execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
   end loop;
 end $$;
+
+
+-- Public policies for active survey forms.
+drop policy if exists "Anyone can read active surveys" on public.surveys;
+create policy "Anyone can read active surveys" on public.surveys
+  for select to anon
+  using (status = 'active');
+
+drop policy if exists "Anyone can read active survey questions" on public.survey_questions;
+create policy "Anyone can read active survey questions" on public.survey_questions
+  for select to anon
+  using (exists (
+    select 1 from public.surveys
+    where surveys.id = survey_questions.survey_id
+    and surveys.status = 'active'
+  ));
+
+drop policy if exists "Anyone can submit active survey answers" on public.survey_answers;
+create policy "Anyone can submit active survey answers" on public.survey_answers
+  for insert to anon
+  with check (exists (
+    select 1 from public.surveys
+    where surveys.id = survey_answers.survey_id
+    and surveys.status = 'active'
+  ));

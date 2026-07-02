@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Bell, Menu, Plus, Search } from 'lucide-react';
+import { Bell, LogOut, Menu, Plus, Search } from 'lucide-react';
+import { signOutAction } from '@/actions/auth.actions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Logo } from './logo';
@@ -29,6 +30,12 @@ export function Topbar() {
             Добавить контакт
           </Link>
         </Button>
+        <form action={signOutAction}>
+          <Button variant="ghost" aria-label="Выйти">
+            <LogOut className="h-4 w-4" />
+            <span className="hidden xl:inline">Выйти</span>
+          </Button>
+        </form>
       </div>
     </header>
   );

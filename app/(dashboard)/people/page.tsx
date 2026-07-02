@@ -1,4 +1,5 @@
 import { PeopleTable } from '@/components/people/people-table';
+import { getLeads } from '@/lib/leads';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -8,7 +9,8 @@ import { Download, Plus, Upload } from 'lucide-react';
 
 const filters = ['Тип', 'Город', 'Ниша', 'Стадия', 'Источник', 'Приоритет', 'Теги'];
 
-export default function PeoplePage() {
+export default async function PeoplePage() {
+  const leads = await getLeads();
   return (
     <div className="space-y-6">
       <PageHeader title="Люди" subtitle="База мастеров, салонов, клиентов и партнеров" />
@@ -33,7 +35,7 @@ export default function PeoplePage() {
         </div>
       </Card>
 
-      <PeopleTable />
+      <PeopleTable items={leads} />
     </div>
   );
 }

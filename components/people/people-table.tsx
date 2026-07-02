@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { MoreVertical } from 'lucide-react';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
-import { leads, Priority } from '@/lib/data';
+import type { Lead, Priority } from '@/lib/data';
 
 function priorityTone(priority: Priority): BadgeTone {
   if (priority === 'Высокий') return 'red';
@@ -18,7 +18,7 @@ function stageTone(stage: string): BadgeTone {
   return 'purple';
 }
 
-export function PeopleTable() {
+export function PeopleTable({ items }: { items: Lead[] }) {
   return (
     <Card className="overflow-hidden">
       <div className="overflow-x-auto">
@@ -37,7 +37,7 @@ export function PeopleTable() {
             </tr>
           </thead>
           <tbody className="divide-y divide-app-line">
-            {leads.map((lead) => (
+            {items.map((lead) => (
               <tr key={lead.id} className="transition hover:bg-purple-50/40">
                 <td className="px-5 py-4"><input type="checkbox" /></td>
                 <td className="px-5 py-4">
@@ -67,7 +67,7 @@ export function PeopleTable() {
         </table>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-app-line px-5 py-4 text-sm text-app-muted">
-        <span>1–50 из 2 842</span>
+        <span>Показано: {items.length}</span>
         <div className="flex items-center gap-2">
           <button className="rounded-lg bg-purple-50 px-3 py-1 font-semibold text-app-purple">1</button>
           <button>2</button>

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft, Save, Sparkles } from 'lucide-react';
+import { createLeadAction } from '@/actions/leads.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -8,7 +9,15 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
-export default function NewLeadPage() {
+const errorMessages: Record<string, string> = {
+  'missing-name': 'Укажи имя или название контакта.',
+  'save-failed': 'Не удалось сохранить контакт. Проверь Supabase и попробуй еще раз.'
+};
+
+export default async function NewLeadPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
+  const params = await searchParams;
+  const error = params?.error ? errorMessages[params.error] : undefined;
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div className="flex items-center gap-3">
@@ -22,15 +31,21 @@ export default function NewLeadPage() {
 
       <PageHeader title="Добавить контакт" subtitle="Новый мастер, салон, клиент или партнер для маркетинговой воронки" />
 
+      {error && (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <form className="space-y-6">
+        <form action={createLeadAction} className="space-y-6">
           <FormSection title="Основная информация" subtitle="Минимально нужно имя, тип контакта, город и источник.">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Имя / название">
-                <Input placeholder="Например: Анна Смирнова или Beauty Line" />
+                <Input name="name" placeholder="Например: Анна Смирнова или Beauty Line" required />
               </Field>
               <Field label="Тип контакта">
-                <Select defaultValue="Мастер">
+                <Select name="type" defaultValue="Мастер">
                   <option>Мастер</option>
                   <option>Салон</option>
                   <option>Клиент</option>
@@ -38,13 +53,13 @@ export default function NewLeadPage() {
                 </Select>
               </Field>
               <Field label="Ниша">
-                <Input placeholder="Маникюр, брови, косметология..." />
+                <Input name="niche" placeholder="Маникюр, брови, косметология..." />
               </Field>
               <Field label="Город">
-                <Input placeholder="Минск, Брест, Москва..." />
+                <Input name="city" placeholder="Минск, Брест, Москва..." />
               </Field>
               <Field label="Источник">
-                <Select defaultValue="Instagram">
+                <Select name="source" defaultValue="Instagram">
                   <option>Instagram</option>
                   <option>Telegram</option>
                   <option>TikTok</option>
@@ -55,7 +70,7 @@ export default function NewLeadPage() {
                 </Select>
               </Field>
               <Field label="Стадия">
-                <Select defaultValue="Найдено">
+                <Select name="stage" defaultValue="Найдено">
                   <option>Найдено</option>
                   <option>Написал</option>
                   <option>Ответил</option>
@@ -72,26 +87,26 @@ export default function NewLeadPage() {
           <FormSection title="Контакты и follow-up" subtitle="Эти поля помогут не потерять человека после первого касания.">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Instagram">
-                <Input placeholder="@username" />
+                <Input name="instagram" placeholder="@username" />
               </Field>
               <Field label="Telegram">
-                <Input placeholder="@username" />
+                <Input name="telegram" placeholder="@username" />
               </Field>
               <Field label="Телефон">
-                <Input placeholder="+375 ..." />
+                <Input name="phone" placeholder="+375 ..." />
               </Field>
               <Field label="Email">
-                <Input type="email" placeholder="name@email.com" />
+                <Input name="email" type="email" placeholder="name@email.com" />
               </Field>
               <Field label="Приоритет">
-                <Select defaultValue="Средний">
+                <Select name="priority" defaultValue="Средний">
                   <option>Высокий</option>
                   <option>Средний</option>
                   <option>Низкий</option>
                 </Select>
               </Field>
               <Field label="Следующий контакт">
-                <Input type="date" />
+                <Input name="next_contact_date" type="date" />
               </Field>
             </div>
           </FormSection>
@@ -99,13 +114,13 @@ export default function NewLeadPage() {
           <FormSection title="Боли, теги и заметки">
             <div className="space-y-4">
               <Field label="Теги" hint="Пока теги вводятся текстом. Позже подключим выбор из базы тегов.">
-                <Input placeholder="Нужны клиенты, Нет CRM, Пустые окна" />
+                <Input name="tags" placeholder="Нужны клиенты, Нет CRM, Пустые окна" />
               </Field>
               <Field label="Следующий шаг">
-                <Input placeholder="Написать повторно, отправить опрос, назначить пилот..." />
+                <Input name="next_step" placeholder="Написать повторно, отправить опрос, назначить пилот..." />
               </Field>
               <Field label="Заметка">
-                <Textarea placeholder="Что известно о контакте, какую боль озвучил, что обещали сделать дальше..." />
+                <Textarea name="notes" placeholder="Что известно о контакте, какую боль озвучил, что обещали сделать дальше..." />
               </Field>
             </div>
           </FormSection>
@@ -114,7 +129,7 @@ export default function NewLeadPage() {
             <Button asChild variant="secondary">
               <Link href="/people">Отмена</Link>
             </Button>
-            <Button type="button">
+            <Button type="submit">
               <Save className="h-4 w-4" />
               Сохранить контакт
             </Button>

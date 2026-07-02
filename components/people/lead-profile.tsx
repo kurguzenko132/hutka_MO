@@ -1,12 +1,13 @@
-import { activity, leads, needs, surveyAnswers } from '@/lib/data';
+import { activity, needs, surveyAnswers } from '@/lib/data';
+import { getLeadById } from '@/lib/leads';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MessageSquare, MoreVertical, TestTube2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
-export function LeadProfile({ id }: { id: string }) {
-  const lead = leads.find((item) => item.id === id);
+export async function LeadProfile({ id }: { id: string }) {
+  const lead = await getLeadById(id);
   if (!lead) notFound();
 
   return (
@@ -16,14 +17,14 @@ export function LeadProfile({ id }: { id: string }) {
           <p className="mb-2 text-sm text-app-muted">Люди → {lead.name}</p>
           <h1 className="text-3xl font-black tracking-tight text-app-text">{lead.name}</h1>
           <div className="mt-4 flex flex-wrap gap-2">
-            {lead.tags.map((tag, index) => (
+            {lead.tags.length ? lead.tags.map((tag, index) => (
               <Badge key={tag} tone={index === 0 ? 'red' : index === 1 ? 'pink' : index === 2 ? 'purple' : 'green'}>{tag}</Badge>
-            ))}
+            )) : <Badge tone="gray">Без тегов</Badge>}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary"><MessageSquare className="h-4 w-4" /> Написать</Button>
-          <Button><TestTube2 className="h-4 w-4" /> Назначить тест</Button>
+          <Button><TestTube2 className="h-4 w-4" /> Назначить пилот</Button>
           <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
         </div>
       </div>
@@ -47,7 +48,9 @@ export function LeadProfile({ id }: { id: string }) {
               ['Instagram', lead.instagram ?? '—'],
               ['Телефон', lead.phone ?? '—'],
               ['Источник', lead.source],
-              ['Приоритет', `${lead.priority} · ${lead.score}/100`]
+              ['Стадия', lead.stage],
+              ['Приоритет', `${lead.priority} · ${lead.score}/100`],
+              ['Следующий шаг', lead.nextStep]
             ].map(([label, value]) => (
               <div key={label} className="flex items-center justify-between gap-4 border-b border-app-line pb-3 text-sm last:border-0">
                 <span className="text-app-muted">{label}</span>
@@ -79,7 +82,7 @@ export function LeadProfile({ id }: { id: string }) {
           <Card>
             <CardHeader><CardTitle>Боли и потребности</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {needs.map((need) => (
+              {(lead.notes ? [lead.notes] : needs).map((need) => (
                 <div key={need} className="flex gap-3 text-sm text-app-text">
                   <span className="mt-2 h-1.5 w-1.5 rounded-full bg-app-pink" />
                   <span>{need}</span>

@@ -11,7 +11,7 @@ const groups = [
 export default function TasksPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Задачи" subtitle="Ежедневные follow-up и действия по лидам" actionLabel="Создать задачу" />
+      <PageHeader title="Задачи" subtitle="Ежедневные follow-up и действия по контактам" actionLabel="Создать задачу" actionHref="/tasks/new" />
       <div className="grid gap-6 lg:grid-cols-3">
         {groups.map((group) => (
           <Card key={group.title}>

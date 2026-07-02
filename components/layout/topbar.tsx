@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Bell, Menu, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,9 +23,11 @@ export function Topbar() {
           <Bell className="h-5 w-5" />
           <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-app-red text-[10px] font-bold text-white">5</span>
         </button>
-        <Button className="hidden sm:inline-flex">
-          <Plus className="h-4 w-4" />
-          Добавить контакт
+        <Button asChild className="hidden sm:inline-flex">
+          <Link href="/people/new">
+            <Plus className="h-4 w-4" />
+            Добавить контакт
+          </Link>
         </Button>
       </div>
     </header>

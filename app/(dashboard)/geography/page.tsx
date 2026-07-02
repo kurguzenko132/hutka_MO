@@ -22,7 +22,7 @@ export default function GeographyPage() {
                   <p className="font-bold text-app-text">{city.city}</p>
                   <p className="text-sm text-app-muted">{city.leads} контактов</p>
                 </div>
-                <p className="text-sm font-bold text-app-purple">{city.testers} тестеров</p>
+                <p className="text-sm font-bold text-app-purple">{city.testers} участников пилота</p>
               </div>
             ))}
           </CardContent>

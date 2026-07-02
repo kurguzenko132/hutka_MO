@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 const items = [
   { title: 'Мастера реагируют на “новые клиенты”, а не на “CRM”', desc: '31 из 47 мастеров сказали, что главная боль — нехватка клиентов.', status: 'Сильный инсайт' },
   { title: 'Главный страх — долго заполнять профиль', desc: 'Нужно сделать быстрый онбординг или помощь с заполнением.', status: 'UX-барьер' },
-  { title: 'Telegram дает меньше лидов, но выше качество', desc: 'Конверсия в тест выше, чем у Instagram.', status: 'Канал' }
+  { title: 'Telegram дает меньше контактов, но выше качество', desc: 'Конверсия в тест выше, чем у Instagram.', status: 'Канал' }
 ];
 
 export default function InsightsPage() {

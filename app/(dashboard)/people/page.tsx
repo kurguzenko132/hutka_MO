@@ -3,7 +3,8 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Download, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { Download, Plus, Upload } from 'lucide-react';
 
 const filters = ['Тип', 'Город', 'Ниша', 'Стадия', 'Источник', 'Приоритет', 'Теги'];
 
@@ -24,7 +25,7 @@ export default function PeoplePage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary"><Download className="h-4 w-4" />Экспорт</Button>
             <Button variant="secondary"><Upload className="h-4 w-4" />Импорт</Button>
-            <Button>Сохранить фильтр</Button>
+            <Button asChild><Link href="/people/new"><Plus className="h-4 w-4" />Добавить контакт</Link></Button>
           </div>
         </div>
         <div className="mt-4 max-w-lg">

@@ -3,15 +3,15 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 
 const campaigns = [
-  { name: 'Мастера маникюра Минск — Instagram', goal: '20 интервью, 5 тестеров', leads: 60, replies: 22, surveys: 10, testers: 4, conversion: '6,6%' },
-  { name: 'Бровисты Брест — Telegram', goal: '15 интервью, 4 тестера', leads: 38, replies: 19, surveys: 12, testers: 6, conversion: '15,8%' },
-  { name: 'Опрос клиентов — карта мастеров', goal: '100 ответов клиентов', leads: 130, replies: 82, surveys: 56, testers: 0, conversion: '43%' }
+  { name: 'Мастера маникюра Минск — Instagram', goal: '20 интервью, 5 участников пилота', leads: 60, replies: 22, surveys: 10, participants: 4, conversion: '6,6%' },
+  { name: 'Бровисты Брест — Telegram', goal: '15 интервью, 4 участника пилота', leads: 38, replies: 19, surveys: 12, participants: 6, conversion: '15,8%' },
+  { name: 'Опрос клиентов — карта мастеров', goal: '100 ответов клиентов', leads: 130, replies: 82, surveys: 56, participants: 0, conversion: '43%' }
 ];
 
 export default function CampaignsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Кампании" subtitle="Маркетинговые активности и их результативность" actionLabel="Создать кампанию" />
+      <PageHeader title="Кампании" subtitle="Маркетинговые активности и их результативность" actionLabel="Создать кампанию" actionHref="/campaigns/new" />
       <div className="grid gap-4">
         {campaigns.map((campaign) => (
           <Card key={campaign.name} className="card-hover">
@@ -24,10 +24,10 @@ export default function CampaignsPage() {
                 <Badge tone="purple">Конверсия: {campaign.conversion}</Badge>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                <Metric label="Лиды" value={campaign.leads} />
+                <Metric label="Контакты" value={campaign.leads} />
                 <Metric label="Ответы" value={campaign.replies} />
                 <Metric label="Опросы" value={campaign.surveys} />
-                <Metric label="Тестеры" value={campaign.testers} />
+                <Metric label="Участники" value={campaign.participants} />
               </div>
             </CardContent>
           </Card>

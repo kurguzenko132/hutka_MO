@@ -73,7 +73,7 @@ export const todayTasks = [
   { title: 'Написать новым контактам', count: 18 },
   { title: 'Провести опросы', count: 7 },
   { title: 'Назначить пилот', count: 5 },
-  { title: 'Позвонить лидам', count: 4 },
+  { title: 'Позвонить контактам', count: 4 },
   { title: 'Проверить обратную связь', count: 3 }
 ];
 
@@ -111,7 +111,7 @@ export const leads: Lead[] = [
     priority: 'Высокий',
     nextStep: 'Назначить тест',
     nextDate: '22.05.2025',
-    tags: ['Горячий лид', 'Нужны клиенты', 'Нет CRM', 'Готова тестировать'],
+    tags: ['Горячий контакт', 'Нужны клиенты', 'Нет CRM', 'Готова тестировать'],
     score: 86,
     instagram: '@anna.brows.msk',
     phone: '+7 (916) 123-45-67',

@@ -7,13 +7,13 @@ const surveys = [
   { title: 'Опрос для мастеров', answers: 84, status: 'Активен', type: 'Мастера' },
   { title: 'Опрос для салонов', answers: 19, status: 'Активен', type: 'Салоны' },
   { title: 'Опрос клиентов', answers: 42, status: 'Черновик', type: 'Клиенты' },
-  { title: 'Опрос после тестирования', answers: 11, status: 'Активен', type: 'Тестеры' }
+  { title: 'Опрос после тестирования', answers: 11, status: 'Активен', type: 'Участники пилота' }
 ];
 
 export default function SurveysPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности тестировать" actionLabel="Создать опрос" />
+      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности тестировать" actionLabel="Создать опрос" actionHref="/surveys/new" />
       <div className="grid gap-4 lg:grid-cols-2">
         {surveys.map((survey) => (
           <Card key={survey.title} className="card-hover">

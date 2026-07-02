@@ -70,8 +70,8 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
                 </Select>
               </Field>
               <Field label="Стадия">
-                <Select name="stage" defaultValue="Найдено">
-                  <option>Найдено</option>
+                <Select name="stage" defaultValue="Найден">
+                  <option>Найден</option>
                   <option>Написал</option>
                   <option>Ответил</option>
                   <option>Опрос</option>

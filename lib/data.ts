@@ -31,10 +31,13 @@ export type Lead = {
   priority: Priority;
   nextStep: string;
   nextDate: string;
+  nextDateRaw?: string;
   tags: string[];
   score: number;
   instagram?: string;
+  telegram?: string;
   phone?: string;
+  email?: string;
   notes?: string;
 };
 

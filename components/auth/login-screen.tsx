@@ -1,5 +1,4 @@
 import Image from 'next/image';
-import Link from 'next/link';
 import { ArrowRight, LockKeyhole } from 'lucide-react';
 import { signInAction } from '@/actions/auth.actions';
 import { Button } from '@/components/ui/button';
@@ -41,10 +40,6 @@ export function LoginScreen({ error }: { error?: string }) {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </form>
-
-            <Button asChild variant="secondary" className="w-full" size="lg">
-              <Link href="/dashboard">Открыть демо</Link>
-            </Button>
           </CardContent>
         </Card>
       </section>

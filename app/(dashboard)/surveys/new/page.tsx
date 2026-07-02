@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
   'missing-title': 'Укажи название опроса.',
@@ -24,6 +25,7 @@ const starterQuestions = [
 ];
 
 export default async function NewSurveyPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
+  await requirePermission('manageSurveys', '/surveys?error=forbidden');
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : undefined;
 

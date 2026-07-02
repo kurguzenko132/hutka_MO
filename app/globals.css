@@ -53,3 +53,26 @@ body {
   box-shadow: 0 18px 50px rgba(17, 24, 39, 0.08);
   border-color: rgba(124, 58, 237, 0.18);
 }
+
+@media (max-width: 1023px) {
+  body {
+    background-attachment: fixed;
+  }
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(124, 58, 237, 0.22);
+  outline-offset: 2px;
+}
+
+.safe-bottom {
+  padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+}
+
+.touch-target {
+  min-height: 44px;
+}

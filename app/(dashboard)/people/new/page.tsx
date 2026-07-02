@@ -4,10 +4,12 @@ import { createLeadAction } from '@/actions/leads.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
+import { getSettingsData } from '@/lib/settings';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
   'missing-name': 'Укажи имя или название контакта.',
@@ -15,8 +17,13 @@ const errorMessages: Record<string, string> = {
 };
 
 export default async function NewLeadPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
+  await requirePermission('manageContacts', '/people?error=forbidden');
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : undefined;
+  const settings = await getSettingsData();
+  const sources = settings.sources.map((source) => source.name);
+  const stages = settings.stages.map((stage) => stage.name);
+  const tags = settings.tags.map((tag) => tag.name);
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -59,26 +66,13 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
                 <Input name="city" placeholder="Минск, Брест, Москва..." />
               </Field>
               <Field label="Источник">
-                <Select name="source" defaultValue="Instagram">
-                  <option>Instagram</option>
-                  <option>Telegram</option>
-                  <option>TikTok</option>
-                  <option>Рекомендация</option>
-                  <option>Офлайн</option>
-                  <option>Beauty-школа</option>
-                  <option>Реклама</option>
+                <Select name="source" defaultValue={sources[0] ?? 'Instagram'}>
+                  {(sources.length ? sources : ['Instagram']).map((source) => <option key={source}>{source}</option>)}
                 </Select>
               </Field>
               <Field label="Стадия">
-                <Select name="stage" defaultValue="Найден">
-                  <option>Найден</option>
-                  <option>Написал</option>
-                  <option>Ответил</option>
-                  <option>Опрос</option>
-                  <option>Заинтересован</option>
-                  <option>Тест</option>
-                  <option>Активен</option>
-                  <option>Отказ</option>
+                <Select name="stage" defaultValue={stages[0] ?? 'Найден'}>
+                  {(stages.length ? stages : ['Найден']).map((stage) => <option key={stage}>{stage}</option>)}
                 </Select>
               </Field>
             </div>
@@ -113,8 +107,8 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
 
           <FormSection title="Боли, теги и заметки">
             <div className="space-y-4">
-              <Field label="Теги" hint="Пока теги вводятся текстом. Позже подключим выбор из базы тегов.">
-                <Input name="tags" placeholder="Нужны клиенты, Нет CRM, Пустые окна" />
+              <Field label="Теги" hint="Через запятую. Справочник тегов можно менять в настройках.">
+                <Input name="tags" placeholder={(tags.length ? tags.slice(0, 3).join(', ') : 'Нужны клиенты, Нет CRM, Пустые окна')} />
               </Field>
               <Field label="Следующий шаг">
                 <Input name="next_step" placeholder="Написать повторно, отправить опрос, назначить пилот..." />
@@ -149,7 +143,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
           <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
             <p className="text-sm font-black text-app-text">Рекомендуемые теги</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Готов к пилоту', 'Вернуться позже'].map((tag) => (
+              {(tags.length ? tags.slice(0, 8) : ['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Готов к пилоту', 'Вернуться позже']).map((tag) => (
                 <Badge key={tag} tone="purple">{tag}</Badge>
               ))}
             </div>

@@ -14,13 +14,13 @@ export function PageHeader({
   actionHref?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+    <div className="mb-6 flex flex-col justify-between gap-4 rounded-3xl border border-app-line bg-white/70 p-4 shadow-sm backdrop-blur sm:p-5 lg:flex-row lg:items-center">
       <div>
-        <h1 className="text-3xl font-black tracking-tight text-app-text">{title}</h1>
-        {subtitle && <p className="mt-2 text-sm text-app-muted">{subtitle}</p>}
+        <h1 className="text-2xl font-black tracking-tight text-app-text sm:text-3xl">{title}</h1>
+        {subtitle && <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">{subtitle}</p>}
       </div>
       {actionLabel && actionHref && (
-        <Button asChild>
+        <Button asChild className="w-full sm:w-auto">
           <Link href={actionHref}>
             <Plus className="h-4 w-4" />
             {actionLabel}
@@ -28,7 +28,7 @@ export function PageHeader({
         </Button>
       )}
       {actionLabel && !actionHref && (
-        <Button>
+        <Button className="w-full sm:w-auto">
           <Plus className="h-4 w-4" />
           {actionLabel}
         </Button>

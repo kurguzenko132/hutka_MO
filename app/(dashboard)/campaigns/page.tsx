@@ -1,34 +1,60 @@
+import Link from 'next/link';
+import { ArrowRight, Megaphone } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { getCampaigns, statusTone } from '@/lib/campaigns';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
-const campaigns = [
-  { name: 'Мастера маникюра Минск — Instagram', goal: '20 интервью, 5 участников пилота', leads: 60, replies: 22, surveys: 10, participants: 4, conversion: '6,6%' },
-  { name: 'Бровисты Брест — Telegram', goal: '15 интервью, 4 участника пилота', leads: 38, replies: 19, surveys: 12, participants: 6, conversion: '15,8%' },
-  { name: 'Опрос клиентов — карта мастеров', goal: '100 ответов клиентов', leads: 130, replies: 82, surveys: 56, participants: 0, conversion: '43%' }
-];
+export default async function CampaignsPage() {
+  const user = await getCurrentUserContext();
+  const role = user?.role ?? 'viewer';
+  const campaigns = await getCampaigns();
 
-export default function CampaignsPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Кампании" subtitle="Маркетинговые активности и их результативность" actionLabel="Создать кампанию" actionHref="/campaigns/new" />
+      <PageHeader title="Кампании" subtitle="Маркетинговые активности, каналы, офферы и результативность" actionLabel={can(role, 'manageCampaigns') ? 'Создать кампанию' : undefined} actionHref={can(role, 'manageCampaigns') ? '/campaigns/new' : undefined} />
+
       <div className="grid gap-4">
         {campaigns.map((campaign) => (
-          <Card key={campaign.name} className="card-hover">
+          <Card key={campaign.id} className="card-hover">
             <CardContent>
-              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-                <div>
-                  <h3 className="text-lg font-black text-app-text">{campaign.name}</h3>
-                  <p className="mt-2 text-sm text-app-muted">Цель: {campaign.goal}</p>
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-50 text-app-purple">
+                      <Megaphone className="h-5 w-5" />
+                    </div>
+                    <h3 className="text-lg font-black text-app-text">{campaign.name}</h3>
+                    <Badge tone={statusTone(campaign.status)}>{campaign.statusLabel}</Badge>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-app-muted">Цель: {campaign.goal || 'Цель не указана'}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Badge tone="purple">{campaign.channel}</Badge>
+                    {campaign.city && <Badge tone="gray">{campaign.city}</Badge>}
+                    {campaign.niche && <Badge tone="pink">{campaign.niche}</Badge>}
+                    <Badge tone="green">Конверсия: {campaign.metrics.conversion}</Badge>
+                  </div>
                 </div>
-                <Badge tone="purple">Конверсия: {campaign.conversion}</Badge>
+                <Button asChild variant="secondary">
+                  <Link href={`/campaigns/${campaign.id}`}>Открыть <ArrowRight className="h-4 w-4" /></Link>
+                </Button>
               </div>
+
               <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                <Metric label="Контакты" value={campaign.leads} />
-                <Metric label="Ответы" value={campaign.replies} />
-                <Metric label="Опросы" value={campaign.surveys} />
-                <Metric label="Участники" value={campaign.participants} />
+                <Metric label="Контакты" value={campaign.metrics.contacts} />
+                <Metric label="Ответы" value={campaign.metrics.responses} />
+                <Metric label="Опрос / интерес" value={campaign.metrics.surveys} />
+                <Metric label="Участники" value={campaign.metrics.participants} />
               </div>
+
+              {campaign.resultNotes && (
+                <div className="mt-4 rounded-2xl border border-purple-100 bg-purple-50 p-4 text-sm font-semibold leading-6 text-purple-800">
+                  Вывод: {campaign.resultNotes}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

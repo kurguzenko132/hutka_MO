@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { getPublicSurveyUrl, getSurveys, statusLabel } from '@/lib/surveys';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
 function statusTone(status: string) {
   if (status === 'active') return 'green';
@@ -13,11 +15,13 @@ function statusTone(status: string) {
 }
 
 export default async function SurveysPage() {
+  const user = await getCurrentUserContext();
+  const role = user?.role ?? 'viewer';
   const surveys = await getSurveys();
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности к пилоту" actionLabel="Создать опрос" actionHref="/surveys/new" />
+      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности к пилоту" actionLabel={can(role, 'manageSurveys') ? 'Создать опрос' : undefined} actionHref={can(role, 'manageSurveys') ? '/surveys/new' : undefined} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {surveys.map((survey) => (

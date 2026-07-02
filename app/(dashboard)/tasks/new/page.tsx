@@ -8,15 +8,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
   'missing-task-title': 'Укажи название задачи.',
   'task-save-failed': 'Не удалось сохранить задачу. Проверь Supabase и попробуй еще раз.'
 };
 
-export default async function NewTaskPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
+export default async function NewTaskPage({ searchParams }: { searchParams?: Promise<{ error?: string; leadId?: string }> }) {
+  await requirePermission('manageTasks', '/tasks?error=forbidden');
   const [leads, params] = await Promise.all([getLeadOptions(), searchParams]);
   const error = params?.error ? errorMessages[params.error] : undefined;
+  const selectedLeadId = params?.leadId ?? '';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -39,7 +42,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams?: Pro
               <Input name="title" placeholder="Написать Анне повторно" required />
             </Field>
             <Field label="Связанный контакт">
-              <Select name="lead_id" defaultValue="">
+              <Select name="lead_id" defaultValue={selectedLeadId}>
                 <option value="">Без контакта</option>
                 {leads.map((lead) => (
                   <option key={lead.id} value={lead.id}>{lead.name}</option>

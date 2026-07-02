@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { requirePermission } from '@/lib/permissions';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -71,6 +72,7 @@ function getQuestionPayloads(formData: FormData) {
 }
 
 export async function createSurveyAction(formData: FormData) {
+  await requirePermission('manageSurveys', '/surveys?error=forbidden');
   const title = getText(formData, 'title');
   if (!title) redirect('/surveys/new?error=missing-title');
 
@@ -108,6 +110,7 @@ export async function createSurveyAction(formData: FormData) {
 }
 
 export async function addSurveyQuestionAction(formData: FormData) {
+  await requirePermission('manageSurveys', '/surveys?error=forbidden');
   const surveyId = getText(formData, 'survey_id');
   const text = getText(formData, 'question_text');
   if (!surveyId) redirect('/surveys');
@@ -150,6 +153,7 @@ export async function submitSurveyResponseAction(formData: FormData) {
 
   const supabase = await createClient();
   const responseGroupId = crypto.randomUUID();
+  const leadId = getText(formData, 'lead_id') || null;
   const respondentName = getText(formData, 'respondent_name') || null;
   const respondentContact = getText(formData, 'respondent_contact') || null;
   const questionIds = formData.getAll('question_id').map((value) => String(value));
@@ -162,6 +166,7 @@ export async function submitSurveyResponseAction(formData: FormData) {
         survey_id: surveyId,
         question_id: questionId,
         response_group_id: responseGroupId,
+        lead_id: leadId,
         respondent_name: respondentName,
         respondent_contact: respondentContact,
         answer
@@ -175,6 +180,7 @@ export async function submitSurveyResponseAction(formData: FormData) {
   }
 
   revalidatePath('/surveys');
+  if (leadId) revalidatePath(`/people/${leadId}`);
   revalidatePath(`/s/${slug}`);
   redirect(`/s/${slug}?submitted=1`);
 }

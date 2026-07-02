@@ -1,41 +1,50 @@
+import { PeopleFilters } from '@/components/people/people-filters';
 import { PeopleTable } from '@/components/people/people-table';
-import { getLeads } from '@/lib/leads';
+import { getCampaignOptions } from '@/lib/campaigns';
+import { getLeadFilterOptions, getLeads, type LeadFilters } from '@/lib/leads';
 import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import Link from 'next/link';
-import { Download, Plus, Upload } from 'lucide-react';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { ActionNotice } from '@/components/ui/action-notice';
 
-const filters = ['Тип', 'Город', 'Ниша', 'Стадия', 'Источник', 'Приоритет', 'Теги'];
+function firstParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+}
 
-export default async function PeoplePage() {
-  const leads = await getLeads();
+function buildFilters(params: Record<string, string | string[] | undefined> = {}): LeadFilters {
+  return {
+    q: firstParam(params.q),
+    type: firstParam(params.type),
+    city: firstParam(params.city),
+    niche: firstParam(params.niche),
+    stage: firstParam(params.stage),
+    source: firstParam(params.source),
+    priority: firstParam(params.priority),
+    tag: firstParam(params.tag)
+  };
+}
+
+type PeoplePageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function PeoplePage({ searchParams }: PeoplePageProps) {
+  const user = await getCurrentUserContext();
+  const role = user?.role ?? 'viewer';
+  const params = await searchParams;
+  const filters = buildFilters(params);
+  const [leads, allLeads, filterOptions, campaigns] = await Promise.all([getLeads(filters), getLeads(), getLeadFilterOptions(), getCampaignOptions()]);
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Люди" subtitle="База мастеров, салонов, клиентов и партнеров" />
+      <PageHeader
+        title="Люди"
+        subtitle="База мастеров, салонов, клиентов и партнеров с рабочими фильтрами и быстрыми действиями"
+      />
 
-      <Card className="p-4">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-            {filters.map((filter) => (
-              <button key={filter} className="rounded-xl border border-app-line bg-white px-3 py-2 text-left text-sm font-semibold text-app-muted transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">
-                {filter} ▾
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="secondary"><Download className="h-4 w-4" />Экспорт</Button>
-            <Button variant="secondary"><Upload className="h-4 w-4" />Импорт</Button>
-            <Button asChild><Link href="/people/new"><Plus className="h-4 w-4" />Добавить контакт</Link></Button>
-          </div>
-        </div>
-        <div className="mt-4 max-w-lg">
-          <Input placeholder="Поиск по имени, Instagram, городу или тегу..." />
-        </div>
-      </Card>
-
-      <PeopleTable items={leads} />
+      <ActionNotice searchParams={params} />
+      <PeopleFilters filters={filters} options={filterOptions} shown={leads.length} total={allLeads.length} role={role} />
+      <PeopleTable items={leads} role={role} stages={filterOptions.stages} tags={filterOptions.tags} campaigns={campaigns} />
     </div>
   );
 }

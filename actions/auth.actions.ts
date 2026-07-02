@@ -2,28 +2,30 @@
 
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { buildLoginPath, getSafeRedirectPath } from '@/lib/auth';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 
 export async function signInAction(formData: FormData) {
   const email = String(formData.get('email') ?? '').trim();
   const password = String(formData.get('password') ?? '');
+  const nextPath = getSafeRedirectPath(String(formData.get('next') ?? ''), '/dashboard');
 
   if (!email || !password) {
-    redirect('/login?error=missing');
+    redirect(buildLoginPath(nextPath, 'missing'));
   }
 
   if (!isSupabaseConfigured()) {
-    redirect('/login?error=config');
+    redirect(buildLoginPath(nextPath, 'config'));
   }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect('/login?error=invalid');
+    redirect(buildLoginPath(nextPath, 'invalid'));
   }
 
-  redirect('/dashboard');
+  redirect(nextPath);
 }
 
 export async function signOutAction() {

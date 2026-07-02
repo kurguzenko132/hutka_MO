@@ -82,7 +82,7 @@ export default async function PublicSurveyPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ submitted?: string; error?: string }>;
+  searchParams?: Promise<{ submitted?: string; error?: string; leadId?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -91,6 +91,7 @@ export default async function PublicSurveyPage({
 
   const submitted = Boolean(query?.submitted);
   const saveError = query?.error === 'save-failed';
+  const leadId = query?.leadId ?? '';
 
   return (
     <main className="min-h-screen bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
@@ -114,13 +115,14 @@ export default async function PublicSurveyPage({
               </div>
               <h2 className="mt-5 text-2xl font-black text-app-text">Спасибо, ответ сохранен</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-app-muted">Мы изучим ответы и используем их для улучшения Hutka и будущей beauty-карты.</p>
-              <Button asChild className="mt-6" variant="secondary"><Link href={`/s/${survey.slug}`}>Отправить еще один ответ</Link></Button>
+              <Button asChild className="mt-6" variant="secondary"><Link href={leadId ? `/s/${survey.slug}?leadId=${leadId}` : `/s/${survey.slug}`}>Отправить еще один ответ</Link></Button>
             </CardContent>
           </Card>
         ) : (
           <form action={submitSurveyResponseAction} className="space-y-5">
             <input type="hidden" name="survey_id" value={survey.id} />
             <input type="hidden" name="slug" value={survey.slug} />
+            {leadId && <input type="hidden" name="lead_id" value={leadId} />}
 
             {saveError && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">Не удалось сохранить ответ. Попробуйте еще раз.</div>}
 

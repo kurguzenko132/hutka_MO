@@ -14,7 +14,12 @@ import {
   Star,
   Timer,
   Users,
-  Zap
+  BellRing,
+  Zap,
+  ShieldCheck,
+  Rocket,
+  Archive,
+  ClipboardCheck
 } from 'lucide-react';
 
 export type LeadType = 'Мастер' | 'Салон' | 'Клиент' | 'Партнер';
@@ -47,11 +52,15 @@ export const navItems = [
   { title: 'Воронки', href: '/funnels', icon: Send },
   { title: 'Опросники', href: '/surveys', icon: ClipboardList },
   { title: 'Кампании', href: '/campaigns', icon: Zap },
-  { title: 'Задачи', href: '/tasks', icon: CalendarCheck, badge: '12' },
+  { title: 'Задачи', href: '/tasks', icon: CalendarCheck },
+  { title: 'Уведомления', href: '/notifications', icon: BellRing },
   { title: 'Инсайты', href: '/insights', icon: Sparkles },
   { title: 'География', href: '/geography', icon: MapPinned },
   { title: 'Отчеты', href: '/reports', icon: BarChart3 },
   { title: 'Гипотезы', href: '/hypotheses', icon: Brain },
+  { title: 'Запуск', href: '/launch', icon: Rocket },
+  { title: 'Качество', href: '/quality', icon: ShieldCheck },
+  { title: 'Проверка', href: '/qa', icon: ClipboardCheck },
   { title: 'Настройки', href: '/settings', icon: CheckCircle2 }
 ];
 

@@ -3,12 +3,14 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, Save } from 'lucide-react';
 import { updateLeadAction } from '@/actions/leads.actions';
 import { getLeadById } from '@/lib/leads';
+import { getSettingsData } from '@/lib/settings';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
   'missing-name': 'Укажи имя или название контакта.',
@@ -16,8 +18,6 @@ const errorMessages: Record<string, string> = {
 };
 
 const types = ['Мастер', 'Салон', 'Клиент', 'Партнер'];
-const stages = ['Найден', 'Написал', 'Ответил', 'Опрос', 'Заинтересован', 'Тест', 'Активен', 'Отказ'];
-const sources = ['Instagram', 'Telegram', 'TikTok', 'Рекомендация', 'Офлайн', 'Beauty-школа', 'Реклама', 'Не указан'];
 const priorities = ['Высокий', 'Средний', 'Низкий'];
 
 export default async function EditLeadPage({
@@ -27,12 +27,16 @@ export default async function EditLeadPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ error?: string }>;
 }) {
+  await requirePermission('manageContacts', '/people?error=forbidden');
   const { id } = await params;
   const query = await searchParams;
   const lead = await getLeadById(id);
   if (!lead) notFound();
 
   const error = query?.error ? errorMessages[query.error] : undefined;
+  const settings = await getSettingsData();
+  const sources = Array.from(new Set([lead.source, ...settings.sources.map((source) => source.name)].filter(Boolean)));
+  const stages = Array.from(new Set([lead.stage, ...settings.stages.map((stage) => stage.name)].filter(Boolean)));
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

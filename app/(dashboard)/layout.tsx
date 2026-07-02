@@ -1,17 +1,26 @@
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/layout/app-shell';
+import { buildLoginPath } from '@/lib/auth';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { createClient } from '@/lib/supabase/server';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { getUnreadNotificationCount } from '@/lib/notifications';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  if (isSupabaseConfigured()) {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-
-    if (!data.user) {
-      redirect('/login');
-    }
+  if (!isSupabaseConfigured()) {
+    redirect(buildLoginPath('/dashboard', 'config'));
   }
 
-  return <AppShell>{children}</AppShell>;
+  const user = await getCurrentUserContext();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const unreadCount = await getUnreadNotificationCount();
+
+  return (
+    <AppShell userEmail={user.email} userName={user.fullName} role={user.role} unreadCount={unreadCount}>
+      {children}
+    </AppShell>
+  );
 }

@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 
-export function LoginScreen({ error }: { error?: string }) {
+export function LoginScreen({ error, nextPath = '/dashboard' }: { error?: string; nextPath?: string }) {
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
       <div className="absolute left-[-120px] top-[-120px] h-96 w-96 rounded-full bg-pink-200/40 blur-3xl" />
@@ -26,6 +26,7 @@ export function LoginScreen({ error }: { error?: string }) {
             )}
 
             <form action={signInAction} className="space-y-4">
+              <input type="hidden" name="next" value={nextPath} />
               <label className="block">
                 <span className="mb-2 block text-sm font-bold text-app-text">Email</span>
                 <Input name="email" type="email" placeholder="you@company.com" required />

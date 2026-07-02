@@ -1,13 +1,14 @@
 {
   "name": "hutka",
-  "version": "0.1.0",
+  "version": "1.0.0-mvp",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

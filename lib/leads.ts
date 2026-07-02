@@ -23,6 +23,27 @@ export type LeadOption = {
   name: string;
 };
 
+export type LeadFilters = {
+  q?: string;
+  type?: string;
+  city?: string;
+  niche?: string;
+  stage?: string;
+  source?: string;
+  priority?: string;
+  tag?: string;
+};
+
+export type LeadFilterOptions = {
+  types: string[];
+  cities: string[];
+  niches: string[];
+  stages: string[];
+  sources: string[];
+  priorities: string[];
+  tags: string[];
+};
+
 export type LeadInteraction = {
   id: string;
   date: string;
@@ -75,6 +96,61 @@ function toDateInput(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
   return date.toISOString().slice(0, 10);
+}
+
+function normalize(value?: string | null) {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function unique(values: Array<string | undefined | null>) {
+  return Array.from(new Set(values.map((value) => String(value ?? '').trim()).filter(Boolean))).sort((a, b) =>
+    a.localeCompare(b, 'ru')
+  );
+}
+
+function matchesLeadFilters(lead: Lead, filters: LeadFilters = {}) {
+  const q = normalize(filters.q);
+  const exactChecks: Array<[string | undefined, string | undefined]> = [
+    [lead.type, filters.type],
+    [lead.city, filters.city],
+    [lead.niche, filters.niche],
+    [lead.stage, filters.stage],
+    [lead.source, filters.source],
+    [lead.priority, filters.priority]
+  ];
+
+  for (const [value, filter] of exactChecks) {
+    if (filter && normalize(value) !== normalize(filter)) {
+      return false;
+    }
+  }
+
+  if (filters.tag && !lead.tags.some((tag) => normalize(tag) === normalize(filters.tag))) {
+    return false;
+  }
+
+  if (!q) return true;
+
+  const searchable = [
+    lead.name,
+    lead.type,
+    lead.niche,
+    lead.city,
+    lead.stage,
+    lead.source,
+    lead.priority,
+    lead.nextStep,
+    lead.instagram,
+    lead.telegram,
+    lead.phone,
+    lead.email,
+    lead.notes,
+    ...lead.tags
+  ]
+    .map((value) => normalize(value))
+    .join(' ');
+
+  return searchable.includes(q);
 }
 
 function interactionTitle(type?: string | null) {
@@ -149,22 +225,40 @@ function mapDbLead(row: Record<string, unknown>): Lead {
 
 const leadSelect = 'id,name,type,niche,city,phone,telegram,instagram,email,priority_score,notes,next_step,next_contact_date,created_at,sources(name),funnel_stages(name),lead_tags(tags(name))';
 
-export async function getLeads(): Promise<Lead[]> {
+export async function getLeads(filters: LeadFilters = {}): Promise<Lead[]> {
+  let items: Lead[];
+
   if (!isSupabaseConfigured()) {
-    return mockLeads;
+    items = mockLeads;
+  } else {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from('leads')
+      .select(leadSelect)
+      .order('created_at', { ascending: false });
+
+    if (error || !data) {
+      items = mockLeads;
+    } else {
+      items = data.map((row) => mapDbLead(row as Record<string, unknown>));
+    }
   }
 
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('leads')
-    .select(leadSelect)
-    .order('created_at', { ascending: false });
+  return items.filter((lead) => matchesLeadFilters(lead, filters));
+}
 
-  if (error || !data) {
-    return mockLeads;
-  }
+export async function getLeadFilterOptions(): Promise<LeadFilterOptions> {
+  const items = await getLeads();
 
-  return data.map((row) => mapDbLead(row as Record<string, unknown>));
+  return {
+    types: unique(items.map((lead) => lead.type)),
+    cities: unique(items.map((lead) => lead.city)),
+    niches: unique(items.map((lead) => lead.niche)),
+    stages: unique(items.map((lead) => lead.stage)),
+    sources: unique(items.map((lead) => lead.source)),
+    priorities: unique(items.map((lead) => lead.priority)),
+    tags: unique(items.flatMap((lead) => lead.tags))
+  };
 }
 
 export async function getLeadById(id: string): Promise<Lead | null> {
@@ -247,4 +341,223 @@ export async function getLeadTasks(leadId: string): Promise<LeadTask[]> {
     priority: priorityLabel(task.priority),
     status: statusLabel(task.status)
   }));
+}
+
+export type LeadStageOption = {
+  id: string;
+  name: string;
+};
+
+export type LeadRelationItem = {
+  id: string;
+  title: string;
+  href: string;
+  type: 'campaign' | 'survey' | 'insight' | 'hypothesis';
+  label?: string;
+  meta?: string;
+};
+
+export type LeadSurveyResponseGroup = {
+  id: string;
+  title: string;
+  href: string;
+  respondent?: string;
+  contact?: string;
+  date: string;
+  answersCount: number;
+};
+
+export type LeadRelatedItems = {
+  campaigns: LeadRelationItem[];
+  surveys: LeadSurveyResponseGroup[];
+  insights: LeadRelationItem[];
+  hypotheses: LeadRelationItem[];
+};
+
+function relatedRow(item: unknown, key: string): Record<string, unknown> | null {
+  if (!item || typeof item !== 'object') return null;
+  const raw = (item as Record<string, unknown>)[key];
+  if (Array.isArray(raw)) {
+    return raw[0] && typeof raw[0] === 'object' ? raw[0] as Record<string, unknown> : null;
+  }
+  return raw && typeof raw === 'object' ? raw as Record<string, unknown> : null;
+}
+
+function relationTitle(row: Record<string, unknown>) {
+  return String(row.title ?? row.name ?? 'Без названия');
+}
+
+function uniqueById<T extends { id: string }>(items: T[]) {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    if (!map.has(item.id)) map.set(item.id, item);
+  }
+  return Array.from(map.values());
+}
+
+export async function getLeadStageOptions(): Promise<LeadStageOption[]> {
+  if (!isSupabaseConfigured()) {
+    return unique(mockLeads.map((lead) => lead.stage)).map((stage, index) => ({ id: `demo-stage-${index}`, name: stage }));
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('funnel_stages')
+    .select('id,name')
+    .order('order_index', { ascending: true });
+
+  if (error || !data) {
+    return [];
+  }
+
+  return uniqueById(data.map((stage) => ({ id: String(stage.id), name: String(stage.name) })));
+}
+
+function buildFallbackRelatedItems(leadId: string): LeadRelatedItems {
+  const lead = mockLeads.find((item) => item.id === leadId) ?? mockLeads[0];
+  return {
+    campaigns: [
+      {
+        id: 'demo-campaign-1',
+        title: 'Мастера маникюра Минск — Instagram',
+        href: '/campaigns/demo-campaign-1',
+        type: 'campaign',
+        label: 'Активна',
+        meta: lead?.source ?? 'Instagram'
+      }
+    ],
+    surveys: [
+      {
+        id: 'demo-survey-response-1',
+        title: 'Опрос потребностей мастеров',
+        href: '/surveys/demo-survey-1',
+        respondent: lead?.name,
+        contact: lead?.instagram ?? lead?.telegram,
+        date: '21.05.2025',
+        answersCount: 4
+      }
+    ],
+    insights: [
+      {
+        id: 'demo-insight-1',
+        title: 'Мастерам важнее новые клиенты, чем CRM',
+        href: '/insights/demo-insight-1',
+        type: 'insight',
+        label: 'Высокая важность',
+        meta: 'Маркетинговый вывод'
+      }
+    ],
+    hypotheses: [
+      {
+        id: 'demo-hypothesis-1',
+        title: 'Оффер про новых клиентов работает лучше CRM',
+        href: '/hypotheses/demo-hypothesis-1',
+        type: 'hypothesis',
+        label: 'В проверке',
+        meta: 'Оффер'
+      }
+    ]
+  };
+}
+
+export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedItems> {
+  if (!isSupabaseConfigured()) {
+    return buildFallbackRelatedItems(leadId);
+  }
+
+  const supabase = await createClient();
+
+  const [campaignsResult, surveysResult, insightsResult, hypothesesResult] = await Promise.all([
+    supabase
+      .from('campaign_leads')
+      .select('campaigns(id,name,status,channel,created_at)')
+      .eq('lead_id', leadId),
+    supabase
+      .from('survey_answers')
+      .select('response_group_id,respondent_name,respondent_contact,created_at,surveys(id,title,type,status,slug)')
+      .eq('lead_id', leadId)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('insight_leads')
+      .select('insights(id,title,category,importance,status,created_at)')
+      .eq('lead_id', leadId),
+    supabase
+      .from('hypothesis_leads')
+      .select('hypotheses(id,title,category,status,confidence,created_at)')
+      .eq('lead_id', leadId)
+  ]);
+
+  const campaigns = campaignsResult.error || !campaignsResult.data
+    ? []
+    : campaignsResult.data
+      .map((item) => relatedRow(item, 'campaigns'))
+      .filter((row): row is Record<string, unknown> => Boolean(row))
+      .map((campaign) => ({
+        id: String(campaign.id),
+        title: relationTitle(campaign),
+        href: `/campaigns/${campaign.id}`,
+        type: 'campaign' as const,
+        label: String(campaign.status ?? 'active'),
+        meta: String(campaign.channel ?? 'Кампания')
+      }));
+
+  const surveyGroups = new Map<string, LeadSurveyResponseGroup>();
+  if (!surveysResult.error && surveysResult.data) {
+    for (const item of surveysResult.data) {
+      const row = item as Record<string, unknown>;
+      const survey = relatedRow(row, 'surveys');
+      const surveyId = survey?.id ? String(survey.id) : 'unknown';
+      const responseGroupId = String(row.response_group_id ?? row.created_at ?? `${surveyId}-${surveyGroups.size}`);
+      const key = `${surveyId}:${responseGroupId}`;
+      const current = surveyGroups.get(key);
+      if (current) {
+        current.answersCount += 1;
+        continue;
+      }
+      surveyGroups.set(key, {
+        id: key,
+        title: survey ? relationTitle(survey) : 'Опрос без названия',
+        href: survey?.id ? `/surveys/${survey.id}` : '/surveys',
+        respondent: row.respondent_name ? String(row.respondent_name) : undefined,
+        contact: row.respondent_contact ? String(row.respondent_contact) : undefined,
+        date: formatDate(row.created_at ? String(row.created_at) : null, true),
+        answersCount: 1
+      });
+    }
+  }
+
+  const insights = insightsResult.error || !insightsResult.data
+    ? []
+    : insightsResult.data
+      .map((item) => relatedRow(item, 'insights'))
+      .filter((row): row is Record<string, unknown> => Boolean(row))
+      .map((insight) => ({
+        id: String(insight.id),
+        title: relationTitle(insight),
+        href: `/insights/${insight.id}`,
+        type: 'insight' as const,
+        label: String(insight.importance ?? 'medium'),
+        meta: String(insight.category ?? 'Инсайт')
+      }));
+
+  const hypotheses = hypothesesResult.error || !hypothesesResult.data
+    ? []
+    : hypothesesResult.data
+      .map((item) => relatedRow(item, 'hypotheses'))
+      .filter((row): row is Record<string, unknown> => Boolean(row))
+      .map((hypothesis) => ({
+        id: String(hypothesis.id),
+        title: relationTitle(hypothesis),
+        href: `/hypotheses/${hypothesis.id}`,
+        type: 'hypothesis' as const,
+        label: String(hypothesis.status ?? 'new'),
+        meta: String(hypothesis.category ?? 'Гипотеза')
+      }));
+
+  return {
+    campaigns: uniqueById(campaigns),
+    surveys: Array.from(surveyGroups.values()),
+    insights: uniqueById(insights),
+    hypotheses: uniqueById(hypotheses)
+  };
 }

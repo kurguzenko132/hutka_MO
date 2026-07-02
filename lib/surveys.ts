@@ -15,6 +15,14 @@ export type SurveyListItem = {
   createdAt: string;
 };
 
+export type SurveyOption = {
+  id: string;
+  name: string;
+  slug: string;
+  status: SurveyStatus;
+  publicUrl: string;
+};
+
 export type SurveyQuestion = {
   id: string;
   text: string;
@@ -191,6 +199,18 @@ export async function getSurveys(): Promise<SurveyListItem[]> {
     const answers = Array.isArray(record.survey_answers) ? record.survey_answers.length : 0;
     return mapSurvey({ ...record, questions_count: questions, answers_count: answers });
   });
+}
+
+
+export async function getSurveyOptions(): Promise<SurveyOption[]> {
+  const surveys = await getSurveys();
+  return surveys.map((survey) => ({
+    id: survey.id,
+    name: survey.title,
+    slug: survey.slug,
+    status: survey.status,
+    publicUrl: getPublicSurveyUrl(survey.slug)
+  }));
 }
 
 export async function getSurveyById(id: string): Promise<SurveyDetail | null> {

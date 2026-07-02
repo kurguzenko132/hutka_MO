@@ -8,7 +8,7 @@ import { channels, insights, kpis, niches, todayTasks } from '@/lib/data';
 export default function DashboardPage() {
   return (
     <div className="space-y-6">
-      <PageHeader title="Главная" subtitle="Среда, 21 мая 2025 · маркетинговый запуск Hutka" actionLabel="Добавить лида" />
+      <PageHeader title="Главная" subtitle="Среда, 21 мая 2025 · маркетинговый запуск Hutka" actionLabel="Добавить контакт" />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         {kpis.map((kpi) => (

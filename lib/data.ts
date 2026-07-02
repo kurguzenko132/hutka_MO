@@ -53,11 +53,11 @@ export const navItems = [
 ];
 
 export const kpis = [
-  { label: 'Всего лидов', value: '2 842', delta: '+142 за неделю', icon: Users, tone: 'purple' },
+  { label: 'Всего контактов', value: '2 842', delta: '+142 за неделю', icon: Users, tone: 'purple' },
   { label: 'Новых за неделю', value: '312', delta: '+18% к прошлой неделе', icon: Zap, tone: 'blue' },
-  { label: 'Готовы тестировать', value: '128', delta: '+9% к прошлой неделе', icon: Send, tone: 'purple' },
-  { label: 'Активные тестеры', value: '63', delta: '+6% к прошлой неделе', icon: Heart, tone: 'green' },
-  { label: 'Просрочено задач', value: '17', delta: '-5 к вчера', icon: Timer, tone: 'red' }
+  { label: 'Готовы к пилоту', value: '128', delta: '+9% к прошлой неделе', icon: Send, tone: 'purple' },
+  { label: 'Активные участники', value: '63', delta: '+6% к прошлой неделе', icon: Heart, tone: 'green' },
+  { label: 'Просроченные действия', value: '17', delta: '-5 к вчера', icon: Timer, tone: 'red' }
 ] as const;
 
 export const funnel = [
@@ -70,9 +70,9 @@ export const funnel = [
 ];
 
 export const todayTasks = [
-  { title: 'Написать новым лидам', count: 18 },
+  { title: 'Написать новым контактам', count: 18 },
   { title: 'Провести опросы', count: 7 },
-  { title: 'Назначить тесты', count: 5 },
+  { title: 'Назначить пилот', count: 5 },
   { title: 'Позвонить лидам', count: 4 },
   { title: 'Проверить обратную связь', count: 3 }
 ];
@@ -95,7 +95,7 @@ export const niches = [
 
 export const insights = [
   'Конверсия в тест выше у мастеров с опытом от 2 до 5 лет',
-  'Лучше всего отвечают лиды из Telegram и Instagram',
+  'Лучше всего отвечают контакты из Telegram и Instagram',
   'Рост интереса к нише косметологии в городах 500K+'
 ];
 

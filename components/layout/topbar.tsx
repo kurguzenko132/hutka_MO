@@ -15,7 +15,7 @@ export function Topbar() {
         </button>
         <div className="relative hidden flex-1 md:block">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-app-faint" />
-          <Input className="pl-10" placeholder="Поиск по лидам, компаниям, тегам..." />
+          <Input className="pl-10" placeholder="Поиск по контактам, компаниям, тегам..." />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-app-line bg-slate-50 px-2 py-0.5 text-xs text-app-faint">⌘ K</span>
         </div>
         <button className="relative rounded-xl border border-app-line p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" aria-label="Уведомления">
@@ -24,7 +24,7 @@ export function Topbar() {
         </button>
         <Button className="hidden sm:inline-flex">
           <Plus className="h-4 w-4" />
-          Добавить лида
+          Добавить контакт
         </Button>
       </div>
     </header>

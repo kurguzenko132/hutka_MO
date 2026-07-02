@@ -20,7 +20,7 @@ export default function GeographyPage() {
               <div key={city.city} className="flex items-center justify-between rounded-2xl border border-app-line p-4">
                 <div>
                   <p className="font-bold text-app-text">{city.city}</p>
-                  <p className="text-sm text-app-muted">{city.leads} лидов</p>
+                  <p className="text-sm text-app-muted">{city.leads} контактов</p>
                 </div>
                 <p className="text-sm font-bold text-app-purple">{city.testers} тестеров</p>
               </div>
@@ -32,7 +32,7 @@ export default function GeographyPage() {
           <CardContent>
             <div className="rounded-3xl bg-gradient-to-br from-purple-50 to-pink-50 p-8">
               <p className="text-2xl font-black text-app-text">Первый локальный фокус: Минск + мастера маникюра</p>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-app-muted">В городе больше всего лидов, выше готовность тестировать и есть понятная плотность по нише. Следующий шаг — собрать 20 активных мастеров и проверить заявки с карты.</p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-app-muted">В городе больше всего контактов, выше готовность тестировать и есть понятная плотность по нише. Следующий шаг — собрать 20 активных мастеров и проверить заявки с карты.</p>
             </div>
           </CardContent>
         </Card>

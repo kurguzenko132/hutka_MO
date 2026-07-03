@@ -64,6 +64,7 @@ type OverviewRow = {
   ready_to_pilot?: number | null;
   active_participants?: number | null;
   overdue_tasks?: number | null;
+  hot_contacts?: number | null;
 };
 
 type StageRow = {
@@ -267,6 +268,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       score: lead.priority_score ?? 0,
       href: `/people/${lead.id}`
     }));
+    const hotCount = overview.hot_contacts ?? hotContacts.length;
 
     const recentActivities = ((activitiesRes.data ?? []) as InteractionRow[]).map((item) => {
       const lead = relatedLead(item.leads);
@@ -286,7 +288,7 @@ export async function getDashboardData(): Promise<DashboardData> {
         { label: 'Всего контактов', value: formatNumber(total), delta: `+${formatNumber(overview.new_contacts_week)} за неделю`, tone: 'purple' },
         { label: 'Готовы к пилоту', value: formatNumber(ready), delta: `${percent(ready, total)} от базы`, tone: 'blue' },
         { label: 'Активные участники', value: formatNumber(active), delta: `${percent(active, total)} от базы`, tone: 'green' },
-        { label: 'Горячие контакты', value: formatNumber(overview.hot_contacts), delta: 'приоритет 75+', tone: 'pink' },
+        { label: 'Горячие контакты', value: formatNumber(hotCount), delta: 'приоритет 75+', tone: 'pink' },
         { label: 'Просроченные действия', value: formatNumber(overdue), delta: overdue > 0 ? 'требуют внимания' : 'всё закрыто', tone: overdue > 0 ? 'red' : 'green' }
       ],
       funnel,
@@ -298,7 +300,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       insights,
       hypotheses,
       refusals,
-      focus: buildFocus({ overdue, ready, active, hot: overview.hot_contacts ?? 0 })
+      focus: buildFocus({ overdue, ready, active, hot: hotCount })
     };
   } catch {
     return demoDashboardData(insights, hypotheses, refusals);

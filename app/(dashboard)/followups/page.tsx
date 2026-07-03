@@ -140,8 +140,11 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
         <EmptyState
           title="Follow-up-рекомендаций нет"
           text="Сейчас все контакты под контролем: нет просроченных follow-up, горячих контактов без задачи и анкет без ответа."
-          actionLabel="Открыть контакты"
-          actionHref="/people"
+          action={
+            <Button asChild variant="secondary">
+              <Link href="/people">Открыть контакты</Link>
+            </Button>
+          }
         />
       ) : (
         <div className="grid gap-4 xl:grid-cols-2">

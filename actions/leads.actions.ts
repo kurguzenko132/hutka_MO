@@ -655,3 +655,21 @@ export async function createLeadSurveyInviteAction(formData: FormData) {
   revalidatePath(`/surveys/${surveyId}`);
   redirect(`/people/${leadId}?survey=link-created`);
 }
+
+export async function deleteLeadAction(formData: FormData) {
+  await requirePermission('manageContacts', '/people?error=forbidden');
+  const leadId = getText(formData, 'lead_id');
+  if (!leadId) redirect('/people?error=missing-lead');
+
+  if (!isSupabaseConfigured()) {
+    redirect('/people?deleted=demo');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('leads').delete().eq('id', leadId);
+  if (error) redirect(`/people/${leadId}?error=delete-failed`);
+
+  revalidateLeadCollection();
+  revalidatePath('/tasks');
+  redirect('/people?deleted=lead');
+}

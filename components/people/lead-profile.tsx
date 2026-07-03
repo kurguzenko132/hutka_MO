@@ -7,11 +7,12 @@ import {
   attachLeadToInsightFromProfileAction,
   createLeadSurveyInviteAction,
   updateLeadFollowUpAction,
-  updateLeadStageFromProfileAction
+  updateLeadStageFromProfileAction,
+  deleteLeadAction
 } from '@/actions/leads.actions';
-import { createLeadQuestionnaireAction, createLeadQuestionnaireFromPackAction } from '@/actions/lead-questionnaires.actions';
+import { createLeadQuestionnaireAction, createLeadQuestionnaireFromPackAction, deleteLeadQuestionnaireAction } from '@/actions/lead-questionnaires.actions';
 import { clearLeadRefusalAction, markLeadRefusedAction } from '@/actions/refusals.actions';
-import { createTaskAction } from '@/actions/tasks.actions';
+import { createTaskAction, deleteTaskAction } from '@/actions/tasks.actions';
 import { getCampaignOptions, type CampaignOption } from '@/lib/campaigns';
 import { needs, surveyAnswers } from '@/lib/data';
 import {
@@ -54,6 +55,7 @@ import {
   MessageSquare,
   MoreVertical,
   PackageCheck,
+  Trash2,
   PlusCircle,
   Save,
   Send,
@@ -239,7 +241,11 @@ function LeadQuestionnairesCard({ items }: { items: LeadQuestionnaireListItem[] 
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button asChild size="sm" variant="secondary"><a href={item.publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Открыть ссылку</a></Button>
-              <Button asChild size="sm" variant="ghost"><Link href={`/people/${item.leadId}`}>В карточке</Link></Button>
+              <form action={deleteLeadQuestionnaireAction}>
+                <input type="hidden" name="questionnaire_id" value={item.id} />
+                <input type="hidden" name="lead_id" value={item.leadId} />
+                <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" />Удалить</Button>
+              </form>
             </div>
           </div>
         )) : (
@@ -537,7 +543,7 @@ export async function LeadProfile({ id }: { id: string }) {
 
       <LeadNextActionCard lead={lead} tasks={tasks} />
 
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.2fr_1fr]">
+      <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.2fr_1fr]">
         <div className="space-y-6">
           <Card>
             <CardContent className="space-y-5">
@@ -622,6 +628,16 @@ export async function LeadProfile({ id }: { id: string }) {
                   <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую гипотезу</Link>
                 </Button>
               </div>
+
+              <form action={deleteLeadAction} className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
+                <input type="hidden" name="lead_id" value={lead.id} />
+                <p className="text-sm font-black text-red-700">Удалить контакт</p>
+                <p className="mt-1 text-xs leading-5 text-red-600">Удалятся анкеты, касания и связи контакта. Задачи останутся без привязки к контакту.</p>
+                <Button type="submit" variant="danger" className="mt-3 w-full">
+                  <Trash2 className="h-4 w-4" />
+                  Удалить контакт
+                </Button>
+              </form>
             </CardContent>
           </Card>
 
@@ -734,7 +750,14 @@ export async function LeadProfile({ id }: { id: string }) {
                     </div>
                     <Badge tone={task.priority === 'Срочно' || task.priority === 'Высокий' ? 'red' : task.priority === 'Средний' ? 'yellow' : 'green'}>{task.priority}</Badge>
                   </div>
-                  <p className="mt-3 text-xs font-semibold text-app-faint">{task.status} · {task.dueDate}</p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-app-faint">{task.status} · {task.dueDate}</p>
+                    <form action={deleteTaskAction}>
+                      <input type="hidden" name="task_id" value={task.id} />
+                      <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
+                      <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить</Button>
+                    </form>
+                  </div>
                 </div>
               )) : <p className="text-sm text-app-muted">Задач по контакту пока нет.</p>}
 
@@ -759,7 +782,7 @@ export async function LeadProfile({ id }: { id: string }) {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-4">
+      <div className="grid gap-6 lg:grid-cols-2 2xl:grid-cols-4">
         <RelationList title="Кампании" empty="Контакт пока не привязан к кампаниям." items={related.campaigns} icon={<Link2 className="h-4 w-4 text-app-purple" />} />
         <SurveyRelations items={related.surveys} />
         <RelationList title="Инсайты" empty="По контакту пока нет инсайтов." items={related.insights} icon={<Lightbulb className="h-4 w-4 text-app-pink" />} />

@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, Plus, Save, Users } from 'lucide-react';
+import { ArrowLeft, BarChart3, Plus, Save, Trash2, Users } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { addLeadToCampaignAction, updateCampaignResultAction } from '@/actions/campaigns.actions';
+import { addLeadToCampaignAction, deleteCampaignAction, updateCampaignResultAction } from '@/actions/campaigns.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -163,6 +163,13 @@ export default async function CampaignDetailPage({
               <p className="mt-2 text-sm leading-6 text-app-muted">После кампаний можно будет связывать выводы с гипотезами и автоматически создавать инсайты.</p>
             </CardContent>
           </Card>
+
+          <form action={deleteCampaignAction}>
+            <input type="hidden" name="campaign_id" value={campaign.id} />
+            <FormSection title="Удалить кампанию" subtitle="Удалится кампания и связи с контактами. Контакты останутся в базе.">
+              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить кампанию</Button>
+            </FormSection>
+          </form>
         </aside>
       </div>
     </div>

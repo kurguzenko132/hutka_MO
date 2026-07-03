@@ -101,3 +101,22 @@ export async function updateHypothesisAction(formData: FormData) {
   revalidatePath('/dashboard');
   redirect(`/hypotheses/${hypothesisId}`);
 }
+
+export async function deleteHypothesisAction(formData: FormData) {
+  await requirePermission('manageHypotheses', '/hypotheses?error=forbidden');
+  const hypothesisId = getText(formData, 'hypothesis_id');
+  if (!hypothesisId) redirect('/hypotheses?error=missing-hypothesis');
+
+  if (!isSupabaseConfigured()) {
+    redirect('/hypotheses?deleted=demo');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('hypotheses').delete().eq('id', hypothesisId);
+  if (error) redirect(`/hypotheses/${hypothesisId}?error=delete-failed`);
+
+  revalidatePath('/hypotheses');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/hypotheses?deleted=hypothesis');
+}

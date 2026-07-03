@@ -270,3 +270,30 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
   revalidatePath('/notifications');
   redirect(`/q/${token}?submitted=1`);
 }
+
+export async function deleteLeadQuestionnaireAction(formData: FormData) {
+  await requirePermission('manageContacts', '/people?error=forbidden');
+  const questionnaireId = getText(formData, 'questionnaire_id');
+  const leadId = getText(formData, 'lead_id');
+  if (!questionnaireId || !leadId) redirect('/people?error=missing-questionnaire');
+
+  if (!isSupabaseConfigured()) {
+    redirect(`/people/${leadId}?questionnaire=demo-delete`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('lead_questionnaires').delete().eq('id', questionnaireId);
+  if (error) redirect(`/people/${leadId}?error=questionnaire-delete-failed`);
+
+  await supabase.from('lead_interactions').insert({
+    lead_id: leadId,
+    type: 'note',
+    channel: 'Hutka',
+    text: 'Персональная анкета удалена',
+    result: 'lead_questionnaire_deleted'
+  });
+
+  revalidatePath(`/people/${leadId}`);
+  revalidatePath('/notifications');
+  redirect(`/people/${leadId}?deleted=questionnaire`);
+}

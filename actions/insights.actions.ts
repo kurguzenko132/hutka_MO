@@ -90,3 +90,22 @@ export async function updateInsightAction(formData: FormData) {
   revalidatePath('/dashboard');
   redirect(`/insights/${insightId}`);
 }
+
+export async function deleteInsightAction(formData: FormData) {
+  await requirePermission('manageInsights', '/insights?error=forbidden');
+  const insightId = getText(formData, 'insight_id');
+  if (!insightId) redirect('/insights?error=missing-insight');
+
+  if (!isSupabaseConfigured()) {
+    redirect('/insights?deleted=demo');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('insights').delete().eq('id', insightId);
+  if (error) redirect(`/insights/${insightId}?error=delete-failed`);
+
+  revalidatePath('/insights');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/insights?deleted=insight');
+}

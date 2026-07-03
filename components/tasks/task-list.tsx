@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Check, Clock, ExternalLink, RotateCcw, X } from 'lucide-react';
-import { updateTaskStatusAction } from '@/actions/tasks.actions';
+import { Check, Clock, ExternalLink, RotateCcw, Trash2, X } from 'lucide-react';
+import { deleteTaskAction, updateTaskStatusAction } from '@/actions/tasks.actions';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -120,6 +120,14 @@ export function TaskList({ tasks, returnTo, role = 'viewer' }: { tasks: TaskList
                       {task.statusValue !== 'cancelled' && task.statusValue !== 'done' && (
                         <StatusForm task={task} status="cancelled" returnTo={returnTo} label="Отменить" icon={<X className="h-4 w-4" />} />
                       )}
+                      <form action={deleteTaskAction}>
+                        <input type="hidden" name="task_id" value={task.id} />
+                        <input type="hidden" name="return_to" value={returnTo} />
+                        <Button type="submit" variant="ghost" size="sm" className="text-red-600 hover:bg-red-50 hover:text-red-700" aria-label="Удалить задачу">
+                          <Trash2 className="h-4 w-4" />
+                          Удалить
+                        </Button>
+                      </form>
                     </div>
                     )}
                   </div>

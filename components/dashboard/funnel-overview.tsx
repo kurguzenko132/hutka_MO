@@ -14,33 +14,43 @@ type FunnelStep = {
 
 export function FunnelOverview({ steps }: { steps?: FunnelStep[] }) {
   const items = steps?.length ? steps : staticFunnel;
+  const max = Math.max(...items.map((item) => item.count), 1);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+    <Card className="overflow-hidden">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 bg-gradient-to-br from-white to-slate-50/80">
         <CardTitle>Воронка привлечения</CardTitle>
-        <a href="/funnels" className="rounded-xl border border-app-line px-3 py-1.5 text-xs font-semibold text-app-muted transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">Открыть воронку</a>
+        <a href="/funnels" className="rounded-xl border border-app-line px-3 py-1.5 text-xs font-bold text-app-muted transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">Открыть воронку</a>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           {items.map((step, index) => {
             const Icon = step.icon ?? defaultIcons[index % defaultIcons.length];
+            const height = Math.max(18, Math.round((step.count / max) * 78));
             return (
               <div
                 key={`${step.label}-${index}`}
-                className="relative overflow-hidden rounded-2xl border border-app-line bg-gradient-to-br from-purple-50 via-white to-pink-50 p-4"
+                className="relative overflow-hidden rounded-3xl border border-app-line bg-white p-4 shadow-sm"
               >
-                <div className="flex items-center gap-3">
-                  <div className="rounded-xl bg-white p-2 text-app-purple shadow-sm">
-                    <Icon className="h-4 w-4" />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-app-text">{step.label}</p>
+                    <p className="mt-2 text-3xl font-black tracking-tight text-app-text">{formatNumber(step.count)}</p>
+                    <p className="mt-1 text-xs font-semibold text-app-muted">{step.percent}</p>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold text-app-muted">{step.label}</p>
-                    <p className="mt-1 text-xl font-black text-app-text">{formatNumber(step.count)}</p>
-                    <p className="text-xs text-app-muted">{step.percent}</p>
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-app-purple">
+                    <Icon className="h-5 w-5" />
                   </div>
                 </div>
-                {index < items.length - 1 && <div className="absolute right-3 top-1/2 hidden h-2 w-2 -translate-y-1/2 rotate-45 border-r border-t border-purple-200 xl:block" />}
+                <div className="mt-5 flex h-20 items-end gap-1.5 rounded-2xl bg-slate-50 p-2">
+                  {Array.from({ length: 6 }).map((_, barIndex) => (
+                    <div
+                      key={barIndex}
+                      className="flex-1 rounded-t-xl bg-gradient-to-t from-app-purple to-app-pink opacity-80"
+                      style={{ height: `${Math.max(10, height - (5 - barIndex) * 7)}%` }}
+                    />
+                  ))}
+                </div>
               </div>
             );
           })}

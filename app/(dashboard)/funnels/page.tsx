@@ -33,7 +33,7 @@ function nextConversion(current: FunnelColumn, next?: FunnelColumn) {
 
 function MoveForm({ lead, columns, currentStage }: { lead: FunnelLead; columns: FunnelColumn[]; currentStage: string }) {
   return (
-    <form action={moveLeadToStageAction} className="mt-4 flex gap-2">
+    <form action={moveLeadToStageAction} className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
       <input type="hidden" name="lead_id" value={lead.id} />
       <Select name="stage_id" defaultValue={columns.find((column) => column.name === currentStage)?.id} className="h-9 text-xs">
         {columns.map((stage) => (
@@ -197,9 +197,10 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
         })}
       </div>
 
-      <div className="grid gap-4 overflow-x-auto xl:grid-cols-7">
+      <div className="scrollbar-thin overflow-x-auto pb-3">
+        <div className="flex min-w-max gap-4">
         {board.columns.map((column, index) => (
-          <Card key={column.id} className="min-h-[520px] min-w-72 bg-slate-50/70">
+          <Card key={column.id} className="min-h-[520px] w-[300px] shrink-0 bg-slate-50/70">
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
@@ -223,6 +224,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
             </CardContent>
           </Card>
         ))}
+        </div>
       </div>
     </div>
   );

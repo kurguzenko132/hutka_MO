@@ -163,16 +163,29 @@ export default async function ReportsPage() {
 }
 
 function Bars({ items, tone }: { items: ReportBarItem[]; tone: 'purple' | 'pink' | 'blue' }) {
+  if (!items.length) {
+    return <p className="rounded-2xl bg-slate-50 p-4 text-sm text-app-muted">Данных пока нет.</p>;
+  }
+
   return (
-    <div className="space-y-4">
-      {items.map((item) => (
-        <div key={item.name}>
-          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
-            <span className="font-semibold text-app-text">{item.name}</span>
-            <span className="text-xs font-bold text-app-muted">{item.value.toLocaleString('ru-RU')}{item.helper ? ` · ${item.helper}` : ''}</span>
-          </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-slate-100">
-            <div className={`h-full rounded-full ${barToneClass[tone]}`} style={{ width: item.width }} />
+    <div className="space-y-3">
+      {items.map((item, index) => (
+        <div key={item.name} className="rounded-2xl border border-app-line bg-white p-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-50 text-xs font-black text-app-muted">
+              {index + 1}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <span className="min-w-0 truncate text-sm font-black text-app-text">{item.name}</span>
+                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-black text-app-muted">
+                  {item.value.toLocaleString('ru-RU')}{item.helper ? ` · ${item.helper}` : ''}
+                </span>
+              </div>
+              <div className="mt-2 h-3 overflow-hidden rounded-full bg-slate-100">
+                <div className={`h-full rounded-full ${barToneClass[tone]}`} style={{ width: item.width }} />
+              </div>
+            </div>
           </div>
         </div>
       ))}

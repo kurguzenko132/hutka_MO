@@ -110,3 +110,23 @@ export async function updateTaskStatusAction(formData: FormData) {
   revalidatePath('/reports');
   redirect(returnTo);
 }
+
+export async function deleteTaskAction(formData: FormData) {
+  await requirePermission('manageTasks', '/tasks?error=forbidden');
+  const taskId = getText(formData, 'task_id');
+  const returnTo = getText(formData, 'return_to') || '/tasks';
+  if (!taskId) redirect(`${returnTo}?error=missing-task`);
+
+  if (!isSupabaseConfigured()) {
+    redirect(`${returnTo}?task=demo-delete`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('tasks').delete().eq('id', taskId);
+  if (error) redirect(`${returnTo}?error=task-delete-failed`);
+
+  revalidatePath('/tasks');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect(`${returnTo}?deleted=task`);
+}

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertCircle, CheckCircle2, FileQuestion, MessageSquareText, Settings2, Trash2, UserRound, AlertTriangle, Send } from 'lucide-react';
+import { AlertCircle, CheckCircle2, DatabaseZap, FileQuestion, MessageSquareText, Settings2, Trash2, UserRound, AlertTriangle, Send } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -493,7 +493,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardContent>
       </Card>
 
-      <UsersSection users={settings.users} />
+
+
+      <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/40">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <DatabaseZap className="h-5 w-5 text-app-red" />
+              <h2 className="text-lg font-black text-app-text">Очистка базы</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Удали демо-контакты, задачи, анкеты, кампании, инсайты и другие тестовые данные перед реальным запуском. Профили пользователей не удаляются.
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <Link href="/settings/data-cleanup">Открыть очистку</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+            <UsersSection users={settings.users} />
 
       <div className="grid gap-6 xl:grid-cols-3">
         <CreateSourceCard />

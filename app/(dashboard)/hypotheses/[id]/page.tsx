@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, ClipboardList, Lightbulb, Save, Send, Target, Users } from 'lucide-react';
+import { ArrowLeft, BarChart3, ClipboardList, Lightbulb, Save, Send, Target, Trash2, Users } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { updateHypothesisAction } from '@/actions/hypotheses.actions';
+import { deleteHypothesisAction, updateHypothesisAction } from '@/actions/hypotheses.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -119,6 +119,13 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
               </ol>
             </CardContent>
           </Card>
+
+          <form action={deleteHypothesisAction}>
+            <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
+            <FormSection title="Удалить гипотезу" subtitle="Удалится гипотеза и ее связи. Контакты, кампании, инсайты и опросы останутся.">
+              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить гипотезу</Button>
+            </FormSection>
+          </form>
         </aside>
       </div>
     </div>

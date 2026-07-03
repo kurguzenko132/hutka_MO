@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Plus, Send } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Plus, Send, Trash2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { addSurveyQuestionAction } from '@/actions/surveys.actions';
+import { addSurveyQuestionAction, deleteSurveyAction, deleteSurveyQuestionAction } from '@/actions/surveys.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -67,7 +67,14 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
                         <p className="font-black text-app-text">{question.text}</p>
                         {question.required && <Badge tone="red">Обязательный</Badge>}
                       </div>
-                      <p className="mt-2 text-sm text-app-muted">{questionTypeLabel(question.type)}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <p className="text-sm text-app-muted">{questionTypeLabel(question.type)}</p>
+                        <form action={deleteSurveyQuestionAction}>
+                          <input type="hidden" name="survey_id" value={survey.id} />
+                          <input type="hidden" name="question_id" value={question.id} />
+                          <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить вопрос</Button>
+                        </form>
+                      </div>
                       {question.options.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
                           {question.options.map((option) => <Badge key={option} tone="gray">{option}</Badge>)}
@@ -145,6 +152,13 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
               <p className="mt-2 text-sm leading-6 text-app-muted">Скопируй публичную ссылку и отправь мастеру. После отправки формы ответы появятся на этой странице.</p>
             </CardContent>
           </Card>
+
+          <form action={deleteSurveyAction}>
+            <input type="hidden" name="survey_id" value={survey.id} />
+            <FormSection title="Удалить опросник" subtitle="Удалится опросник, вопросы и ответы. Публичная ссылка перестанет работать.">
+              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить опросник</Button>
+            </FormSection>
+          </form>
         </aside>
       </div>
     </div>

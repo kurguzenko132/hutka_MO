@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Brain, ClipboardList, Save, Send, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, Brain, ClipboardList, Save, Send, Sparkles, Trash2, Users } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { updateInsightAction } from '@/actions/insights.actions';
+import { deleteInsightAction, updateInsightAction } from '@/actions/insights.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -97,6 +97,13 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
               <p className="mt-2 text-sm leading-6 text-app-muted">После этого мы сделаем гипотезы реальными и сможем связывать их с такими инсайтами.</p>
             </CardContent>
           </Card>
+
+          <form action={deleteInsightAction}>
+            <input type="hidden" name="insight_id" value={insight.id} />
+            <FormSection title="Удалить инсайт" subtitle="Удалится инсайт и его связи. Контакты, кампании и опросы останутся.">
+              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить инсайт</Button>
+            </FormSection>
+          </form>
         </aside>
       </div>
     </div>

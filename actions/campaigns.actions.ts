@@ -104,3 +104,22 @@ export async function updateCampaignResultAction(formData: FormData) {
   revalidatePath('/dashboard');
   redirect(`/campaigns/${campaignId}`);
 }
+
+export async function deleteCampaignAction(formData: FormData) {
+  await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const campaignId = getText(formData, 'campaign_id');
+  if (!campaignId) redirect('/campaigns?error=missing-campaign');
+
+  if (!isSupabaseConfigured()) {
+    redirect('/campaigns?deleted=demo');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('campaigns').delete().eq('id', campaignId);
+  if (error) redirect(`/campaigns/${campaignId}?error=delete-failed`);
+
+  revalidatePath('/campaigns');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/campaigns?deleted=campaign');
+}

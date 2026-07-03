@@ -184,3 +184,41 @@ export async function submitSurveyResponseAction(formData: FormData) {
   revalidatePath(`/s/${slug}`);
   redirect(`/s/${slug}?submitted=1`);
 }
+
+export async function deleteSurveyAction(formData: FormData) {
+  await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const surveyId = getText(formData, 'survey_id');
+  if (!surveyId) redirect('/surveys?error=missing-survey');
+
+  if (!isSupabaseConfigured()) {
+    redirect('/surveys?deleted=demo');
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('surveys').delete().eq('id', surveyId);
+  if (error) redirect(`/surveys/${surveyId}?error=delete-failed`);
+
+  revalidatePath('/surveys');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/surveys?deleted=survey');
+}
+
+export async function deleteSurveyQuestionAction(formData: FormData) {
+  await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const surveyId = getText(formData, 'survey_id');
+  const questionId = getText(formData, 'question_id');
+  if (!surveyId || !questionId) redirect('/surveys?error=missing-question');
+
+  if (!isSupabaseConfigured()) {
+    redirect(`/surveys/${surveyId}?question=demo-delete`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('survey_questions').delete().eq('id', questionId);
+  if (error) redirect(`/surveys/${surveyId}?error=question-delete-failed`);
+
+  revalidatePath('/surveys');
+  revalidatePath(`/surveys/${surveyId}`);
+  redirect(`/surveys/${surveyId}?deleted=question`);
+}

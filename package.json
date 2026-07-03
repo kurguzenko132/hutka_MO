@@ -1,6 +1,6 @@
 {
   "name": "hutka",
-  "version": "1.0.12-mvp",
+  "version": "1.0.13-mvp",
   "private": true,
   "scripts": {
     "dev": "next dev",

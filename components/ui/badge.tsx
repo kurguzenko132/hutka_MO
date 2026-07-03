@@ -14,7 +14,7 @@ const toneClass: Record<BadgeTone, string> = {
 
 export function Badge({ tone = 'gray', className, children }: React.HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1', toneClass[tone], className)}>
+    <span className={cn('inline-flex max-w-full items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium leading-5 ring-1', toneClass[tone], className)}>
       {children}
     </span>
   );

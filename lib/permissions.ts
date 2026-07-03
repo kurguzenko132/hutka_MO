@@ -8,7 +8,17 @@ export type CurrentUserContext = {
   email: string;
   profileId: string | null;
   fullName: string;
+  jobTitle: string;
+  avatarUrl: string;
   role: UserRole;
+};
+
+type ProfileRow = {
+  id?: string | null;
+  full_name?: string | null;
+  job_title?: string | null;
+  avatar_url?: string | null;
+  role?: string | null;
 };
 
 export async function getCurrentUserContext(): Promise<CurrentUserContext | null> {
@@ -19,17 +29,32 @@ export async function getCurrentUserContext(): Promise<CurrentUserContext | null
   const user = userResult.user;
   if (!user) return null;
 
-  const { data: profile } = await supabase
+  let profile: ProfileRow | null = null;
+
+  const extendedProfile = await supabase
     .from('profiles')
-    .select('id, full_name, role')
+    .select('id, full_name, job_title, avatar_url, role')
     .eq('user_id', user.id)
     .maybeSingle();
+
+  if (!extendedProfile.error) {
+    profile = extendedProfile.data as ProfileRow | null;
+  } else {
+    const fallbackProfile = await supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    profile = (fallbackProfile.data as ProfileRow | null) ?? null;
+  }
 
   return {
     id: user.id,
     email: user.email ?? 'Аккаунт',
     profileId: profile?.id ? String(profile.id) : null,
     fullName: profile?.full_name ? String(profile.full_name) : user.email ?? 'Аккаунт',
+    jobTitle: profile?.job_title ? String(profile.job_title) : 'Маркетолог',
+    avatarUrl: profile?.avatar_url ? String(profile.avatar_url) : '',
     role: profile?.role ? normalizeRole(profile.role) : 'viewer'
   };
 }

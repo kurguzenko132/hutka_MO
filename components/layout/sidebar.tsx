@@ -2,17 +2,30 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Settings } from 'lucide-react';
 import { navItems } from '@/lib/data';
 import { can, roleLabels, type UserRole } from '@/lib/roles';
+import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { Logo } from './logo';
 
-export function Sidebar({ role, userName }: { role: UserRole; userName?: string }) {
+export function Sidebar({
+  role,
+  userName,
+  userJobTitle,
+  userAvatarUrl
+}: {
+  role: UserRole;
+  userName?: string;
+  userJobTitle?: string;
+  userAvatarUrl?: string;
+}) {
   const pathname = usePathname();
   const visibleItems = navItems.filter((item) => {
     const adminOnly = item.href === '/settings' || item.href === '/quality' || item.href === '/launch' || item.href === '/qa';
     return !adminOnly || can(role, 'manageSettings');
   });
+  const initials = getInitials(userName, 'H');
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-app-line bg-white/80 px-4 py-5 backdrop-blur-xl lg:block">
@@ -30,13 +43,13 @@ export function Sidebar({ role, userName }: { role: UserRole; userName?: string 
               key={item.href}
               href={item.href}
               className={cn(
-                'group flex items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition',
+                'group flex min-w-0 items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition',
                 active ? 'bg-purple-50 text-app-purple' : 'text-app-muted hover:bg-slate-50 hover:text-app-text'
               )}
             >
-              <span className="flex items-center gap-3">
+              <span className="flex min-w-0 items-center gap-3">
                 <Icon className="h-4 w-4" />
-                {item.title}
+                <span className="truncate">{item.title}</span>
               </span>
               {item.badge && <span className="rounded-full bg-app-red px-2 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>}
             </Link>
@@ -44,17 +57,28 @@ export function Sidebar({ role, userName }: { role: UserRole; userName?: string 
         })}
       </nav>
 
-      <div className="absolute bottom-5 left-4 right-4 rounded-2xl border border-app-line bg-gradient-to-br from-white to-purple-50 p-3">
+      <Link
+        href="/profile"
+        className={cn(
+          'absolute bottom-5 left-4 right-4 rounded-2xl border border-app-line bg-gradient-to-br from-white to-purple-50 p-3 transition hover:border-purple-200 hover:shadow-card',
+          pathname === '/profile' ? 'border-purple-200 ring-4 ring-purple-50' : ''
+        )}
+      >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-bold text-white">
-            {(userName ?? 'H').slice(0, 2).toUpperCase()}
-          </div>
-          <div className="min-w-0">
+          {userAvatarUrl ? (
+            <img src={userAvatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-bold text-white">
+              {initials}
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold text-app-text">{userName ?? 'Hutka'}</p>
-            <p className="text-xs text-app-muted">{roleLabels[role]}</p>
+            <p className="truncate text-xs text-app-muted">{userJobTitle || roleLabels[role]}</p>
           </div>
+          <Settings className="h-4 w-4 shrink-0 text-app-faint" />
         </div>
-      </div>
+      </Link>
     </aside>
   );
 }

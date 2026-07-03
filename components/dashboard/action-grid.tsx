@@ -1,15 +1,17 @@
 import Link from 'next/link';
-import { ArrowRight, ClipboardList, Plus, Send, Sparkles, Target, Users } from 'lucide-react';
+import { AlarmClockCheck, ArrowRight, BellRing, ClipboardList, Plus, Send, Sparkles, Target, Users } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { can, type Permission, type UserRole } from '@/lib/roles';
 
 const actions: Array<{ title: string; text: string; href: string; icon: typeof Users; permission: Permission }> = [
   { title: 'Добавить контакт', text: 'Мастер, салон, клиент или партнер', href: '/people/new', icon: Users, permission: 'manageContacts' },
   { title: 'Создать задачу', text: 'Follow-up, созвон или проверка', href: '/tasks/new', icon: Plus, permission: 'manageTasks' },
+  { title: 'Проверить follow-up', text: 'Авто-рекомендации по дожиму', href: '/followups', icon: AlarmClockCheck, permission: 'manageTasks' },
   { title: 'Создать опрос', text: 'Собрать ответы рынка', href: '/surveys/new', icon: ClipboardList, permission: 'manageSurveys' },
   { title: 'Запустить кампанию', text: 'Проверить канал или оффер', href: '/campaigns/new', icon: Send, permission: 'manageCampaigns' },
   { title: 'Добавить инсайт', text: 'Зафиксировать вывод', href: '/insights/new', icon: Sparkles, permission: 'manageInsights' },
-  { title: 'Создать гипотезу', text: 'Поставить идею на проверку', href: '/hypotheses/new', icon: Target, permission: 'manageHypotheses' }
+  { title: 'Создать гипотезу', text: 'Поставить идею на проверку', href: '/hypotheses/new', icon: Target, permission: 'manageHypotheses' },
+  { title: 'Telegram', text: 'Уведомления и дайджест', href: '/settings/telegram', icon: BellRing, permission: 'manageSettings' }
 ];
 
 export function ActionGrid({ role }: { role: UserRole }) {

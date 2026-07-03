@@ -21,6 +21,8 @@ export type UserDirectoryItem = {
   id: string;
   email: string;
   fullName: string;
+  jobTitle?: string;
+  avatarUrl?: string;
   role: 'admin' | 'marketer' | 'viewer';
   createdAt?: string;
 };
@@ -65,9 +67,9 @@ const demoSettings: SettingsData = {
     { id: 'hot', name: 'Горячий контакт', color: 'red', usageCount: 3 }
   ],
   users: [
-    { id: 'demo-admin', email: 'admin@hutka.local', fullName: 'Администратор', role: 'admin' },
-    { id: 'demo-marketer', email: 'marketer@hutka.local', fullName: 'Маркетолог', role: 'marketer' },
-    { id: 'demo-viewer', email: 'viewer@hutka.local', fullName: 'Наблюдатель', role: 'viewer' }
+    { id: 'demo-admin', email: 'admin@hutka.local', fullName: 'Администратор', jobTitle: 'Владелец пространства', role: 'admin' },
+    { id: 'demo-marketer', email: 'marketer@hutka.local', fullName: 'Маркетолог', jobTitle: 'Growth-маркетолог', role: 'marketer' },
+    { id: 'demo-viewer', email: 'viewer@hutka.local', fullName: 'Наблюдатель', jobTitle: 'Наблюдатель команды', role: 'viewer' }
   ]
 };
 
@@ -113,7 +115,7 @@ export async function getSettingsData(): Promise<SettingsData> {
         .order('name', { ascending: true }),
       supabase
         .from('profiles')
-        .select('id, full_name, role, created_at, email, user_id')
+        .select('id, full_name, job_title, avatar_url, role, created_at, email, user_id')
         .order('created_at', { ascending: true })
     ]);
 
@@ -144,6 +146,8 @@ export async function getSettingsData(): Promise<SettingsData> {
       id: String(row.id),
       email: asString(row.email, asString(row.user_id, 'Пользователь Supabase')),
       fullName: asString(row.full_name, 'Без имени'),
+      jobTitle: asString(row.job_title, ''),
+      avatarUrl: asString(row.avatar_url, ''),
       role: row.role === 'admin' || row.role === 'viewer' || row.role === 'marketer' ? row.role : 'marketer',
       createdAt: asString(row.created_at, '')
     }));

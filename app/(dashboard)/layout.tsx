@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const unreadCount = await getUnreadNotificationCount();
 
   return (
-    <AppShell userEmail={user.email} userName={user.fullName} role={user.role} unreadCount={unreadCount}>
+    <AppShell userEmail={user.email} userName={user.fullName} userJobTitle={user.jobTitle} userAvatarUrl={user.avatarUrl} role={user.role} unreadCount={unreadCount}>
       {children}
     </AppShell>
   );

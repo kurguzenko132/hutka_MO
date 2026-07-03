@@ -994,3 +994,630 @@ create index if not exists leads_telegram_lower_idx on public.leads (lower(teleg
 create index if not exists leads_phone_idx on public.leads (phone) where phone is not null and phone <> '';
 create index if not exists leads_updated_at_idx on public.leads(updated_at desc);
 create index if not exists lead_interactions_created_at_idx on public.lead_interactions(created_at desc);
+
+-- Step 29 marketer profile settings
+alter table public.profiles add column if not exists job_title text default 'Маркетолог';
+alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists telegram text;
+alter table public.profiles add column if not exists bio text;
+alter table public.profiles add column if not exists updated_at timestamptz default now();
+
+update public.profiles
+set job_title = coalesce(nullif(job_title, ''), case role
+  when 'admin' then 'Администратор'
+  when 'viewer' then 'Наблюдатель'
+  else 'Маркетолог'
+end)
+where job_title is null or job_title = '';
+
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (user_id, email, full_name, job_title, role)
+  values (
+    new.id,
+    new.email,
+    coalesce(new.raw_user_meta_data->>'full_name', new.email),
+    coalesce(new.raw_user_meta_data->>'job_title', 'Маркетолог'),
+    case when exists (select 1 from public.profiles) then 'marketer' else 'admin' end
+  )
+  on conflict (user_id) do update
+    set email = excluded.email;
+  return new;
+end;
+$$;
+
+drop policy if exists "Users can update own profile" on public.profiles;
+create policy "Users can update own profile"
+  on public.profiles
+  for update to authenticated
+  using (user_id = auth.uid())
+  with check (user_id = auth.uid());
+
+create or replace function public.protect_profile_system_fields()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is not null and old.user_id = auth.uid() and public.current_profile_role() <> 'admin' then
+    new.user_id := old.user_id;
+    new.email := old.email;
+    new.role := old.role;
+  end if;
+
+  new.updated_at := now();
+  return new;
+end;
+$$;
+
+drop trigger if exists protect_profile_system_fields_before_update on public.profiles;
+create trigger protect_profile_system_fields_before_update
+before update on public.profiles
+for each row execute function public.protect_profile_system_fields();
+
+create index if not exists profiles_job_title_idx on public.profiles(job_title);
+
+-- Step 30: personal lead questionnaires
+create table if not exists public.lead_questionnaires (
+  id uuid primary key default uuid_generate_v4(),
+  lead_id uuid references public.leads(id) on delete cascade,
+  title text not null,
+  description text,
+  status text default 'active' check (status in ('draft', 'active', 'closed')),
+  token text not null unique,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.lead_questionnaire_questions (
+  id uuid primary key default uuid_generate_v4(),
+  questionnaire_id uuid references public.lead_questionnaires(id) on delete cascade,
+  question_text text not null,
+  question_type text not null default 'short_text',
+  options jsonb default '[]'::jsonb,
+  required boolean default false,
+  order_index int default 0,
+  created_at timestamptz default now()
+);
+
+create table if not exists public.lead_questionnaire_answers (
+  id uuid primary key default uuid_generate_v4(),
+  questionnaire_id uuid references public.lead_questionnaires(id) on delete cascade,
+  question_id uuid references public.lead_questionnaire_questions(id) on delete cascade,
+  lead_id uuid references public.leads(id) on delete cascade,
+  response_group_id uuid,
+  respondent_name text,
+  respondent_contact text,
+  answer jsonb,
+  created_at timestamptz default now()
+);
+
+alter table public.lead_questionnaires enable row level security;
+alter table public.lead_questionnaire_questions enable row level security;
+alter table public.lead_questionnaire_answers enable row level security;
+
+create index if not exists lead_questionnaires_lead_id_idx on public.lead_questionnaires(lead_id);
+create index if not exists lead_questionnaires_token_idx on public.lead_questionnaires(token);
+create index if not exists lead_questionnaire_questions_form_idx on public.lead_questionnaire_questions(questionnaire_id, order_index);
+create index if not exists lead_questionnaire_answers_form_idx on public.lead_questionnaire_answers(questionnaire_id, created_at desc);
+create index if not exists lead_questionnaire_answers_lead_id_idx on public.lead_questionnaire_answers(lead_id);
+
+-- Workspace users can manage personal questionnaires.
+do $$
+declare
+  tbl text;
+  policy_name text;
+begin
+  foreach tbl in array array['lead_questionnaires','lead_questionnaire_questions','lead_questionnaire_answers'] loop
+    policy_name := 'Authenticated users can manage ' || tbl;
+    execute format('drop policy if exists %I on public.%I', policy_name, tbl);
+    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
+  end loop;
+end $$;
+
+-- Public recipients can open active personal questionnaire links and submit answers.
+drop policy if exists "Anyone can read active lead questionnaires" on public.lead_questionnaires;
+create policy "Anyone can read active lead questionnaires" on public.lead_questionnaires
+  for select to anon
+  using (status = 'active');
+
+drop policy if exists "Anyone can read active lead questionnaire questions" on public.lead_questionnaire_questions;
+create policy "Anyone can read active lead questionnaire questions" on public.lead_questionnaire_questions
+  for select to anon
+  using (exists (
+    select 1 from public.lead_questionnaires
+    where lead_questionnaires.id = lead_questionnaire_questions.questionnaire_id
+    and lead_questionnaires.status = 'active'
+  ));
+
+drop policy if exists "Anyone can submit active lead questionnaire answers" on public.lead_questionnaire_answers;
+create policy "Anyone can submit active lead questionnaire answers" on public.lead_questionnaire_answers
+  for insert to anon
+  with check (exists (
+    select 1 from public.lead_questionnaires
+    where lead_questionnaires.id = lead_questionnaire_answers.questionnaire_id
+    and lead_questionnaires.status = 'active'
+  ));
+
+-- Step 33: editable question packs.
+create table if not exists public.question_packs (
+  id uuid primary key default uuid_generate_v4(),
+  slug text unique,
+  title text not null,
+  short_title text not null,
+  description text,
+  audience text not null default 'any' check (audience in ('master', 'salon', 'client', 'partner', 'any')),
+  badge text default 'пак',
+  status text not null default 'active' check (status in ('active', 'draft', 'archived')),
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table if not exists public.question_pack_questions (
+  id uuid primary key default uuid_generate_v4(),
+  pack_id uuid references public.question_packs(id) on delete cascade,
+  question_text text not null,
+  question_type text not null default 'short_text',
+  options jsonb default '[]'::jsonb,
+  required boolean default false,
+  order_index int default 0,
+  created_at timestamptz default now()
+);
+
+alter table public.question_packs enable row level security;
+alter table public.question_pack_questions enable row level security;
+
+create index if not exists question_packs_status_idx on public.question_packs(status);
+create index if not exists question_packs_audience_idx on public.question_packs(audience);
+create index if not exists question_pack_questions_pack_order_idx on public.question_pack_questions(pack_id, order_index);
+
+-- Read question packs for the whole workspace.
+drop policy if exists "Authenticated users can read question_packs" on public.question_packs;
+create policy "Authenticated users can read question_packs"
+  on public.question_packs
+  for select to authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can read question_pack_questions" on public.question_pack_questions;
+create policy "Authenticated users can read question_pack_questions"
+  on public.question_pack_questions
+  for select to authenticated
+  using (true);
+
+-- Only admins can manage reusable question packs.
+do $$
+declare
+  tbl text;
+  action text;
+begin
+  foreach tbl in array array['question_packs','question_pack_questions'] loop
+    foreach action in array array['insert','update','delete'] loop
+      execute format('drop policy if exists %I on public.%I', 'Admins can ' || action || ' ' || tbl, tbl);
+    end loop;
+
+    execute format(
+      'create policy %I on public.%I for insert to authenticated with check (public.current_profile_role() = ''admin'')',
+      'Admins can insert ' || tbl,
+      tbl
+    );
+    execute format(
+      'create policy %I on public.%I for update to authenticated using (public.current_profile_role() = ''admin'') with check (public.current_profile_role() = ''admin'')',
+      'Admins can update ' || tbl,
+      tbl
+    );
+    execute format(
+      'create policy %I on public.%I for delete to authenticated using (public.current_profile_role() = ''admin'')',
+      'Admins can delete ' || tbl,
+      tbl
+    );
+  end loop;
+end $$;
+
+-- Seed default packs once, but keep them editable afterwards.
+insert into public.question_packs (slug, title, short_title, description, audience, badge, status)
+values
+  ('master-discovery', 'Диагностика индивидуального мастера', 'Мастер: диагностика', 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к пилоту.', 'master', 'старт', 'active'),
+  ('master-map-profile', 'Профиль мастера для карты', 'Мастер: профиль на карте', 'Пак для сбора данных, которые нужны для карточки мастера на карте: услуги, цены, фото, адрес, расписание.', 'master', 'карта', 'active'),
+  ('salon-discovery', 'Диагностика салона', 'Салон: диагностика', 'Пак для салона: команда, запись, администраторы, текущая CRM, проблемы и интерес к карте.', 'salon', 'b2b', 'active'),
+  ('pilot-feedback', 'Обратная связь после пилота', 'Фидбек после теста', 'Пак после тестирования: что понятно, что мешает, чего не хватило, готовность пользоваться дальше.', 'any', 'фидбек', 'active'),
+  ('refusal-reason', 'Причина отказа / паузы', 'Причина отказа', 'Короткий пак, чтобы понять, почему человек не идет дальше, и можно ли вернуться позже.', 'any', 'отказ', 'active'),
+  ('client-map-research', 'Исследование клиента карты', 'Клиент: карта', 'Пак для клиентов, чтобы понять, как они ищут мастеров и что должно быть в карточке на карте.', 'client', 'b2c', 'active')
+on conflict (slug) do update
+set
+  title = excluded.title,
+  short_title = excluded.short_title,
+  description = excluded.description,
+  audience = excluded.audience,
+  badge = excluded.badge,
+  status = excluded.status,
+  updated_at = now();
+
+with packs as (
+  select id, slug from public.question_packs
+)
+insert into public.question_pack_questions (pack_id, question_text, question_type, options, required, order_index)
+select packs.id, seed.question_text, seed.question_type, seed.options::jsonb, seed.required, seed.order_index
+from packs
+join (
+  values
+  ('master-discovery', 1, 'Какое у вас beauty-направление и какие основные услуги вы оказываете?', 'long_text', '[]', true),
+  ('master-discovery', 2, 'В каком городе и районе вы принимаете клиентов?', 'short_text', '[]', true),
+  ('master-discovery', 3, 'Как сейчас клиенты записываются к вам?', 'single_choice', '["Instagram Direct","Telegram","WhatsApp/Viber","Телефон","Онлайн-запись","Через администратора","Другое"]', true),
+  ('master-discovery', 4, 'Есть ли у вас свободные окна, которые хотелось бы заполнять?', 'single_choice', '["Да, часто","Иногда","Редко","Почти нет свободных окон"]', true),
+  ('master-discovery', 5, 'Какая главная проблема сейчас: клиенты, запись, повторные визиты, продвижение или другое?', 'long_text', '[]', true),
+  ('master-discovery', 6, 'Пользуетесь ли вы CRM или сервисом онлайн-записи?', 'yes_no', '[]', true),
+  ('master-discovery', 7, 'Что должно быть в приложении, чтобы вы реально начали им пользоваться?', 'long_text', '[]', true),
+  ('master-discovery', 8, 'Готовы ли протестировать раннюю версию Hutka?', 'single_choice', '["Да, готов(а)","Можно попробовать позже","Пока не готов(а)","Нужно больше информации"]', true),
+
+  ('master-map-profile', 1, 'Как вы хотите, чтобы назывался ваш профиль на карте?', 'short_text', '[]', true),
+  ('master-map-profile', 2, 'Опишите себя как мастера в 2–4 предложениях.', 'long_text', '[]', true),
+  ('master-map-profile', 3, 'Какие 3–7 услуг нужно показать в первую очередь?', 'long_text', '[]', true),
+  ('master-map-profile', 4, 'Какая стартовая цена или диапазон цен по основным услугам?', 'short_text', '[]', true),
+  ('master-map-profile', 5, 'Где вы принимаете клиентов: салон, студия, дом, выезд?', 'single_choice', '["Салон","Студия","На дому","Выезд к клиенту","Смешанный формат"]', true),
+  ('master-map-profile', 6, 'Какие дни и время обычно доступны для записи?', 'long_text', '[]', true),
+  ('master-map-profile', 7, 'Какие фото/материалы вы готовы добавить в профиль?', 'multiple_choice', '["Фото работ","Фото рабочего места","Портфолио Instagram","Отзывы клиентов","Прайс","Сертификаты"]', false),
+  ('master-map-profile', 8, 'Что важно подчеркнуть в вашем профиле, чтобы клиент выбрал именно вас?', 'long_text', '[]', false),
+
+  ('salon-discovery', 1, 'Сколько мастеров работает в салоне и какие направления закрываете?', 'long_text', '[]', true),
+  ('salon-discovery', 2, 'Кто сейчас ведет запись клиентов?', 'single_choice', '["Администратор","Владелец","Каждый мастер сам","CRM/онлайн-запись","Смешанный формат"]', true),
+  ('salon-discovery', 3, 'Какой системой сейчас пользуетесь для записи и клиентской базы?', 'short_text', '[]', true),
+  ('salon-discovery', 4, 'Что не устраивает в текущем процессе записи или CRM?', 'long_text', '[]', true),
+  ('salon-discovery', 5, 'Есть ли проблема с пустыми окнами у мастеров?', 'single_choice', '["Да, часто","Иногда","Нет, загрузка стабильная","Сложно оценить"]', true),
+  ('salon-discovery', 6, 'Нужен ли салону дополнительный канал заявок через карту?', 'yes_no', '[]', true),
+  ('salon-discovery', 7, 'Какие роли нужны в системе: владелец, администратор, мастер, управляющий?', 'multiple_choice', '["Владелец","Администратор","Управляющий","Мастер","Маркетолог"]', true),
+  ('salon-discovery', 8, 'На каких условиях вы готовы протестировать Hutka?', 'long_text', '[]', false),
+
+  ('pilot-feedback', 1, 'Что было самым понятным и полезным в Hutka?', 'long_text', '[]', true),
+  ('pilot-feedback', 2, 'Что было непонятно или неудобно?', 'long_text', '[]', true),
+  ('pilot-feedback', 3, 'Какую оценку вы бы поставили текущей версии?', 'rating', '[]', true),
+  ('pilot-feedback', 4, 'Какая функция нужна вам в первую очередь?', 'long_text', '[]', true),
+  ('pilot-feedback', 5, 'Будете ли пользоваться дальше, если мы доработаем замечания?', 'single_choice', '["Да","Скорее да","Не уверен(а)","Скорее нет","Нет"]', true),
+  ('pilot-feedback', 6, 'Что должно измениться, чтобы вы точно остались?', 'long_text', '[]', false),
+  ('pilot-feedback', 7, 'Можно ли использовать ваш отзыв как кейс/цитату?', 'yes_no', '[]', false),
+
+  ('refusal-reason', 1, 'Почему сейчас не готовы тестировать Hutka?', 'single_choice', '["Нет времени","Неактуально","Уже есть CRM","Не понимаю пользу","Не хочу заполнять профиль","Не верю, что будут заявки","Не готов(а) платить","Другое"]', true),
+  ('refusal-reason', 2, 'Что могло бы изменить ваше решение?', 'long_text', '[]', false),
+  ('refusal-reason', 3, 'Можно ли вернуться к вам позже?', 'single_choice', '["Да, через 1–2 недели","Да, через месяц","Да, позже","Нет"]', true),
+  ('refusal-reason', 4, 'Какой формат был бы удобнее: короткий созвон, видео-демо, текстовая инструкция или готовый профиль?', 'multiple_choice', '["Короткий созвон","Видео-демо","Текстовая инструкция","Помощь с заполнением профиля","Не нужно"]', false),
+
+  ('client-map-research', 1, 'Как вы обычно ищете beauty-мастера?', 'multiple_choice', '["Instagram","TikTok","Google/Яндекс","По рекомендациям","Карты","Telegram-чаты","Сервисы записи","Другое"]', true),
+  ('client-map-research', 2, 'Что важнее при выборе мастера?', 'multiple_choice', '["Фото работ","Отзывы","Цена","Близость","Свободное время","Опыт","Сертификаты","Скорость ответа"]', true),
+  ('client-map-research', 3, 'Записались бы вы к мастеру через карту, если видны работы, цены, отзывы и свободные окна?', 'yes_no', '[]', true),
+  ('client-map-research', 4, 'Что должно быть в карточке мастера, чтобы вызвать доверие?', 'long_text', '[]', true),
+  ('client-map-research', 5, 'Какая главная причина не записаться через приложение?', 'long_text', '[]', false)
+) as seed(slug, order_index, question_text, question_type, options, required)
+  on packs.slug = seed.slug
+where not exists (
+  select 1 from public.question_pack_questions existing
+  where existing.pack_id = packs.id
+);
+
+-- STEP 34: editable message templates
+create table if not exists public.message_templates (
+  id uuid primary key default gen_random_uuid(),
+  slug text unique,
+  title text not null,
+  short_title text,
+  description text,
+  audience text not null default 'any',
+  category text not null default 'custom',
+  channel text not null default 'any',
+  status text not null default 'active',
+  body text not null,
+  order_index int default 99,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.message_templates enable row level security;
+
+create index if not exists message_templates_status_idx on public.message_templates(status);
+create index if not exists message_templates_audience_idx on public.message_templates(audience);
+create index if not exists message_templates_category_idx on public.message_templates(category);
+create index if not exists message_templates_order_idx on public.message_templates(order_index, created_at);
+
+drop policy if exists "Authenticated users can read message_templates" on public.message_templates;
+create policy "Authenticated users can read message_templates"
+  on public.message_templates
+  for select to authenticated
+  using (true);
+
+drop policy if exists "Admins can insert message_templates" on public.message_templates;
+create policy "Admins can insert message_templates"
+  on public.message_templates
+  for insert to authenticated
+  with check (public.current_profile_role() = 'admin');
+
+drop policy if exists "Admins can update message_templates" on public.message_templates;
+create policy "Admins can update message_templates"
+  on public.message_templates
+  for update to authenticated
+  using (public.current_profile_role() = 'admin')
+  with check (public.current_profile_role() = 'admin');
+
+drop policy if exists "Admins can delete message_templates" on public.message_templates;
+create policy "Admins can delete message_templates"
+  on public.message_templates
+  for delete to authenticated
+  using (public.current_profile_role() = 'admin');
+
+insert into public.message_templates (slug, title, short_title, description, audience, category, channel, status, body, order_index)
+values
+  (
+    'first-touch-master',
+    'Первое сообщение индивидуальному мастеру',
+    'Мастер: первое касание',
+    'Короткое первое сообщение, чтобы аккуратно начать диалог с мастером.',
+    'master',
+    'first_touch',
+    'instagram',
+    'active',
+    'Привет, {{first_name}}! Мы сейчас запускаем Hutka — сервис, где beauty-мастера смогут получать заявки через карту и удобнее вести запись. Хочу задать пару коротких вопросов, чтобы понять, насколько это может быть полезно для вашего направления {{niche}}. Можно отправить короткую анкету?',
+    1
+  ),
+  (
+    'send-questionnaire',
+    'Отправка персональной анкеты',
+    'Отправить анкету',
+    'Сообщение для отправки персональной ссылки на вопросы из карточки контакта.',
+    'any',
+    'questionnaire',
+    'any',
+    'active',
+    '{{first_name}}, спасибо! Вот короткая анкета — она поможет понять, как вам может быть полезна Hutka и что нужно учесть в пилоте:\n\n{{questionnaire_link}}\n\nОтветы займут 2–4 минуты.',
+    2
+  ),
+  (
+    'questionnaire-reminder',
+    'Напоминание пройти анкету',
+    'Напоминание по анкете',
+    'Мягкое напоминание, если человек получил ссылку, но еще не ответил.',
+    'any',
+    'follow_up',
+    'any',
+    'active',
+    '{{first_name}}, привет! Напомню про короткую анкету по Hutka. Она нужна, чтобы мы не предлагали лишнее, а поняли именно вашу ситуацию: {{questionnaire_link}}\n\nБуду благодарен за ответы, когда будет удобно.',
+    3
+  ),
+  (
+    'pilot-invite',
+    'Приглашение в пилот',
+    'Пригласить в пилот',
+    'Сообщение, когда контакт подходит для раннего тестирования.',
+    'any',
+    'pilot',
+    'any',
+    'active',
+    '{{first_name}}, по вашим ответам вижу, что вы хорошо подходите для первой пилотной группы Hutka. Предлагаю подключить вас к раннему тесту: поможем оформить профиль, посмотрим, как работает карта и какие заявки можно получать. Вам удобно обсудить детали?',
+    4
+  ),
+  (
+    'refusal-clarify',
+    'Уточнить причину отказа',
+    'Причина отказа',
+    'Короткое сообщение, чтобы понять реальную причину отказа или паузы.',
+    'any',
+    'refusal',
+    'any',
+    'active',
+    'Понял, {{first_name}}, спасибо за честный ответ. Можно коротко уточнить, что больше всего мешает сейчас: нет времени, пока непонятна польза, уже есть система, не хочется заполнять профиль или просто сейчас неактуально? Это поможет нам лучше доработать Hutka.',
+    5
+  ),
+  (
+    'feedback-after-pilot',
+    'Фидбек после теста',
+    'Фидбек после пилота',
+    'Сообщение для сбора обратной связи после пилота.',
+    'any',
+    'feedback',
+    'any',
+    'active',
+    '{{first_name}}, спасибо, что протестировали Hutka. Очень важно понять, что было полезно, что неудобно и чего не хватило. Можете коротко написать 2–3 мысли или пройти мини-анкету: {{questionnaire_link}}',
+    6
+  )
+on conflict (slug) do update
+set
+  title = excluded.title,
+  short_title = excluded.short_title,
+  description = excluded.description,
+  audience = excluded.audience,
+  category = excluded.category,
+  channel = excluded.channel,
+  status = excluded.status,
+  body = excluded.body,
+  order_index = excluded.order_index,
+  updated_at = now();
+
+-- STEP 35: refusal reasons and refusal analytics
+create table if not exists public.refusal_reasons (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null unique,
+  description text,
+  color text default 'gray',
+  is_active boolean default true,
+  order_index int default 99,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.leads add column if not exists refusal_reason_id uuid references public.refusal_reasons(id) on delete set null;
+alter table public.leads add column if not exists refusal_reason text;
+alter table public.leads add column if not exists refusal_comment text;
+alter table public.leads add column if not exists refused_at timestamptz;
+
+create index if not exists refusal_reasons_active_order_idx on public.refusal_reasons(is_active, order_index, name);
+create index if not exists leads_refusal_reason_id_idx on public.leads(refusal_reason_id);
+create index if not exists leads_refused_at_idx on public.leads(refused_at desc);
+
+alter table public.refusal_reasons enable row level security;
+
+drop policy if exists "Authenticated users can read refusal_reasons" on public.refusal_reasons;
+create policy "Authenticated users can read refusal_reasons"
+  on public.refusal_reasons
+  for select to authenticated
+  using (true);
+
+drop policy if exists "Admins can insert refusal_reasons" on public.refusal_reasons;
+create policy "Admins can insert refusal_reasons"
+  on public.refusal_reasons
+  for insert to authenticated
+  with check (public.current_profile_role() = 'admin');
+
+drop policy if exists "Admins can update refusal_reasons" on public.refusal_reasons;
+create policy "Admins can update refusal_reasons"
+  on public.refusal_reasons
+  for update to authenticated
+  using (public.current_profile_role() = 'admin')
+  with check (public.current_profile_role() = 'admin');
+
+drop policy if exists "Admins can delete refusal_reasons" on public.refusal_reasons;
+create policy "Admins can delete refusal_reasons"
+  on public.refusal_reasons
+  for delete to authenticated
+  using (public.current_profile_role() = 'admin');
+
+insert into public.refusal_reasons (name, description, color, is_active, order_index)
+values
+  ('Нет времени', 'Человеку интересно, но сейчас нет ресурса проходить тест или заполнять профиль.', 'yellow', true, 1),
+  ('Неактуально сейчас', 'Потребность может появиться позже, контакт стоит вернуть в follow-up.', 'gray', true, 2),
+  ('Уже есть CRM', 'Пользуется другой системой и не видит причины менять процесс.', 'blue', true, 3),
+  ('Не понимает пользу', 'Нужно лучше объяснить ценность карты, заявок и записи.', 'purple', true, 4),
+  ('Не хочет заполнять профиль', 'Барьер онбординга: нужно упростить профиль или помочь заполнить.', 'pink', true, 5),
+  ('Не верит, что будут заявки', 'Нужны кейсы, доказательства и примеры реального спроса.', 'red', true, 6),
+  ('Не готов платить', 'Пока не видит окупаемости или ценности платного формата.', 'red', true, 7),
+  ('Не наш сегмент', 'Контакт не подходит для текущей фазы запуска.', 'gray', true, 8),
+  ('Другое', 'Причина требует ручного комментария.', 'gray', true, 99)
+on conflict (name) do update
+set
+  description = excluded.description,
+  color = excluded.color,
+  is_active = excluded.is_active,
+  order_index = excluded.order_index,
+  updated_at = now();
+
+create or replace view public.view_refusal_reason_distribution as
+select
+  coalesce(rr.name, l.refusal_reason, 'Причина не указана') as reason,
+  coalesce(rr.color, 'gray') as color,
+  count(*)::int as contacts
+from public.leads l
+left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+where l.refused_at is not null or l.refusal_reason is not null
+group by coalesce(rr.name, l.refusal_reason, 'Причина не указана'), coalesce(rr.color, 'gray')
+order by contacts desc, reason asc;
+
+-- STEP 36: saved contact views and smart filters
+create table if not exists public.saved_lead_views (
+  id uuid primary key default uuid_generate_v4(),
+  profile_id uuid references public.profiles(id) on delete cascade,
+  name text not null,
+  filters jsonb not null default '{}'::jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists saved_lead_views_profile_created_idx on public.saved_lead_views(profile_id, created_at desc);
+
+alter table public.saved_lead_views enable row level security;
+
+drop policy if exists "Users can read own saved lead views" on public.saved_lead_views;
+create policy "Users can read own saved lead views"
+  on public.saved_lead_views
+  for select to authenticated
+  using (exists (
+    select 1 from public.profiles p
+    where p.id = saved_lead_views.profile_id
+    and p.user_id = auth.uid()
+  ));
+
+drop policy if exists "Users can insert own saved lead views" on public.saved_lead_views;
+create policy "Users can insert own saved lead views"
+  on public.saved_lead_views
+  for insert to authenticated
+  with check (exists (
+    select 1 from public.profiles p
+    where p.id = saved_lead_views.profile_id
+    and p.user_id = auth.uid()
+  ));
+
+drop policy if exists "Users can update own saved lead views" on public.saved_lead_views;
+create policy "Users can update own saved lead views"
+  on public.saved_lead_views
+  for update to authenticated
+  using (exists (
+    select 1 from public.profiles p
+    where p.id = saved_lead_views.profile_id
+    and p.user_id = auth.uid()
+  ))
+  with check (exists (
+    select 1 from public.profiles p
+    where p.id = saved_lead_views.profile_id
+    and p.user_id = auth.uid()
+  ));
+
+drop policy if exists "Users can delete own saved lead views" on public.saved_lead_views;
+create policy "Users can delete own saved lead views"
+  on public.saved_lead_views
+  for delete to authenticated
+  using (exists (
+    select 1 from public.profiles p
+    where p.id = saved_lead_views.profile_id
+    and p.user_id = auth.uid()
+  ));
+
+-- Step 39: Telegram notifications and delivery logs
+create table if not exists public.telegram_delivery_logs (
+  id uuid primary key default uuid_generate_v4(),
+  event_type text not null default 'manual',
+  status text not null default 'sent' check (status in ('sent', 'skipped', 'failed')),
+  chat_id text,
+  message text,
+  error text,
+  created_by uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now()
+);
+
+alter table public.telegram_delivery_logs enable row level security;
+
+create index if not exists telegram_delivery_logs_created_at_idx on public.telegram_delivery_logs(created_at desc);
+create index if not exists telegram_delivery_logs_event_type_idx on public.telegram_delivery_logs(event_type);
+create index if not exists telegram_delivery_logs_status_idx on public.telegram_delivery_logs(status);
+
+insert into public.app_settings (key, value) values
+  ('telegram_enabled', 'false'),
+  ('telegram_chat_id', ''),
+  ('telegram_notify_questionnaires', 'true'),
+  ('telegram_notify_followups', 'false'),
+  ('telegram_daily_digest_enabled', 'false'),
+  ('telegram_daily_digest_hour', '09:00')
+on conflict (key) do nothing;
+
+drop policy if exists "Authenticated users can read telegram delivery logs" on public.telegram_delivery_logs;
+create policy "Authenticated users can read telegram delivery logs"
+  on public.telegram_delivery_logs
+  for select
+  to authenticated
+  using (true);
+
+drop policy if exists "Authenticated users can insert telegram delivery logs" on public.telegram_delivery_logs;
+create policy "Authenticated users can insert telegram delivery logs"
+  on public.telegram_delivery_logs
+  for insert
+  to authenticated
+  with check (true);
+
+-- STEP 39: Telegram notifications
+alter table public.profiles add column if not exists telegram_chat_id text;
+alter table public.profiles add column if not exists telegram_notifications_enabled boolean default false;
+alter table public.profiles add column if not exists telegram_last_test_at timestamptz;
+
+create index if not exists profiles_telegram_chat_id_idx on public.profiles(telegram_chat_id);
+create index if not exists profiles_telegram_notifications_enabled_idx on public.profiles(telegram_notifications_enabled);

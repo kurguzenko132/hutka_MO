@@ -14,9 +14,9 @@ export function PageHeader({
   actionHref?: string;
 }) {
   return (
-    <div className="mb-6 flex flex-col justify-between gap-4 rounded-3xl border border-app-line bg-white/70 p-4 shadow-sm backdrop-blur sm:p-5 lg:flex-row lg:items-center">
-      <div>
-        <h1 className="text-2xl font-black tracking-tight text-app-text sm:text-3xl">{title}</h1>
+    <div className="mb-6 flex min-w-0 flex-col justify-between gap-4 rounded-3xl border border-app-line bg-white/70 p-4 shadow-sm backdrop-blur sm:p-5 lg:flex-row lg:items-center">
+      <div className="min-w-0">
+        <h1 className="break-words text-2xl font-black tracking-tight text-app-text sm:text-3xl">{title}</h1>
         {subtitle && <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">{subtitle}</p>}
       </div>
       {actionLabel && actionHref && (

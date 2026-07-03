@@ -2,6 +2,7 @@ import { PeopleFilters } from '@/components/people/people-filters';
 import { PeopleTable } from '@/components/people/people-table';
 import { getCampaignOptions } from '@/lib/campaigns';
 import { getLeadFilterOptions, getLeads, type LeadFilters } from '@/lib/leads';
+import { getSavedLeadViews, getSmartLeadViews } from '@/lib/lead-views';
 import { PageHeader } from '@/components/layout/page-header';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { ActionNotice } from '@/components/ui/action-notice';
@@ -20,7 +21,8 @@ function buildFilters(params: Record<string, string | string[] | undefined> = {}
     stage: firstParam(params.stage),
     source: firstParam(params.source),
     priority: firstParam(params.priority),
-    tag: firstParam(params.tag)
+    tag: firstParam(params.tag),
+    view: firstParam(params.view)
   };
 }
 
@@ -33,7 +35,14 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const role = user?.role ?? 'viewer';
   const params = await searchParams;
   const filters = buildFilters(params);
-  const [leads, allLeads, filterOptions, campaigns] = await Promise.all([getLeads(filters), getLeads(), getLeadFilterOptions(), getCampaignOptions()]);
+  const [leads, allLeads, filterOptions, campaigns, savedViews] = await Promise.all([
+    getLeads(filters),
+    getLeads(),
+    getLeadFilterOptions(),
+    getCampaignOptions(),
+    getSavedLeadViews(user?.profileId)
+  ]);
+  const smartViews = getSmartLeadViews(allLeads);
 
   return (
     <div className="space-y-6">
@@ -43,7 +52,7 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
       />
 
       <ActionNotice searchParams={params} />
-      <PeopleFilters filters={filters} options={filterOptions} shown={leads.length} total={allLeads.length} role={role} />
+      <PeopleFilters filters={filters} options={filterOptions} shown={leads.length} total={allLeads.length} role={role} smartViews={smartViews} savedViews={savedViews} />
       <PeopleTable items={leads} role={role} stages={filterOptions.stages} tags={filterOptions.tags} campaigns={campaigns} />
     </div>
   );

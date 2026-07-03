@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BellRing, Heart, Send, Timer, Users, Zap, Flame, Sparkles } from 'lucide-react';
+import { AlarmClockCheck, AlertTriangle, BellRing, Heart, Send, Timer, Users, Zap, Flame, Sparkles } from 'lucide-react';
 import { ActionGrid } from '@/components/dashboard/action-grid';
 import { BarList } from '@/components/dashboard/bar-list';
 import { FunnelOverview } from '@/components/dashboard/funnel-overview';
@@ -15,11 +15,12 @@ import { getDashboardData } from '@/lib/dashboard';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
 import { hypothesisStatusTone } from '@/lib/hypotheses';
+import { getFollowUpRecommendations } from '@/lib/followups';
 
 const kpiIcons = [Users, Send, Heart, Flame, Timer, Zap];
 
 export default async function DashboardPage() {
-  const dashboard = await getDashboardData();
+  const [dashboard, followups] = await Promise.all([getDashboardData(), getFollowUpRecommendations()]);
   const user = await getCurrentUserContext();
   const role = user?.role ?? 'viewer';
 
@@ -68,7 +69,74 @@ export default async function DashboardPage() {
 
       <ActionGrid role={role} />
 
+      {followups.summary.total > 0 && (
+        <Card className="border-amber-100 bg-gradient-to-br from-white to-amber-50/70">
+          <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex gap-4">
+              <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
+                <AlarmClockCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-lg font-black text-app-text">Follow-up требует внимания</h2>
+                  <Badge tone="yellow">{followups.summary.total} рекомендаций</Badge>
+                  {followups.summary.urgent > 0 ? <Badge tone="red">{followups.summary.urgent} срочно</Badge> : null}
+                </div>
+                <p className="mt-2 text-sm leading-6 text-app-muted">
+                  Hutka нашла контакты с просроченными датами, анкетами без ответа или горячие контакты без закрепленной задачи.
+                </p>
+              </div>
+            </div>
+            <Link href="/followups" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
+              Открыть follow-up центр
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <FunnelOverview steps={dashboard.funnel} />
+
+      {dashboard.refusals.total > 0 && (
+        <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/50">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Аналитика отказов</CardTitle>
+            <Link href="/reports" className="text-xs font-bold text-app-purple">В отчет →</Link>
+          </CardHeader>
+          <CardContent className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              <p className="text-3xl font-black text-app-text">{dashboard.refusals.total}</p>
+              <p className="mt-1 text-sm text-app-muted">контактов с зафиксированной причиной отказа</p>
+              <div className="mt-4 space-y-3">
+                {dashboard.refusals.topReasons.slice(0, 4).map((item) => (
+                  <div key={item.reason}>
+                    <div className="mb-1 flex items-center justify-between gap-3 text-sm">
+                      <span className="font-semibold text-app-text">{item.reason}</span>
+                      <span className="text-xs font-bold text-app-muted">{item.count}</span>
+                    </div>
+                    <div className="h-2 overflow-hidden rounded-full bg-red-100">
+                      <div className="h-full rounded-full bg-app-red" style={{ width: item.width }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3">
+              {dashboard.refusals.recent.slice(0, 3).map((item) => (
+                <Link key={item.id} href={item.href} className="block rounded-2xl border border-red-100 bg-white p-4 transition hover:border-red-200 hover:shadow-card">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge tone="red">{item.reason}</Badge>
+                    <Badge tone="gray">{item.refusedAt}</Badge>
+                  </div>
+                  <p className="mt-3 text-sm font-black text-app-text">{item.name}</p>
+                  <p className="mt-1 text-xs text-app-muted">{item.meta}</p>
+                  {item.comment && <p className="mt-2 line-clamp-2 text-xs leading-5 text-app-muted">{item.comment}</p>}
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       <div className="grid gap-6 xl:grid-cols-[1fr_1fr_1.25fr]">
         <TodayWorkCard tasks={dashboard.todayTasks} />

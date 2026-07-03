@@ -19,8 +19,10 @@ import {
   ShieldCheck,
   Rocket,
   Archive,
-  ClipboardCheck
+  ClipboardCheck,
+  AlarmClockCheck
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 export type LeadType = 'Мастер' | 'Салон' | 'Клиент' | 'Партнер';
 export type Priority = 'Высокий' | 'Средний' | 'Низкий';
@@ -44,15 +46,26 @@ export type Lead = {
   phone?: string;
   email?: string;
   notes?: string;
+  refusalReason?: string;
+  refusalComment?: string;
+  refusedAt?: string;
 };
 
-export const navItems = [
+export type NavItem = {
+  title: string;
+  href: string;
+  icon: LucideIcon;
+  badge?: string | number;
+};
+
+export const navItems: NavItem[] = [
   { title: 'Главная', href: '/dashboard', icon: BarChart3 },
   { title: 'Люди', href: '/people', icon: Users },
   { title: 'Воронки', href: '/funnels', icon: Send },
   { title: 'Опросники', href: '/surveys', icon: ClipboardList },
   { title: 'Кампании', href: '/campaigns', icon: Zap },
   { title: 'Задачи', href: '/tasks', icon: CalendarCheck },
+  { title: 'Follow-up', href: '/followups', icon: AlarmClockCheck },
   { title: 'Уведомления', href: '/notifications', icon: BellRing },
   { title: 'Инсайты', href: '/insights', icon: Sparkles },
   { title: 'География', href: '/geography', icon: MapPinned },

@@ -4,6 +4,7 @@ import { channels, funnel as mockFunnel, kpis as mockKpis, leads as mockLeads, n
 import { getTasks, type TaskListItem } from '@/lib/tasks';
 import { getDashboardInsights } from '@/lib/insights';
 import { getDashboardHypotheses, type HypothesisListItem } from '@/lib/hypotheses';
+import { getRefusalAnalytics, type RefusalAnalytics } from '@/lib/refusals';
 
 export type DashboardKpi = {
   label: string;
@@ -53,6 +54,7 @@ export type DashboardData = {
   recentActivities: DashboardActivity[];
   insights: string[];
   hypotheses: HypothesisListItem[];
+  refusals: RefusalAnalytics;
   focus: string;
 };
 
@@ -176,7 +178,7 @@ function buildFocus({ overdue, ready, active, hot }: { overdue: number; ready: n
   return 'Добавь первые контакты, запусти опрос и собери первые инсайты по beauty-рынку.';
 }
 
-function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[]): DashboardData {
+function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
   const demoTasks: TaskListItem[] = todayTasks.map((task, index) => ({
     id: `demo-dashboard-task-${index}`,
     title: task.title,
@@ -212,15 +214,16 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[])
     ],
     insights,
     hypotheses,
+    refusals,
     focus: 'В demo-режиме: добавь реальные контакты и подключи Supabase, чтобы dashboard начал считать запуск по твоим данным.'
   };
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [insights, hypotheses] = await Promise.all([getDashboardInsights(), getDashboardHypotheses()]);
+  const [insights, hypotheses, refusals] = await Promise.all([getDashboardInsights(), getDashboardHypotheses(), getRefusalAnalytics()]);
 
   if (!isSupabaseConfigured()) {
-    return demoDashboardData(insights, hypotheses);
+    return demoDashboardData(insights, hypotheses, refusals);
   }
 
   try {
@@ -254,7 +257,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     const stageRows = ((stagesRes.data ?? []) as StageRow[]).filter((row) => (row.contacts ?? 0) > 0);
     const funnel = stageRows.length
       ? stageRows.map((row) => ({ label: row.name ?? row.stage ?? 'Без стадии', count: row.contacts ?? 0, percent: percent(row.contacts ?? 0, total) }))
-      : demoDashboardData(insights, hypotheses).funnel;
+      : demoDashboardData(insights, hypotheses, refusals).funnel;
 
     const hotContacts = ((hotRes.data ?? []) as LeadRow[]).map((lead) => ({
       id: lead.id,
@@ -294,9 +297,10 @@ export async function getDashboardData(): Promise<DashboardData> {
       recentActivities,
       insights,
       hypotheses,
+      refusals,
       focus: buildFocus({ overdue, ready, active, hot: overview.hot_contacts ?? 0 })
     };
   } catch {
-    return demoDashboardData(insights, hypotheses);
+    return demoDashboardData(insights, hypotheses, refusals);
   }
 }

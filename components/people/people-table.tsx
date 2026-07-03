@@ -244,17 +244,17 @@ function BulkActionsBar({
           </div>
         </div>
 
-        <div className="grid flex-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <form action={bulkChangeStageAction} className="flex gap-2">
+        <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <form action={bulkChangeStageAction} className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="lead_ids" value={ids} />
             <Select name="stage" disabled={disabled} defaultValue="">
               <option value="">Сменить стадию</option>
               {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
             </Select>
-            <Button type="submit" variant="secondary" disabled={disabled}>Применить</Button>
+            <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Применить</Button>
           </form>
 
-          <form action={bulkAssignTagAction} className="flex gap-2">
+          <form action={bulkAssignTagAction} className="flex flex-col gap-2 sm:flex-row">
             <input type="hidden" name="lead_ids" value={ids} />
             <div className="relative flex-1">
               <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-app-faint" />
@@ -263,25 +263,25 @@ function BulkActionsBar({
                 {tags.map((tagName) => <option key={tagName} value={tagName} />)}
               </datalist>
             </div>
-            <Button type="submit" variant="secondary" disabled={disabled}>Тег</Button>
+            <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Тег</Button>
           </form>
 
           {canManageTasks && (
-            <form action={bulkCreateTaskAction} className="flex gap-2">
+            <form action={bulkCreateTaskAction} className="flex flex-col gap-2 sm:flex-row">
               <input type="hidden" name="lead_ids" value={ids} />
               <Input name="title" placeholder="Задача для выбранных" disabled={disabled} />
-              <Button type="submit" variant="secondary" disabled={disabled}>Создать</Button>
+              <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Создать</Button>
             </form>
           )}
 
           {canManageCampaigns && (
-            <form action={bulkAddToCampaignAction} className="flex gap-2">
+            <form action={bulkAddToCampaignAction} className="flex flex-col gap-2 sm:flex-row">
               <input type="hidden" name="lead_ids" value={ids} />
               <Select name="campaign_id" disabled={disabled} defaultValue="">
                 <option value="">Добавить в кампанию</option>
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </Select>
-              <Button type="submit" variant="secondary" disabled={disabled}>Добавить</Button>
+              <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Добавить</Button>
             </form>
           )}
         </div>

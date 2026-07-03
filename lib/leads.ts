@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { activity, leads as mockLeads, type Lead, type LeadType, type Priority } from '@/lib/data';
+import { matchesSmartView } from '@/lib/lead-views';
 
 const typeToDb: Record<LeadType, string> = {
   'Мастер': 'master',
@@ -32,6 +33,7 @@ export type LeadFilters = {
   source?: string;
   priority?: string;
   tag?: string;
+  view?: string;
 };
 
 export type LeadFilterOptions = {
@@ -129,6 +131,10 @@ function matchesLeadFilters(lead: Lead, filters: LeadFilters = {}) {
     return false;
   }
 
+  if (filters.view && !matchesSmartView(lead, filters.view)) {
+    return false;
+  }
+
   if (!q) return true;
 
   const searchable = [
@@ -219,11 +225,14 @@ function mapDbLead(row: Record<string, unknown>): Lead {
     telegram: row.telegram ? String(row.telegram) : undefined,
     phone: row.phone ? String(row.phone) : undefined,
     email: row.email ? String(row.email) : undefined,
-    notes: row.notes ? String(row.notes) : undefined
+    notes: row.notes ? String(row.notes) : undefined,
+    refusalReason: row.refusal_reason ? String(row.refusal_reason) : relatedName(row.refusal_reasons),
+    refusalComment: row.refusal_comment ? String(row.refusal_comment) : undefined,
+    refusedAt: row.refused_at ? formatDate(String(row.refused_at), true) : undefined
   };
 }
 
-const leadSelect = 'id,name,type,niche,city,phone,telegram,instagram,email,priority_score,notes,next_step,next_contact_date,created_at,sources(name),funnel_stages(name),lead_tags(tags(name))';
+const leadSelect = 'id,name,type,niche,city,phone,telegram,instagram,email,priority_score,notes,next_step,next_contact_date,refusal_reason,refusal_comment,refused_at,created_at,sources(name),funnel_stages(name),refusal_reasons(name,color),lead_tags(tags(name))';
 
 export async function getLeads(filters: LeadFilters = {}): Promise<Lead[]> {
   let items: Lead[];

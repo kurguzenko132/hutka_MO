@@ -36,6 +36,7 @@ export const routeCheckGroups: RouteCheckGroup[] = [
     description: 'Должны открываться только после авторизации.',
     routes: [
       { href: '/dashboard', label: 'Главная', access: 'auth' },
+      { href: '/profile', label: 'Профиль маркетолога', access: 'auth' },
       { href: '/people', label: 'Контакты', access: 'auth' },
       { href: '/funnels', label: 'Воронки', access: 'auth' },
       { href: '/tasks', label: 'Задачи', access: 'auth' },

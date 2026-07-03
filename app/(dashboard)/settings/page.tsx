@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { AlertCircle, CheckCircle2, Settings2, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { AlertCircle, CheckCircle2, FileQuestion, MessageSquareText, Settings2, Trash2, UserRound, AlertTriangle, Send } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import {
 } from '@/actions/settings.actions';
 import { requireAdmin } from '@/lib/permissions';
 import { roleDescriptions, roleLabels, roleTone, type UserRole } from '@/lib/roles';
+import { getInitials } from '@/lib/utils';
 
 const colors: Array<{ label: string; value: BadgeTone }> = [
   { label: 'Фиолетовый', value: 'purple' },
@@ -331,7 +333,7 @@ function UsersSection({ users }: { users: UserDirectoryItem[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Пользователи и роли</CardTitle>
+        <CardTitle className="flex items-center gap-2"><UserRound className="h-4 w-4" /> Пользователи и роли</CardTitle>
         <p className="text-sm text-app-muted">
           Управляй доступом команды. Admin меняет настройки и роли, marketer работает с запуском, viewer только смотрит данные.
         </p>
@@ -349,10 +351,20 @@ function UsersSection({ users }: { users: UserDirectoryItem[] }) {
         <div className="space-y-3 pt-2">
           {users.length ? users.map((user) => (
             <div key={user.id} className="grid gap-3 rounded-2xl border border-app-line bg-white p-4 lg:grid-cols-[1fr_180px_auto] lg:items-end">
-              <div>
-                <p className="text-sm font-black text-app-text">{user.fullName}</p>
-                <p className="mt-1 text-xs text-app-muted">{user.email}</p>
-                {user.createdAt && <p className="mt-1 text-[11px] text-app-faint">Создан: {new Date(user.createdAt).toLocaleDateString('ru-RU')}</p>}
+              <div className="flex items-center gap-3">
+                {user.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" />
+                ) : (
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-black text-white">
+                    {getInitials(user.fullName, 'U')}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-black text-app-text">{user.fullName}</p>
+                  <p className="mt-1 truncate text-xs font-semibold text-app-purple">{user.jobTitle || roleLabels[user.role]}</p>
+                  <p className="mt-1 truncate text-xs text-app-muted">{user.email}</p>
+                  {user.createdAt && <p className="mt-1 text-[11px] text-app-faint">Создан: {new Date(user.createdAt).toLocaleDateString('ru-RU')}</p>}
+                </div>
               </div>
               <form action={updateProfileRoleAction} className="contents">
                 <input type="hidden" name="profile_id" value={user.id} />
@@ -409,6 +421,77 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       )}
 
       <AppSettingsCard app={settings.app} />
+
+      <Card className="border-purple-100 bg-gradient-to-br from-white to-purple-50">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <FileQuestion className="h-5 w-5 text-app-purple" />
+              <h2 className="text-lg font-black text-app-text">Паки вопросов</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Управляй готовыми наборами вопросов для мастеров, салонов и клиентов. Эти паки можно одним кликом отправлять из карточки контакта.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/settings/question-packs">Открыть паки</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-pink-100 bg-gradient-to-br from-white to-pink-50">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <MessageSquareText className="h-5 w-5 text-app-pink" />
+              <h2 className="text-lg font-black text-app-text">Шаблоны сообщений</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Управляй готовыми текстами для первого касания, отправки анкеты, follow-up, приглашения в пилот и сбора фидбека.
+            </p>
+          </div>
+          <Button asChild>
+            <Link href="/settings/message-templates">Открыть шаблоны</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+
+
+
+      <Card className="border-blue-100 bg-gradient-to-br from-white to-blue-50/60">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-blue-600" />
+              <h2 className="text-lg font-black text-app-text">Telegram-уведомления</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Подключи Telegram-бота, проверь получателей и отправь тестовое сообщение команде. Chat ID каждого маркетолога настраивается в его профиле.
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <Link href="/settings/telegram">Открыть Telegram</Link>
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/40">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-app-red" />
+              <h2 className="text-lg font-black text-app-text">Причины отказа</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Настрой причины, которые выбираются при переводе контакта в отказ. Они попадут в карточки, отчеты и аналитику воронки.
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <Link href="/settings/refusal-reasons">Открыть причины</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <UsersSection users={settings.users} />
 

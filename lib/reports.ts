@@ -2,6 +2,7 @@ import { getCampaigns } from '@/lib/campaigns';
 import { getHypotheses } from '@/lib/hypotheses';
 import { getInsights } from '@/lib/insights';
 import { getSurveys } from '@/lib/surveys';
+import { getRefusalAnalytics, type RefusalAnalytics } from '@/lib/refusals';
 import { getTasks } from '@/lib/tasks';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
@@ -48,6 +49,7 @@ export type WeeklyReport = {
   surveyHighlights: ReportHighlight[];
   insightHighlights: ReportHighlight[];
   hypothesisHighlights: ReportHighlight[];
+  refusalSummary: RefusalAnalytics;
   recommendations: string[];
   teamText: string;
 };
@@ -191,8 +193,9 @@ function buildTeamText(report: Omit<WeeklyReport, 'teamText'>) {
   const recommendationsText = report.recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n');
   const insightsText = report.insightHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет новых инсайтов.';
   const hypothesesText = report.hypothesisHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет гипотез в проверке.';
+  const refusalsText = report.refusalSummary.topReasons.slice(0, 5).map((item, index) => `${index + 1}. ${item.reason}: ${item.count}`).join('\n') || 'Причины отказов пока не зафиксированы.';
 
-  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные инсайты:\n${insightsText}\n\nГипотезы / проверки:\n${hypothesesText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
+  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные инсайты:\n${insightsText}\n\nГипотезы / проверки:\n${hypothesesText}\n\nПричины отказов:\n${refusalsText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
 }
 
 export async function getWeeklyReport(): Promise<WeeklyReport> {
@@ -201,13 +204,14 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - 7);
 
-  const [rawLeads, tasks, campaigns, surveys, insights, hypotheses] = await Promise.all([
+  const [rawLeads, tasks, campaigns, surveys, insights, hypotheses, refusalSummary] = await Promise.all([
     getRawLeads(),
     getTasks(),
     getCampaigns(),
     getSurveys(),
     getInsights(),
-    getHypotheses()
+    getHypotheses(),
+    getRefusalAnalytics()
   ]);
 
   const totalContacts = rawLeads.length;
@@ -259,7 +263,8 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     { label: 'Готовы к пилоту', value: String(demoMode ? readyToPilot || 128 : readyToPilot), helper: `${demoMode ? hotContacts || 27 : hotContacts} горячих контактов`, tone: 'pink' },
     { label: 'Активные участники', value: String(demoMode ? activeParticipants || 63 : activeParticipants), helper: 'стадия “Активен”', tone: 'green' },
     { label: 'Ответов на опросы', value: String(demoMode ? surveyResponses || 145 : surveyResponses), helper: `${surveys.length} опросников`, tone: 'blue' },
-    { label: 'Просроченные действия', value: String(overdueTasks), helper: `${todayTasks} задач на сегодня`, tone: overdueTasks > 0 ? 'red' : 'green' }
+    { label: 'Просроченные действия', value: String(overdueTasks), helper: `${todayTasks} задач на сегодня`, tone: overdueTasks > 0 ? 'red' : 'green' },
+    { label: 'Отказы', value: String(refusalSummary.total), helper: refusalSummary.topReasons[0] ? `топ: ${refusalSummary.topReasons[0].reason}` : 'причины не зафиксированы', tone: refusalSummary.total > 0 ? 'red' : 'gray' }
   ];
 
   const campaignHighlights: ReportHighlight[] = campaigns.slice(0, 3).map((campaign) => ({
@@ -330,6 +335,7 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     surveyHighlights,
     insightHighlights,
     hypothesisHighlights,
+    refusalSummary,
     recommendations
   };
 

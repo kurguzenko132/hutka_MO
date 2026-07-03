@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { ArrowUpRight, BarChart3, ClipboardList, Lightbulb, Target, Timer } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BarChart3, ClipboardList, Lightbulb, Target, Timer } from 'lucide-react';
 import { CopyReportButton } from '@/components/reports/copy-report-button';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -72,6 +72,27 @@ export default async function ReportsPage() {
           </CardHeader>
           <CardContent>
             <Bars items={report.funnel} tone="purple" />
+          </CardContent>
+        </Card>
+
+
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Причины отказов</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {report.refusalSummary.total === 0 ? (
+              <p className="rounded-2xl bg-slate-50 p-4 text-sm text-app-muted">Отказов с причинами пока нет. Когда контакт переводится в отказ, выбирай причину в карточке контакта.</p>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
+                  <p className="text-3xl font-black text-app-text">{report.refusalSummary.total}</p>
+                  <p className="mt-1 text-sm text-app-muted">зафиксированных отказов</p>
+                </div>
+                <Bars items={report.refusalSummary.topReasons.map((item) => ({ name: item.reason, value: item.count, width: item.width }))} tone="pink" />
+              </>
+            )}
           </CardContent>
         </Card>
 

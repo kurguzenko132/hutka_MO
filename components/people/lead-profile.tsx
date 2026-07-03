@@ -9,6 +9,8 @@ import {
   updateLeadFollowUpAction,
   updateLeadStageFromProfileAction
 } from '@/actions/leads.actions';
+import { createLeadQuestionnaireAction, createLeadQuestionnaireFromPackAction } from '@/actions/lead-questionnaires.actions';
+import { clearLeadRefusalAction, markLeadRefusedAction } from '@/actions/refusals.actions';
 import { createTaskAction } from '@/actions/tasks.actions';
 import { getCampaignOptions, type CampaignOption } from '@/lib/campaigns';
 import { needs, surveyAnswers } from '@/lib/data';
@@ -24,6 +26,13 @@ import {
 import { getHypothesisOptions, type HypothesisOption } from '@/lib/hypotheses';
 import { getInsightOptions, type InsightOption } from '@/lib/insights';
 import { getSurveyOptions, type SurveyOption } from '@/lib/surveys';
+import { getLeadQuestionnaires, getLeadQuestionnaireResponses, questionnaireStatusLabel, type LeadQuestionnaireListItem, type LeadQuestionnaireResponseGroup } from '@/lib/lead-questionnaires';
+import { getQuestionPacks, type QuestionPack } from '@/lib/question-packs';
+import { getRefusalReasons, type RefusalReason } from '@/lib/refusals';
+import { getMessageTemplatesForLead } from '@/lib/message-templates';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { MessageTemplatePanel } from '@/components/people/message-template-panel';
+import { LeadNextActionCard } from '@/components/people/lead-next-action-card';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +40,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  AlertTriangle,
   ArrowRight,
   CalendarPlus,
   ClipboardList,
@@ -43,6 +53,8 @@ import {
   Link2,
   MessageSquare,
   MoreVertical,
+  PackageCheck,
+  PlusCircle,
   Save,
   Send,
   Sparkles,
@@ -159,6 +171,217 @@ function EmptyOption({ label }: { label: string }) {
   return <option value="">{label}</option>;
 }
 
+function RefusalManagementCard({ leadId, lead, reasons }: { leadId: string; lead: NonNullable<Awaited<ReturnType<typeof getLeadById>>>; reasons: RefusalReason[] }) {
+  return (
+    <Card className={lead.refusalReason ? 'border-red-100 bg-red-50/30' : ''}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <AlertTriangle className="h-4 w-4 text-app-red" />
+          Причина отказа
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {lead.refusalReason ? (
+          <div className="rounded-2xl border border-red-100 bg-white p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="red">{lead.refusalReason}</Badge>
+              {lead.refusedAt && <Badge tone="gray">{lead.refusedAt}</Badge>}
+            </div>
+            {lead.refusalComment && <p className="mt-3 text-sm leading-6 text-app-muted">{lead.refusalComment}</p>}
+            <form action={clearLeadRefusalAction} className="mt-4">
+              <input type="hidden" name="lead_id" value={leadId} />
+              <Button type="submit" size="sm" variant="secondary">Очистить причину</Button>
+            </form>
+          </div>
+        ) : (
+          <p className="text-sm leading-6 text-app-muted">Если контакт отказался или ушел в паузу, зафиксируй причину. Потом Hutka покажет аналитику отказов в отчетах и на главной.</p>
+        )}
+
+        <form action={markLeadRefusedAction} className="space-y-3 rounded-2xl border border-app-line bg-white p-4">
+          <input type="hidden" name="lead_id" value={leadId} />
+          <p className="text-sm font-bold text-app-text">Перевести в отказ</p>
+          <Select name="reason_id" defaultValue="" required>
+            <EmptyOption label={reasons.length ? 'Выбери причину отказа' : 'Причины не настроены'} />
+            {reasons.map((reason) => <option key={reason.id} value={reason.id}>{reason.name}</option>)}
+          </Select>
+          <Textarea name="refusal_comment" rows={4} placeholder="Комментарий: что именно сказал человек, когда можно вернуться, что могло бы изменить решение" />
+          <Button type="submit" variant="danger" className="w-full">
+            <AlertTriangle className="h-4 w-4" />
+            Зафиксировать отказ
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function LeadQuestionnairesCard({ items }: { items: LeadQuestionnaireListItem[] }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2"><FileQuestion className="h-4 w-4 text-app-purple" />Персональные анкеты</CardTitle>
+        <Badge tone="gray">{items.length}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {items.length ? items.map((item) => (
+          <div key={item.id} className="rounded-2xl border border-app-line p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-app-text">{item.title}</p>
+                <p className="mt-1 text-sm text-app-muted">{item.questionsCount} вопросов · {item.responsesCount} ответов · {item.createdAt}</p>
+              </div>
+              <Badge tone={item.status === 'active' ? 'green' : item.status === 'closed' ? 'gray' : 'yellow'}>{questionnaireStatusLabel(item.status)}</Badge>
+            </div>
+            {item.description && <p className="mt-3 text-sm leading-6 text-app-muted">{item.description}</p>}
+            <div className="mt-4 rounded-xl bg-app-soft p-3 text-xs font-semibold text-app-muted break-all">
+              {item.publicUrl}
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button asChild size="sm" variant="secondary"><a href={item.publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Открыть ссылку</a></Button>
+              <Button asChild size="sm" variant="ghost"><Link href={`/people/${item.leadId}`}>В карточке</Link></Button>
+            </div>
+          </div>
+        )) : (
+          <p className="text-sm text-app-muted">Пока нет персональных анкет. Создай вопросы ниже и отправь человеку ссылку.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function LeadQuestionnaireResponsesCard({ items }: { items: LeadQuestionnaireResponseGroup[] }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3">
+        <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4 text-app-pink" />Ответы по персональным вопросам</CardTitle>
+        <Badge tone="gray">{items.length}</Badge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {items.length ? items.map((group) => (
+          <div key={group.id} className="rounded-2xl border border-app-line p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="font-bold text-app-text">{group.questionnaireTitle}</p>
+                <p className="mt-1 text-sm text-app-muted">
+                  {group.respondentName || 'Ответ без имени'}{group.respondentContact ? ` · ${group.respondentContact}` : ''} · {group.createdAt}
+                </p>
+              </div>
+              {group.questionnaireUrl && (
+                <a href={group.questionnaireUrl} target="_blank" rel="noreferrer" className="text-xs font-bold text-app-purple hover:underline">Ссылка</a>
+              )}
+            </div>
+            <div className="mt-4 grid gap-3">
+              {group.answers.map((answer) => (
+                <div key={`${group.id}-${answer.question}`} className="rounded-xl bg-app-soft p-3">
+                  <p className="text-xs font-black uppercase tracking-wide text-app-faint">{answer.question}</p>
+                  <p className="mt-1 text-sm font-semibold text-app-text">{answer.answer}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )) : <p className="text-sm text-app-muted">Ответов на персональные вопросы пока нет.</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+function QuestionPacksCard({ leadId, packs }: { leadId: string; packs: QuestionPack[] }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><PackageCheck className="h-4 w-4 text-app-purple" />Готовые паки вопросов</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm leading-6 text-app-muted">
+          Выбери готовый пакет — Hutka сразу создаст персональную ссылку с вопросами. Не нужно каждый раз вручную заполнять анкету для мастера или салона.
+        </p>
+        <div className="grid gap-3">
+          {packs.map((pack) => (
+            <form key={pack.id} action={createLeadQuestionnaireFromPackAction} className="rounded-2xl border border-app-line p-4 transition hover:border-purple-200 hover:bg-purple-50/40">
+              <input type="hidden" name="lead_id" value={leadId} />
+              <input type="hidden" name="pack_id" value={pack.id} />
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-black text-app-text">{pack.shortTitle}</p>
+                    <Badge tone="purple">{pack.badge}</Badge>
+                    <Badge tone="gray">{pack.questions.length} вопросов</Badge>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-app-muted">{pack.description}</p>
+                </div>
+                <Button type="submit" size="sm" variant="secondary">
+                  <Link2 className="h-4 w-4" />
+                  Создать ссылку
+                </Button>
+              </div>
+            </form>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PersonalQuestionnaireBuilder({ leadId, leadName }: { leadId: string; leadName: string }) {
+  const questionIndexes = [1, 2, 3, 4, 5];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2"><PlusCircle className="h-4 w-4 text-app-purple" />Создать вопросы для контакта</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form action={createLeadQuestionnaireAction} className="space-y-4">
+          <input type="hidden" name="lead_id" value={leadId} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-app-text">Название анкеты</span>
+              <Input name="title" defaultValue={`Вопросы для ${leadName}`} />
+            </label>
+            <label className="block">
+              <span className="mb-2 block text-sm font-bold text-app-text">Описание для человека</span>
+              <Input name="description" placeholder="Например: ответьте, чтобы мы подготовили пилот" />
+            </label>
+          </div>
+
+          <div className="space-y-3">
+            {questionIndexes.map((index) => (
+              <div key={index} className="rounded-2xl border border-app-line p-4">
+                <p className="mb-3 text-sm font-black text-app-text">Вопрос {index}</p>
+                <div className="grid gap-3 lg:grid-cols-[1.4fr_0.8fr]">
+                  <Input name={`lead_question_text_${index}`} placeholder={index === 1 ? 'Например: какая главная проблема с записью?' : 'Текст вопроса'} />
+                  <Select name={`lead_question_type_${index}`} defaultValue={index === 1 ? 'long_text' : 'short_text'}>
+                    <option value="short_text">Короткий ответ</option>
+                    <option value="long_text">Развернутый ответ</option>
+                    <option value="yes_no">Да / нет</option>
+                    <option value="single_choice">Один вариант</option>
+                    <option value="multiple_choice">Несколько вариантов</option>
+                    <option value="rating">Оценка</option>
+                    <option value="number">Число</option>
+                  </Select>
+                </div>
+                <Textarea name={`lead_question_options_${index}`} className="mt-3" placeholder="Варианты для выбора, если нужны. Каждый вариант с новой строки или через запятую." />
+                <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-app-muted">
+                  <input type="checkbox" name={`lead_question_required_${index}`} defaultChecked={index <= 2} className="h-4 w-4" />
+                  Обязательный вопрос
+                </label>
+              </div>
+            ))}
+          </div>
+
+          <Button type="submit" className="w-full" size="lg">
+            <Link2 className="h-4 w-4" />
+            Создать ссылку для отправки
+          </Button>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ContactRelationsHub({
   leadId,
   campaigns,
@@ -243,7 +466,7 @@ function ContactRelationsHub({
 }
 
 export async function LeadProfile({ id }: { id: string }) {
-  const [lead, interactions, tasks, stageOptions, related, campaignOptions, insightOptions, hypothesisOptions, surveyOptions] = await Promise.all([
+  const [lead, interactions, tasks, stageOptions, related, campaignOptions, insightOptions, hypothesisOptions, surveyOptions, leadQuestionnaires, leadQuestionnaireResponses, currentUser, refusalReasons] = await Promise.all([
     getLeadById(id),
     getLeadInteractions(id),
     getLeadTasks(id),
@@ -252,7 +475,11 @@ export async function LeadProfile({ id }: { id: string }) {
     getCampaignOptions(),
     getInsightOptions(),
     getHypothesisOptions(),
-    getSurveyOptions()
+    getSurveyOptions(),
+    getLeadQuestionnaires(id),
+    getLeadQuestionnaireResponses(id),
+    getCurrentUserContext(),
+    getRefusalReasons()
   ]);
 
   if (!lead) notFound();
@@ -262,6 +489,10 @@ export async function LeadProfile({ id }: { id: string }) {
   const emailHref = contactHref(lead.email, 'email');
   const phoneHref = contactHref(lead.phone, 'phone');
   const currentStageOption = stageOptions.find((stage) => stage.name === lead.stage);
+  const [questionPacks, messageTemplates] = await Promise.all([
+    getQuestionPacks(),
+    getMessageTemplatesForLead(lead.type)
+  ]);
 
   return (
     <div className="space-y-6">
@@ -271,7 +502,8 @@ export async function LeadProfile({ id }: { id: string }) {
           <h1 className="text-3xl font-black tracking-tight text-app-text">{lead.name}</h1>
           <div className="mt-4 flex flex-wrap gap-2">
             <Badge tone={lead.score >= 75 ? 'red' : lead.score >= 45 ? 'yellow' : 'gray'}>{lead.priority} · {lead.score}/100</Badge>
-            <Badge tone="purple">{lead.stage}</Badge>
+            <Badge tone={lead.stage === 'Отказ' ? 'red' : 'purple'}>{lead.stage}</Badge>
+            {lead.refusalReason && <Badge tone="red">Отказ: {lead.refusalReason}</Badge>}
             {lead.tags.length ? lead.tags.map((tag, index) => (
               <Badge key={tag} tone={index === 0 ? 'red' : index === 1 ? 'pink' : index === 2 ? 'purple' : 'green'}>{tag}</Badge>
             )) : <Badge tone="gray">Без тегов</Badge>}
@@ -302,6 +534,8 @@ export async function LeadProfile({ id }: { id: string }) {
           <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
         </div>
       </div>
+
+      <LeadNextActionCard lead={lead} tasks={tasks} />
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.2fr_1fr]">
         <div className="space-y-6">
@@ -362,10 +596,12 @@ export async function LeadProfile({ id }: { id: string }) {
                 <input type="hidden" name="lead_id" value={lead.id} />
                 <p className="text-sm font-bold text-app-text">Перевести в стадию</p>
                 <Select name="stage_id" defaultValue={currentStageOption?.id ?? ''}>
-                  {stageOptions.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                  {stageOptions.filter((stage) => stage.name !== 'Отказ').map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                 </Select>
                 <Button type="submit" variant="secondary" className="w-full"><ArrowRight className="h-4 w-4" />Сменить стадию</Button>
               </form>
+
+              <RefusalManagementCard leadId={lead.id} lead={lead} reasons={refusalReasons} />
 
               <form action={updateLeadFollowUpAction} className="space-y-3 rounded-2xl border border-app-line p-4">
                 <input type="hidden" name="lead_id" value={lead.id} />
@@ -396,6 +632,31 @@ export async function LeadProfile({ id }: { id: string }) {
             hypotheses={hypothesisOptions}
             surveys={surveyOptions}
           />
+
+          <MessageTemplatePanel
+            lead={{
+              name: lead.name,
+              type: lead.type,
+              niche: lead.niche,
+              city: lead.city,
+              stage: lead.stage,
+              source: lead.source,
+              instagram: lead.instagram,
+              telegram: lead.telegram,
+              phone: lead.phone,
+              email: lead.email
+            }}
+            sender={{
+              name: currentUser?.fullName ?? 'Команда Hutka',
+              title: currentUser?.jobTitle ?? 'Маркетолог',
+              email: currentUser?.email ?? ''
+            }}
+            templates={messageTemplates}
+          />
+          <QuestionPacksCard leadId={lead.id} packs={questionPacks} />
+          <LeadQuestionnairesCard items={leadQuestionnaires} />
+          <LeadQuestionnaireResponsesCard items={leadQuestionnaireResponses} />
+          <PersonalQuestionnaireBuilder leadId={lead.id} leadName={lead.name} />
         </div>
 
         <div className="space-y-6">

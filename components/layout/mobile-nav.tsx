@@ -2,19 +2,33 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Plus, X } from 'lucide-react';
+import { Menu, Plus, Settings, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { navItems } from '@/lib/data';
 import { can, roleLabels, type UserRole } from '@/lib/roles';
+import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { Logo } from './logo';
 
 const bottomNavHrefs = ['/dashboard', '/people', '/tasks', '/notifications'];
 
-export function MobileNav({ role, unreadCount = 0 }: { role: UserRole; unreadCount?: number }) {
+export function MobileNav({
+  role,
+  userName,
+  userJobTitle,
+  userAvatarUrl,
+  unreadCount = 0
+}: {
+  role: UserRole;
+  userName?: string;
+  userJobTitle?: string;
+  userAvatarUrl?: string;
+  unreadCount?: number;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const initials = getInitials(userName, 'H');
 
   const visibleItems = useMemo(
     () =>
@@ -61,10 +75,28 @@ export function MobileNav({ role, unreadCount = 0 }: { role: UserRole; unreadCou
             </div>
 
             <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4">
-              <div className="mb-4 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-app-muted">Роль</p>
-                <p className="mt-1 text-lg font-black text-app-text">{roleLabels[role]}</p>
-              </div>
+              <Link
+                href="/profile"
+                onClick={() => setOpen(false)}
+                className={cn(
+                  'mb-4 flex items-center gap-3 rounded-2xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-4 transition hover:border-purple-200',
+                  pathname === '/profile' ? 'ring-4 ring-purple-50' : ''
+                )}
+              >
+                {userAvatarUrl ? (
+                  <img src={userAvatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover" />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-black text-white">
+                    {initials}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-black text-app-text">{userName || 'Профиль'}</p>
+                  <p className="truncate text-xs font-semibold text-app-purple">{userJobTitle || roleLabels[role]}</p>
+                  <p className="mt-1 text-[11px] text-app-muted">Системная роль: {roleLabels[role]}</p>
+                </div>
+                <Settings className="h-4 w-4 shrink-0 text-app-faint" />
+              </Link>
 
               <nav className="space-y-1">
                 {visibleItems.map((item) => {
@@ -81,9 +113,9 @@ export function MobileNav({ role, unreadCount = 0 }: { role: UserRole; unreadCou
                         active ? 'bg-purple-50 text-app-purple' : 'text-app-muted hover:bg-slate-50 hover:text-app-text'
                       )}
                     >
-                      <span className="flex items-center gap-3">
-                        <Icon className="h-5 w-5" />
-                        {item.title}
+                      <span className="flex min-w-0 items-center gap-3">
+                        <Icon className="h-5 w-5 shrink-0" />
+                        <span className="truncate">{item.title}</span>
                       </span>
                       {item.href === '/notifications' && unreadCount > 0 ? (
                         <span className="rounded-full bg-app-red px-2 py-0.5 text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>

@@ -432,9 +432,22 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
     nextStageName = stage.data?.name ? String(stage.data.name) : 'не указана';
   }
 
+  const shouldClearRefusal = nextStageName !== 'Отказ';
+  const updatePayload: Record<string, string | null> = {
+    stage_id: nextStageId,
+    updated_at: new Date().toISOString()
+  };
+
+  if (shouldClearRefusal) {
+    updatePayload.refusal_reason_id = null;
+    updatePayload.refusal_reason = null;
+    updatePayload.refusal_comment = null;
+    updatePayload.refused_at = null;
+  }
+
   const { error } = await supabase
     .from('leads')
-    .update({ stage_id: nextStageId, updated_at: new Date().toISOString() })
+    .update(updatePayload)
     .eq('id', leadId);
 
   if (error) redirect(`/people/${leadId}?error=stage-update-failed`);

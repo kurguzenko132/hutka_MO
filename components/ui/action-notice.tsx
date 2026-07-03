@@ -25,6 +25,8 @@ function successNotice(params: SearchParams): Notice | null {
   const updated = first(params?.updated);
   const created = first(params?.created);
   const survey = first(params?.survey);
+  const saved = first(params?.saved);
+  const deleted = first(params?.deleted);
   const count = first(params?.count);
 
   if (bulk) {
@@ -62,6 +64,10 @@ function successNotice(params: SearchParams): Notice | null {
   if (updated) return { tone: 'success', title: 'Изменения сохранены', text: 'Данные обновлены и связанные разделы пересчитаны.' };
   if (created) return { tone: 'success', title: 'Контакт добавлен', text: 'Новый контакт появился в базе Hutka.' };
   if (survey === 'link-created') return { tone: 'success', title: 'Ссылка на опрос создана', text: 'Персональная ссылка записана в историю контакта.' };
+  if (saved === 'view') return { tone: 'success', title: 'Вид сохранен', text: 'Теперь этот набор фильтров доступен в блоке «Мои сохраненные виды». ' };
+  if (saved === 'demo') return { tone: 'success', title: 'Демо-режим', text: 'Supabase не настроен, поэтому вид не сохранен в базу.' };
+  if (deleted === 'view') return { tone: 'success', title: 'Вид удален', text: 'Сохраненный вид больше не отображается в списке.' };
+  if (deleted === 'demo-view') return { tone: 'success', title: 'Демо-режим', text: 'В демо-режиме удаление сохраненного вида не записывается в базу.' };
 
   return null;
 }
@@ -82,6 +88,11 @@ function errorNotice(params: SearchParams): Notice | null {
     'missing-tag': { tone: 'error', title: 'Не указан тег', text: 'Укажи тег, который нужно добавить.' },
     'missing-task-title': { tone: 'error', title: 'Не указана задача', text: 'Напиши название задачи.' },
     'missing-campaign': { tone: 'error', title: 'Не выбрана кампания', text: 'Выбери кампанию для добавления контактов.' },
+    'missing-view-name': { tone: 'error', title: 'Не указано название вида', text: 'Напиши короткое название для сохраненного набора фильтров.' },
+    'profile-not-found': { tone: 'error', title: 'Профиль не найден', text: 'Не удалось привязать сохраненный вид к текущему пользователю.' },
+    'view-save-failed': { tone: 'error', title: 'Вид не сохранен', text: 'Проверь Supabase и таблицу saved_lead_views.' },
+    'view-delete-failed': { tone: 'error', title: 'Вид не удален', text: 'Попробуй удалить сохраненный вид еще раз.' },
+    'missing-view': { tone: 'error', title: 'Вид не выбран', text: 'Не удалось определить сохраненный вид для удаления.' },
     'duplicate-contact': {
       tone: 'error',
       title: 'Похожий контакт уже есть',

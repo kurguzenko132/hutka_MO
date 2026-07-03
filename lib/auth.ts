@@ -1,5 +1,6 @@
 export const DASHBOARD_PATHS = [
   '/dashboard',
+  '/profile',
   '/people',
   '/funnels',
   '/surveys',
@@ -26,7 +27,7 @@ export function isAuthPath(pathname: string) {
 }
 
 export function isPublicPath(pathname: string) {
-  return isAuthPath(pathname) || pathname === '/s' || pathname.startsWith('/s/');
+  return isAuthPath(pathname) || pathname === '/s' || pathname.startsWith('/s/') || pathname === '/q' || pathname.startsWith('/q/');
 }
 
 export function isSafeRedirectPath(path?: string | null) {

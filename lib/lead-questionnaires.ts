@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 
 export type LeadQuestionnaireStatus = 'draft' | 'active' | 'closed';
 
@@ -233,8 +234,9 @@ function relatedQuestionText(value: unknown): string | undefined {
 
 export async function getLeadQuestionnaireByToken(token: string): Promise<LeadQuestionnaireDetail | null> {
   if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseServiceConfigured()) return null;
 
-  const supabase = await createClient();
+  const supabase = createServiceClient();
   const { data: formRow, error } = await supabase
     .from('lead_questionnaires')
     .select('id,lead_id,title,description,status,token,created_at')
@@ -244,11 +246,13 @@ export async function getLeadQuestionnaireByToken(token: string): Promise<LeadQu
 
   if (error || !formRow) return null;
 
-  const { data: questionRows } = await supabase
+  const { data: questionRows, error: questionsError } = await supabase
     .from('lead_questionnaire_questions')
     .select('id,question_text,question_type,options,required,order_index')
     .eq('questionnaire_id', formRow.id)
     .order('order_index', { ascending: true });
+
+  if (questionsError || !questionRows) return null;
 
   const questions = (questionRows ?? []).map((row) => mapQuestion(row as Record<string, unknown>));
   const base = mapListItem(formRow as Record<string, unknown>);

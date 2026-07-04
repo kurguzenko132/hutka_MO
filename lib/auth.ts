@@ -39,6 +39,21 @@ export function getSafeRedirectPath(path?: string | null, fallback = '/dashboard
   return isSafeRedirectPath(path) ? path! : fallback;
 }
 
+export function withRedirectQuery(
+  path: string | null | undefined,
+  params: Record<string, string | number | null | undefined>,
+  fallback = '/dashboard'
+) {
+  const url = new URL(getSafeRedirectPath(path, fallback), 'https://hutka.local');
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    url.searchParams.set(key, String(value));
+  });
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
 export function buildLoginPath(next?: string, error?: string) {
   const params = new URLSearchParams();
 

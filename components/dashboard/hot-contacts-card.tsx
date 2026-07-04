@@ -9,7 +9,7 @@ export function HotContactsCard({ contacts }: { contacts: DashboardHotContact[] 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Горячие контакты</CardTitle>
-        <a href="/people?priority=Высокий" className="text-xs font-bold text-app-purple">Все →</a>
+        <Link href="/people?priority=Высокий" className="text-xs font-bold text-app-purple">Все →</Link>
       </CardHeader>
       <CardContent className="space-y-3">
         {contacts.length === 0 ? (

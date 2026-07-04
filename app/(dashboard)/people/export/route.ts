@@ -1,4 +1,5 @@
 import { getLeads, type LeadFilters } from '@/lib/leads';
+import { requirePermission } from '@/lib/permissions';
 
 function csvCell(value: unknown) {
   const text = String(value ?? '').replace(/"/g, '""');
@@ -20,6 +21,8 @@ function buildFilters(searchParams: URLSearchParams): LeadFilters {
 }
 
 export async function GET(request: Request) {
+  await requirePermission('manageContacts', '/people?error=forbidden');
+
   const url = new URL(request.url);
   const leads = await getLeads(buildFilters(url.searchParams));
   const header = ['Имя', 'Тип', 'Ниша', 'Город', 'Стадия', 'Источник', 'Приоритет', 'Следующий шаг', 'Дата следующего контакта', 'Теги'];

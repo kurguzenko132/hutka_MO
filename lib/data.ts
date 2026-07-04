@@ -18,7 +18,6 @@ import {
   Zap,
   ShieldCheck,
   Rocket,
-  Archive,
   ClipboardCheck,
   AlarmClockCheck
 } from 'lucide-react';

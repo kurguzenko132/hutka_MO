@@ -1,34 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/permissions';
 import { createClient } from '@/lib/supabase/server';
-
-const backupTables = [
-  'app_settings',
-  'profiles',
-  'sources',
-  'funnel_stages',
-  'tags',
-  'leads',
-  'lead_tags',
-  'lead_interactions',
-  'tasks',
-  'surveys',
-  'survey_questions',
-  'survey_answers',
-  'campaigns',
-  'campaign_leads',
-  'insights',
-  'insight_leads',
-  'insight_campaigns',
-  'insight_surveys',
-  'hypotheses',
-  'hypothesis_leads',
-  'hypothesis_insights',
-  'hypothesis_campaigns',
-  'hypothesis_surveys',
-  'import_logs',
-  'notification_reads'
-] as const;
+import { databaseTables } from '@/lib/database-tables';
 
 export async function GET() {
   const user = await requireAdmin('/dashboard?error=admin-only');
@@ -37,7 +10,7 @@ export async function GET() {
   const data: Record<string, unknown> = {};
   const errors: Record<string, string> = {};
 
-  for (const table of backupTables) {
+  for (const table of databaseTables) {
     const { data: rows, error } = await supabase.from(table).select('*').limit(10000);
     if (error) {
       errors[table] = error.message;

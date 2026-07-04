@@ -51,7 +51,7 @@ const permissions: Record<UserRole, Permission[]> = {
 };
 
 export function normalizeRole(role?: string | null): UserRole {
-  return role === 'admin' || role === 'viewer' || role === 'marketer' ? role : 'marketer';
+  return role === 'admin' || role === 'viewer' || role === 'marketer' ? role : 'viewer';
 }
 
 export function can(role: UserRole | string | null | undefined, permission: Permission) {

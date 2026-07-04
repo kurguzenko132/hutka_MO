@@ -44,6 +44,11 @@ function redirectToDemo() {
   redirect('/settings/message-templates?demo=1');
 }
 
+async function templateExists(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
+  const { data, error } = await supabase.from('message_templates').select('id').eq('id', id).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function createMessageTemplateAction(formData: FormData) {
   await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
@@ -85,6 +90,8 @@ export async function updateMessageTemplateAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await templateExists(supabase, id))) redirect('/settings/message-templates?error=template-not-found');
+
   const { error } = await supabase
     .from('message_templates')
     .update({
@@ -115,6 +122,8 @@ export async function deleteMessageTemplateAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await templateExists(supabase, id))) redirect('/settings/message-templates?error=template-not-found');
+
   const { error } = await supabase.from('message_templates').delete().eq('id', id);
   if (error) redirect(`/settings/message-templates/${id}?error=delete-failed`);
 

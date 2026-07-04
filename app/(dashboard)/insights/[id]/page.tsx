@@ -11,9 +11,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getInsightById, insightImportanceTone, insightStatusTone } from '@/lib/insights';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
 export default async function InsightDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const [{ id }, currentUser] = await Promise.all([params, getCurrentUserContext()]);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageInsights = can(currentRole, 'manageInsights');
   const insight = await getInsightById(id);
   if (!insight) notFound();
 
@@ -59,36 +63,38 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
         </main>
 
         <aside className="space-y-6">
-          <form action={updateInsightAction}>
-            <input type="hidden" name="insight_id" value={insight.id} />
-            <FormSection title="Обновить инсайт" subtitle="Поменяй статус, важность и следующий шаг после обсуждения с командой.">
-              <div className="space-y-4">
-                <Field label="Статус">
-                  <Select name="status" defaultValue={insight.statusLabel}>
-                    <option>Новый</option>
-                    <option>На проверке</option>
-                    <option>Принят</option>
-                    <option>В архиве</option>
-                  </Select>
-                </Field>
-                <Field label="Важность">
-                  <Select name="importance" defaultValue={insight.importanceLabel}>
-                    <option>Низкая</option>
-                    <option>Средняя</option>
-                    <option>Высокая</option>
-                    <option>Критично</option>
-                  </Select>
-                </Field>
-                <Field label="Доказательства">
-                  <Textarea name="evidence" defaultValue={insight.evidence ?? ''} />
-                </Field>
-                <Field label="Следующее действие">
-                  <Textarea name="next_action" defaultValue={insight.nextAction ?? ''} />
-                </Field>
-                <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить изменения</Button>
-              </div>
-            </FormSection>
-          </form>
+          {canManageInsights && (
+            <form action={updateInsightAction}>
+              <input type="hidden" name="insight_id" value={insight.id} />
+              <FormSection title="Обновить инсайт" subtitle="Поменяй статус, важность и следующий шаг после обсуждения с командой.">
+                <div className="space-y-4">
+                  <Field label="Статус">
+                    <Select name="status" defaultValue={insight.statusLabel}>
+                      <option>Новый</option>
+                      <option>На проверке</option>
+                      <option>Принят</option>
+                      <option>В архиве</option>
+                    </Select>
+                  </Field>
+                  <Field label="Важность">
+                    <Select name="importance" defaultValue={insight.importanceLabel}>
+                      <option>Низкая</option>
+                      <option>Средняя</option>
+                      <option>Высокая</option>
+                      <option>Критично</option>
+                    </Select>
+                  </Field>
+                  <Field label="Доказательства">
+                    <Textarea name="evidence" defaultValue={insight.evidence ?? ''} />
+                  </Field>
+                  <Field label="Следующее действие">
+                    <Textarea name="next_action" defaultValue={insight.nextAction ?? ''} />
+                  </Field>
+                  <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить изменения</Button>
+                </div>
+              </FormSection>
+            </form>
+          )}
 
           <Card>
             <CardContent>
@@ -98,12 +104,14 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
             </CardContent>
           </Card>
 
-          <form action={deleteInsightAction}>
-            <input type="hidden" name="insight_id" value={insight.id} />
-            <FormSection title="Удалить инсайт" subtitle="Удалится инсайт и его связи. Контакты, кампании и опросы останутся.">
-              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить инсайт</Button>
-            </FormSection>
-          </form>
+          {canManageInsights && (
+            <form action={deleteInsightAction}>
+              <input type="hidden" name="insight_id" value={insight.id} />
+              <FormSection title="Удалить инсайт" subtitle="Удалится инсайт и его связи. Контакты, кампании и опросы останутся.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить инсайт</Button>
+              </FormSection>
+            </form>
+          )}
         </aside>
       </div>
     </div>

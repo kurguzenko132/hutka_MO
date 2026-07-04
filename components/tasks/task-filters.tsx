@@ -33,7 +33,7 @@ export function TaskFiltersPanel({
   return (
     <Card className="p-4">
       <form className="space-y-4" action="/tasks">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <label className="space-y-1.5 md:col-span-2 xl:col-span-2">
             <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Поиск</span>
             <div className="relative">
@@ -57,6 +57,7 @@ export function TaskFiltersPanel({
             <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Приоритет</span>
             <Select name="priority" defaultValue={filters.priority ?? ''}>
               <option value="">Все</option>
+              <option value="none">Без приоритета</option>
               <option value="low">Низкий</option>
               <option value="medium">Средний</option>
               <option value="high">Высокий</option>
@@ -82,6 +83,16 @@ export function TaskFiltersPanel({
               <option value="">Все</option>
               {options.leads.map((lead) => (
                 <option key={lead.id} value={lead.id}>{lead.name}</option>
+              ))}
+            </Select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Участник</span>
+            <Select name="profileId" defaultValue={filters.profileId ?? ''}>
+              <option value="">Все</option>
+              {options.teamMembers.map((member) => (
+                <option key={member.id} value={member.id}>{member.fullName}</option>
               ))}
             </Select>
           </label>

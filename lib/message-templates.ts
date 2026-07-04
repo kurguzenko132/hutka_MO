@@ -216,10 +216,10 @@ export async function getMessageTemplates(audience?: MessageTemplateAudience | '
     if (audience && audience !== 'all') query = query.in('audience', [audience, 'any']);
 
     const { data, error } = await query;
-    if (error || !data) return defaultMessageTemplates;
+    if (error || !data) return [];
     return data.map((row) => mapTemplateRow(row as Record<string, unknown>));
   } catch {
-    return defaultMessageTemplates;
+    return [];
   }
 }
 
@@ -242,9 +242,9 @@ export async function getMessageTemplateById(id: string): Promise<MessageTemplat
       .eq('id', id)
       .maybeSingle();
 
-    if (error || !data) return defaultMessageTemplates.find((template) => template.id === id) ?? null;
+    if (error || !data) return null;
     return mapTemplateRow(data as Record<string, unknown>);
   } catch {
-    return defaultMessageTemplates.find((template) => template.id === id) ?? null;
+    return null;
   }
 }

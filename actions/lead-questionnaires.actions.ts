@@ -5,9 +5,17 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 import { requirePermission } from '@/lib/permissions';
 import { getQuestionPackById } from '@/lib/question-packs';
 import { sendWorkspaceTelegramNotification } from '@/lib/telegram';
+import {
+  answerLength,
+  getLimitedText,
+  getLimitedValues,
+  hasPublicFormHoneypot,
+  publicFormLimits
+} from '@/lib/public-form-validation';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -62,15 +70,18 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
   const packId = getText(formData, 'pack_id');
   if (!leadId) redirect('/people?error=missing-contact');
 
-  const pack = await getQuestionPackById(packId);
-  if (!pack) redirect(`/people/${leadId}?error=question-pack-not-found`);
-
   if (!isSupabaseConfigured()) {
     redirect(`/people/${leadId}?questionnaire=demo-pack`);
   }
 
   const supabase = await createClient();
-  const { data: lead } = await supabase.from('leads').select('name').eq('id', leadId).maybeSingle();
+  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
+  if (leadError || !lead?.id) redirect('/people?error=contact-not-found');
+
+  const pack = await getQuestionPackById(packId);
+  if (!pack) redirect(`/people/${lead.id}?error=question-pack-not-found`);
+  if (pack.questions.length === 0) redirect(`/people/${lead.id}?error=question-pack-empty`);
+
   const title = getText(formData, 'title') || `${pack.shortTitle} · ${lead?.name ?? 'контакт'}`;
   const description = getText(formData, 'description') || pack.description;
   const token = await createUniqueToken(supabase);
@@ -78,7 +89,7 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
   const { data: questionnaire, error } = await supabase
     .from('lead_questionnaires')
     .insert({
-      lead_id: leadId,
+      lead_id: lead.id,
       title,
       description,
       status: 'active',
@@ -88,10 +99,10 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
     .single();
 
   if (error || !questionnaire) {
-    redirect(`/people/${leadId}?error=questionnaire-pack-save-failed`);
+    redirect(`/people/${lead.id}?error=questionnaire-pack-save-failed`);
   }
 
-  await supabase.from('lead_questionnaire_questions').insert(
+  const { error: questionsError } = await supabase.from('lead_questionnaire_questions').insert(
     pack.questions.map((question, index) => ({
       questionnaire_id: questionnaire.id,
       question_text: question.text,
@@ -102,20 +113,25 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
     }))
   );
 
+  if (questionsError) {
+    await supabase.from('lead_questionnaires').delete().eq('id', questionnaire.id);
+    redirect(`/people/${lead.id}?error=questionnaire-questions-save-failed`);
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
   const link = `${appUrl ?? ''}/q/${questionnaire.token}`;
 
   await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
+    lead_id: lead.id,
     type: 'survey_sent',
     channel: 'Hutka',
     text: `Создана персональная анкета из пака «${pack.title}»: ${link}`,
     result: 'lead_questionnaire_pack_created'
   });
 
-  revalidatePath(`/people/${leadId}`);
+  revalidatePath(`/people/${lead.id}`);
   revalidatePath('/notifications');
-  redirect(`/people/${leadId}?questionnaire=pack-created`);
+  redirect(`/people/${lead.id}?questionnaire=pack-created`);
 }
 
 export async function createLeadQuestionnaireAction(formData: FormData) {
@@ -133,7 +149,9 @@ export async function createLeadQuestionnaireAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data: lead } = await supabase.from('leads').select('name').eq('id', leadId).maybeSingle();
+  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
+  if (leadError || !lead?.id) redirect('/people?error=contact-not-found');
+
   const title = getText(formData, 'title') || `Вопросы для ${lead?.name ?? 'контакта'}`;
   const description = getText(formData, 'description') || null;
   const token = await createUniqueToken(supabase);
@@ -141,7 +159,7 @@ export async function createLeadQuestionnaireAction(formData: FormData) {
   const { data: questionnaire, error } = await supabase
     .from('lead_questionnaires')
     .insert({
-      lead_id: leadId,
+      lead_id: lead.id,
       title,
       description,
       status: 'active',
@@ -151,43 +169,55 @@ export async function createLeadQuestionnaireAction(formData: FormData) {
     .single();
 
   if (error || !questionnaire) {
-    redirect(`/people/${leadId}?error=questionnaire-save-failed`);
+    redirect(`/people/${lead.id}?error=questionnaire-save-failed`);
   }
 
-  await supabase.from('lead_questionnaire_questions').insert(
+  const { error: questionsError } = await supabase.from('lead_questionnaire_questions').insert(
     questions.map((question) => ({
       questionnaire_id: questionnaire.id,
       ...question
     }))
   );
 
+  if (questionsError) {
+    await supabase.from('lead_questionnaires').delete().eq('id', questionnaire.id);
+    redirect(`/people/${lead.id}?error=questionnaire-questions-save-failed`);
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
   const link = `${appUrl ?? ''}/q/${questionnaire.token}`;
 
   await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
+    lead_id: lead.id,
     type: 'survey_sent',
     channel: 'Hutka',
     text: `Создана персональная анкета «${title}»: ${link}`,
     result: 'lead_questionnaire_created'
   });
 
-  revalidatePath(`/people/${leadId}`);
+  revalidatePath(`/people/${lead.id}`);
   revalidatePath('/notifications');
-  redirect(`/people/${leadId}?questionnaire=created`);
+  redirect(`/people/${lead.id}?questionnaire=created`);
 }
 
 export async function submitLeadQuestionnaireAction(formData: FormData) {
   const questionnaireId = getText(formData, 'questionnaire_id');
-  const leadId = getText(formData, 'lead_id');
   const token = getText(formData, 'token');
   if (!questionnaireId || !token) redirect('/?error=bad-questionnaire');
+
+  if (hasPublicFormHoneypot(formData)) {
+    redirect(`/q/${token}?submitted=1`);
+  }
 
   if (!isSupabaseConfigured()) {
     redirect(`/q/${token}?submitted=1`);
   }
 
-  const supabase = await createClient();
+  if (!isSupabaseServiceConfigured()) {
+    redirect(`/q/${token}?error=config`);
+  }
+
+  const supabase = createServiceClient();
   const { data: questionnaire, error: questionnaireError } = await supabase
     .from('lead_questionnaires')
     .select('id,lead_id,title,status')
@@ -209,42 +239,61 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
   if (questionsError || !questions?.length) redirect(`/q/${token}?error=questions-not-found`);
 
   const responseGroupId = crypto.randomUUID();
-  const respondentName = getText(formData, 'respondent_name') || null;
-  const respondentContact = getText(formData, 'respondent_contact') || null;
+  const respondentName = getLimitedText(formData, 'respondent_name', publicFormLimits.respondentName);
+  const respondentContact = getLimitedText(formData, 'respondent_contact', publicFormLimits.respondentContact);
+
+  if (respondentName === null || respondentContact === null) {
+    redirect(`/q/${token}?error=too-long`);
+  }
+
+  const resolvedLeadId = questionnaire.lead_id ? String(questionnaire.lead_id) : null;
   const answerRows = [];
+  let totalAnswerLength = 0;
 
   for (const question of questions) {
     const key = `answer_${question.id}`;
-    const allValues = formData.getAll(key).map((value) => String(value).trim()).filter(Boolean);
-    const answer = question.question_type === 'multiple_choice' ? allValues : allValues[0] ?? '';
+    const allValues = getLimitedValues(formData, key);
+    if (!allValues) redirect(`/q/${token}?error=too-long`);
 
-    if (question.required && (!answer || (Array.isArray(answer) && answer.length === 0))) {
+    const answer = question.question_type === 'multiple_choice' ? allValues : allValues[0] ?? '';
+    const empty = Array.isArray(answer) ? answer.length === 0 : answer === '';
+
+    if (question.required && empty) {
       redirect(`/q/${token}?error=required`);
     }
+
+    totalAnswerLength += answerLength(answer);
+    if (totalAnswerLength > publicFormLimits.totalAnswerLength) {
+      redirect(`/q/${token}?error=too-long`);
+    }
+
+    if (empty) continue;
 
     answerRows.push({
       questionnaire_id: questionnaireId,
       question_id: question.id,
-      lead_id: leadId || questionnaire.lead_id,
+      lead_id: resolvedLeadId,
       response_group_id: responseGroupId,
-      respondent_name: respondentName,
-      respondent_contact: respondentContact,
+      respondent_name: respondentName || null,
+      respondent_contact: respondentContact || null,
       answer
     });
   }
 
-  const { error } = await supabase.from('lead_questionnaire_answers').insert(answerRows);
-  if (error) redirect(`/q/${token}?error=save-failed`);
+  if (answerRows.length > 0) {
+    const { error } = await supabase.from('lead_questionnaire_answers').insert(answerRows);
+    if (error) redirect(`/q/${token}?error=save-failed`);
+  }
 
-  const resolvedLeadId = leadId || questionnaire.lead_id;
-
-  await supabase.from('lead_interactions').insert({
-    lead_id: resolvedLeadId,
-    type: 'survey_completed',
-    channel: 'Персональная ссылка',
-    text: `Получены ответы на персональную анкету «${questionnaire.title ?? 'Вопросы'}»`,
-    result: 'lead_questionnaire_completed'
-  });
+  if (resolvedLeadId) {
+    await supabase.from('lead_interactions').insert({
+      lead_id: resolvedLeadId,
+      type: 'survey_completed',
+      channel: 'Персональная ссылка',
+      text: `Получены ответы на персональную анкету «${questionnaire.title ?? 'Вопросы'}»`,
+      result: 'lead_questionnaire_completed'
+    });
+  }
 
   if (resolvedLeadId) {
     const { data: leadRow } = await supabase
@@ -254,6 +303,7 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
       .maybeSingle();
 
     await sendWorkspaceTelegramNotification({
+      eventType: 'lead_questionnaire_response',
       title: 'новый ответ на анкету',
       text: `${leadRow?.name ?? 'Контакт'} ответил(а) на персональную анкету «${questionnaire.title ?? 'Вопросы'}».`,
       href: `/people/${resolvedLeadId}`,
@@ -266,7 +316,7 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
     });
   }
 
-  revalidatePath(`/people/${resolvedLeadId}`);
+  if (resolvedLeadId) revalidatePath(`/people/${resolvedLeadId}`);
   revalidatePath('/notifications');
   redirect(`/q/${token}?submitted=1`);
 }
@@ -274,15 +324,32 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
 export async function deleteLeadQuestionnaireAction(formData: FormData) {
   await requirePermission('manageContacts', '/people?error=forbidden');
   const questionnaireId = getText(formData, 'questionnaire_id');
-  const leadId = getText(formData, 'lead_id');
-  if (!questionnaireId || !leadId) redirect('/people?error=missing-questionnaire');
+  const fallbackLeadId = getText(formData, 'lead_id');
+  if (!questionnaireId) redirect('/people?error=missing-questionnaire');
 
   if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?questionnaire=demo-delete`);
+    if (!fallbackLeadId) redirect('/people?error=missing-questionnaire');
+    redirect(`/people/${fallbackLeadId}?questionnaire=demo-delete`);
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('lead_questionnaires').delete().eq('id', questionnaireId);
+  const { data: questionnaire, error: questionnaireError } = await supabase
+    .from('lead_questionnaires')
+    .select('id,lead_id')
+    .eq('id', questionnaireId)
+    .maybeSingle();
+
+  if (questionnaireError || !questionnaire?.id || !questionnaire.lead_id) {
+    redirect('/people?error=questionnaire-not-found');
+  }
+
+  const leadId = String(questionnaire.lead_id);
+  const { error } = await supabase
+    .from('lead_questionnaires')
+    .delete()
+    .eq('id', questionnaireId)
+    .eq('lead_id', leadId);
+
   if (error) redirect(`/people/${leadId}?error=questionnaire-delete-failed`);
 
   await supabase.from('lead_interactions').insert({

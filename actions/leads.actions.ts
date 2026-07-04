@@ -53,6 +53,10 @@ function getTags(formData: FormData) {
     .filter(Boolean);
 }
 
+function looksLikeUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 
 function normalizeDuplicateValue(value: string) {
   return value.trim().toLowerCase();
@@ -87,17 +91,34 @@ async function findDuplicateLead(
   return null;
 }
 
+async function getExistingLeadId(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
+  const { data, error } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
+  return !error && data?.id ? String(data.id) : null;
+}
+
+async function getExistingLeadIds(supabase: Awaited<ReturnType<typeof createClient>>, leadIds: string[]) {
+  if (leadIds.length === 0) return [];
+
+  const { data, error } = await supabase.from('leads').select('id').in('id', leadIds);
+  if (error || !data) return [];
+
+  const existing = new Set(data.map((lead) => String(lead.id)));
+  return leadIds.filter((leadId) => existing.has(leadId));
+}
+
 function duplicateRedirect(basePath: string, duplicateId?: string) {
   const suffix = duplicateId ? `&duplicateId=${encodeURIComponent(duplicateId)}` : '';
   redirect(`${basePath}?error=duplicate-contact${suffix}`);
 }
 
 async function syncLeadTags(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, tags: string[]) {
-  await supabase.from('lead_tags').delete().eq('lead_id', leadId);
+  const { error: deleteError } = await supabase.from('lead_tags').delete().eq('lead_id', leadId);
+  if (deleteError) throw deleteError;
 
   for (const tag of tags) {
     const tagId = await ensureTagId(supabase, tag);
-    await supabase.from('lead_tags').insert({ lead_id: leadId, tag_id: tagId });
+    const { error: insertError } = await supabase.from('lead_tags').insert({ lead_id: leadId, tag_id: tagId });
+    if (insertError) throw insertError;
   }
 }
 
@@ -155,7 +176,11 @@ export async function createLeadAction(formData: FormData) {
     redirect('/people/new?error=save-failed');
   }
 
-  await syncLeadTags(supabase, lead.id, tags);
+  try {
+    await syncLeadTags(supabase, lead.id, tags);
+  } catch {
+    redirect(`/people/${lead.id}?error=tags-save-failed`);
+  }
 
   await supabase.from('lead_interactions').insert({
     lead_id: lead.id,
@@ -191,6 +216,9 @@ export async function updateLeadAction(formData: FormData) {
   const tags = getTags(formData);
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const duplicate = await findDuplicateLead(supabase, {
     email: getText(formData, 'email'),
     phone: getText(formData, 'phone'),
@@ -227,7 +255,11 @@ export async function updateLeadAction(formData: FormData) {
     redirect(`/people/${leadId}/edit?error=save-failed`);
   }
 
-  await syncLeadTags(supabase, leadId, tags);
+  try {
+    await syncLeadTags(supabase, leadId, tags);
+  } catch {
+    redirect(`/people/${leadId}/edit?error=tags-save-failed`);
+  }
   await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'status_change',
@@ -255,6 +287,9 @@ export async function addLeadInteractionAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { error } = await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: getText(formData, 'type') || 'note',
@@ -275,7 +310,7 @@ function getLeadIds(formData: FormData) {
   return getText(formData, 'lead_ids')
     .split(',')
     .map((id) => id.trim())
-    .filter(Boolean);
+    .filter((id) => id && looksLikeUuid(id));
 }
 
 async function addBulkInteractions(
@@ -318,17 +353,20 @@ export async function bulkChangeStageAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
+  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+
   const stageId = await ensureStageId(supabase, stage);
   const { error } = await supabase
     .from('leads')
     .update({ stage_id: stageId, updated_at: new Date().toISOString() })
-    .in('id', leadIds);
+    .in('id', existingLeadIds);
 
   if (error) redirect('/people?error=bulk-stage-failed');
 
-  await addBulkInteractions(supabase, leadIds, `Массовое действие: стадия изменена на «${stage}»`, 'bulk_stage_changed');
+  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: стадия изменена на «${stage}»`, 'bulk_stage_changed');
   revalidateLeadCollection();
-  redirect(`/people?bulk=stage&count=${leadIds.length}`);
+  redirect(`/people?bulk=stage&count=${existingLeadIds.length}`);
 }
 
 export async function bulkAssignTagAction(formData: FormData) {
@@ -344,15 +382,18 @@ export async function bulkAssignTagAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
+  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+
   const tagId = await ensureTagId(supabase, tag);
-  const rows = leadIds.map((leadId) => ({ lead_id: leadId, tag_id: tagId }));
+  const rows = existingLeadIds.map((leadId) => ({ lead_id: leadId, tag_id: tagId }));
   const { error } = await supabase.from('lead_tags').upsert(rows, { onConflict: 'lead_id,tag_id' });
 
   if (error) redirect('/people?error=bulk-tag-failed');
 
-  await addBulkInteractions(supabase, leadIds, `Массовое действие: добавлен тег «${tag}»`, 'bulk_tag_added');
+  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: добавлен тег «${tag}»`, 'bulk_tag_added');
   revalidateLeadCollection();
-  redirect(`/people?bulk=tag&count=${leadIds.length}`);
+  redirect(`/people?bulk=tag&count=${existingLeadIds.length}`);
 }
 
 export async function bulkCreateTaskAction(formData: FormData) {
@@ -368,7 +409,10 @@ export async function bulkCreateTaskAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const rows = leadIds.map((leadId) => ({
+  const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
+  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+
+  const rows = existingLeadIds.map((leadId) => ({
     lead_id: leadId,
     title,
     description: 'Создано массовым действием из раздела «Люди».',
@@ -379,10 +423,10 @@ export async function bulkCreateTaskAction(formData: FormData) {
 
   if (error) redirect('/people?error=bulk-task-failed');
 
-  await addBulkInteractions(supabase, leadIds, `Массовое действие: создана задача «${title}»`, 'bulk_task_created');
+  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: создана задача «${title}»`, 'bulk_task_created');
   revalidateLeadCollection();
   revalidatePath('/tasks');
-  redirect(`/people?bulk=task&count=${leadIds.length}`);
+  redirect(`/people?bulk=task&count=${existingLeadIds.length}`);
 }
 
 export async function bulkAddToCampaignAction(formData: FormData) {
@@ -398,16 +442,19 @@ export async function bulkAddToCampaignAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const rows = leadIds.map((leadId) => ({ campaign_id: campaignId, lead_id: leadId }));
+  const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
+  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+
+  const rows = existingLeadIds.map((leadId) => ({ campaign_id: campaignId, lead_id: leadId }));
   const { error } = await supabase.from('campaign_leads').upsert(rows, { onConflict: 'campaign_id,lead_id' });
 
   if (error) redirect('/people?error=bulk-campaign-failed');
 
-  await addBulkInteractions(supabase, leadIds, 'Массовое действие: контакт добавлен в кампанию', 'bulk_campaign_attached');
+  await addBulkInteractions(supabase, existingLeadIds, 'Массовое действие: контакт добавлен в кампанию', 'bulk_campaign_attached');
   revalidateLeadCollection();
   revalidatePath('/campaigns');
   revalidatePath(`/campaigns/${campaignId}`);
-  redirect(`/people?bulk=campaign&count=${leadIds.length}`);
+  redirect(`/people?bulk=campaign&count=${existingLeadIds.length}`);
 }
 
 export async function updateLeadStageFromProfileAction(formData: FormData) {
@@ -424,12 +471,24 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const nextStageId = stageId || await ensureStageId(supabase, stageName);
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
+  let nextStageId = stageId;
   let nextStageName = stageName;
 
-  if (!nextStageName) {
-    const stage = await supabase.from('funnel_stages').select('name').eq('id', nextStageId).maybeSingle();
-    nextStageName = stage.data?.name ? String(stage.data.name) : 'не указана';
+  if (stageId) {
+    const stage = await supabase.from('funnel_stages').select('id,name').eq('id', stageId).maybeSingle();
+    if (stage.data?.id) {
+      nextStageId = String(stage.data.id);
+      nextStageName = nextStageName || String(stage.data.name ?? 'не указана');
+    } else if (stageName) {
+      nextStageId = await ensureStageId(supabase, stageName);
+    } else {
+      redirect(`/people/${leadId}?error=stage-not-found`);
+    }
+  } else {
+    nextStageId = await ensureStageId(supabase, stageName);
   }
 
   const shouldClearRefusal = nextStageName !== 'Отказ';
@@ -482,6 +541,9 @@ export async function updateLeadFollowUpAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { error } = await supabase
     .from('leads')
     .update({
@@ -534,6 +596,9 @@ export async function attachLeadToCampaignFromProfileAction(formData: FormData) 
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { data: campaign } = await supabase.from('campaigns').select('name').eq('id', campaignId).maybeSingle();
   const campaignName = campaign?.name ? String(campaign.name) : 'кампания';
 
@@ -566,6 +631,9 @@ export async function attachLeadToInsightFromProfileAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { data: insight } = await supabase.from('insights').select('title').eq('id', insightId).maybeSingle();
   const insightTitle = insight?.title ? String(insight.title) : 'инсайт';
 
@@ -598,6 +666,9 @@ export async function attachLeadToHypothesisFromProfileAction(formData: FormData
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { data: hypothesis } = await supabase.from('hypotheses').select('title').eq('id', hypothesisId).maybeSingle();
   const hypothesisTitle = hypothesis?.title ? String(hypothesis.title) : 'гипотеза';
 
@@ -630,6 +701,9 @@ export async function createLeadSurveyInviteAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { data: survey, error: surveyError } = await supabase
     .from('surveys')
     .select('title, slug')
@@ -639,14 +713,14 @@ export async function createLeadSurveyInviteAction(formData: FormData) {
   if (surveyError || !survey?.slug) redirect(`/people/${leadId}?error=survey-not-found`);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
-  const surveyUrl = `${appUrl ?? ''}/s/${survey.slug}?leadId=${leadId}`;
+  const surveyUrl = `${appUrl ?? ''}/s/${survey.slug}`;
   const surveyTitle = survey.title ? String(survey.title) : 'опрос';
 
   await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'survey_sent',
     channel: 'Hutka',
-    text: `Создана персональная ссылка на опрос «${surveyTitle}»: ${surveyUrl}`,
+    text: `Создана ссылка на общий опрос «${surveyTitle}»: ${surveyUrl}`,
     result: 'survey_link_created'
   });
 
@@ -666,6 +740,9 @@ export async function deleteLeadAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const existingLeadId = await getExistingLeadId(supabase, leadId);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
+
   const { error } = await supabase.from('leads').delete().eq('id', leadId);
   if (error) redirect(`/people/${leadId}?error=delete-failed`);
 

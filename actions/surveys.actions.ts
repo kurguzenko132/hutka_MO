@@ -4,7 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 import { requirePermission } from '@/lib/permissions';
+import {
+  answerLength,
+  getLimitedText,
+  getLimitedValues,
+  hasPublicFormHoneypot,
+  publicFormLimits
+} from '@/lib/public-form-validation';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -44,6 +52,11 @@ async function ensureUniqueSlug(supabase: Awaited<ReturnType<typeof createClient
     slug = `${baseSlug}-${counter}`;
     counter += 1;
   }
+}
+
+async function surveyExists(supabase: Awaited<ReturnType<typeof createClient>>, surveyId: string) {
+  const { data, error } = await supabase.from('surveys').select('id').eq('id', surveyId).maybeSingle();
+  return !error && Boolean(data?.id);
 }
 
 function getQuestionPayloads(formData: FormData) {
@@ -121,6 +134,8 @@ export async function addSurveyQuestionAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await surveyExists(supabase, surveyId))) redirect('/surveys?error=survey-not-found');
+
   const { count } = await supabase
     .from('survey_questions')
     .select('id', { count: 'exact', head: true })
@@ -147,28 +162,76 @@ export async function submitSurveyResponseAction(formData: FormData) {
   const slug = getText(formData, 'slug');
   if (!surveyId || !slug) redirect('/login');
 
+  if (hasPublicFormHoneypot(formData)) {
+    redirect(`/s/${slug}?submitted=1`);
+  }
+
   if (!isSupabaseConfigured()) {
     redirect(`/s/${slug}?submitted=demo`);
   }
 
-  const supabase = await createClient();
-  const responseGroupId = crypto.randomUUID();
-  const leadId = getText(formData, 'lead_id') || null;
-  const respondentName = getText(formData, 'respondent_name') || null;
-  const respondentContact = getText(formData, 'respondent_contact') || null;
-  const questionIds = formData.getAll('question_id').map((value) => String(value));
+  if (!isSupabaseServiceConfigured()) {
+    redirect(`/s/${slug}?error=config`);
+  }
 
-  const rows = questionIds
-    .map((questionId) => {
-      const allValues = formData.getAll(`answer_${questionId}`).map((value) => String(value).trim()).filter(Boolean);
-      const answer = allValues.length > 1 ? allValues : allValues[0] ?? '';
+  const supabase = createServiceClient();
+  const { data: survey, error: surveyError } = await supabase
+    .from('surveys')
+    .select('id,slug,status')
+    .eq('id', surveyId)
+    .eq('slug', slug)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (surveyError || !survey) {
+    redirect(`/s/${slug}?error=not-active`);
+  }
+
+  const { data: questions, error: questionsError } = await supabase
+    .from('survey_questions')
+    .select('id,question_type,required')
+    .eq('survey_id', surveyId)
+    .order('order_index', { ascending: true });
+
+  if (questionsError || !questions?.length) {
+    redirect(`/s/${slug}?error=questions-not-found`);
+  }
+
+  const responseGroupId = crypto.randomUUID();
+  const respondentName = getLimitedText(formData, 'respondent_name', publicFormLimits.respondentName);
+  const respondentContact = getLimitedText(formData, 'respondent_contact', publicFormLimits.respondentContact);
+
+  if (respondentName === null || respondentContact === null) {
+    redirect(`/s/${slug}?error=too-long`);
+  }
+
+  let totalAnswerLength = 0;
+
+  const rows = questions
+    .map((question) => {
+      const questionId = String(question.id);
+      const allValues = getLimitedValues(formData, `answer_${questionId}`);
+      if (!allValues) redirect(`/s/${slug}?error=too-long`);
+
+      const answer = question.question_type === 'multiple_choice' ? allValues : allValues[0] ?? '';
+      const empty = Array.isArray(answer) ? answer.length === 0 : answer === '';
+
+      if (question.required && empty) {
+        redirect(`/s/${slug}?error=required`);
+      }
+
+      totalAnswerLength += answerLength(answer);
+      if (totalAnswerLength > publicFormLimits.totalAnswerLength) {
+        redirect(`/s/${slug}?error=too-long`);
+      }
+
       return {
         survey_id: surveyId,
         question_id: questionId,
         response_group_id: responseGroupId,
-        lead_id: leadId,
-        respondent_name: respondentName,
-        respondent_contact: respondentContact,
+        lead_id: null,
+        respondent_name: respondentName || null,
+        respondent_contact: respondentContact || null,
         answer
       };
     })
@@ -180,7 +243,6 @@ export async function submitSurveyResponseAction(formData: FormData) {
   }
 
   revalidatePath('/surveys');
-  if (leadId) revalidatePath(`/people/${leadId}`);
   revalidatePath(`/s/${slug}`);
   redirect(`/s/${slug}?submitted=1`);
 }
@@ -195,6 +257,8 @@ export async function deleteSurveyAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await surveyExists(supabase, surveyId))) redirect('/surveys?error=survey-not-found');
+
   const { error } = await supabase.from('surveys').delete().eq('id', surveyId);
   if (error) redirect(`/surveys/${surveyId}?error=delete-failed`);
 
@@ -215,7 +279,18 @@ export async function deleteSurveyQuestionAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('survey_questions').delete().eq('id', questionId);
+  if (!(await surveyExists(supabase, surveyId))) redirect('/surveys?error=survey-not-found');
+
+  const { data: question, error: questionError } = await supabase
+    .from('survey_questions')
+    .select('id')
+    .eq('id', questionId)
+    .eq('survey_id', surveyId)
+    .maybeSingle();
+
+  if (questionError || !question?.id) redirect(`/surveys/${surveyId}?error=question-not-found`);
+
+  const { error } = await supabase.from('survey_questions').delete().eq('id', questionId).eq('survey_id', surveyId);
   if (error) redirect(`/surveys/${surveyId}?error=question-delete-failed`);
 
   revalidatePath('/surveys');

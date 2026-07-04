@@ -189,6 +189,7 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[],
     priorityValue: index === 0 ? 'high' : 'medium',
     status: 'К выполнению',
     statusValue: 'todo',
+    assignees: [],
     group: 'Сегодня'
   }));
 
@@ -217,6 +218,30 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[],
     hypotheses,
     refusals,
     focus: 'В demo-режиме: добавь реальные контакты и подключи Supabase, чтобы dashboard начал считать запуск по твоим данным.'
+  };
+}
+
+function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
+  return {
+    demoMode: false,
+    periodLabel: new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+    kpis: [
+      { label: 'Всего контактов', value: '0', delta: '+0 за неделю', tone: 'purple' },
+      { label: 'Готовы к пилоту', value: '0', delta: '0% от базы', tone: 'blue' },
+      { label: 'Активные участники', value: '0', delta: '0% от базы', tone: 'green' },
+      { label: 'Горячие контакты', value: '0', delta: 'приоритет 75+', tone: 'pink' },
+      { label: 'Просроченные действия', value: '0', delta: 'всё закрыто', tone: 'green' }
+    ],
+    funnel: [],
+    channels: [],
+    niches: [],
+    todayTasks: [],
+    hotContacts: [],
+    recentActivities: [],
+    insights,
+    hypotheses,
+    refusals,
+    focus: 'Добавь первые контакты, запусти опрос и собери первые инсайты по beauty-рынку.'
   };
 }
 
@@ -256,9 +281,7 @@ export async function getDashboardData(): Promise<DashboardData> {
     const overdue = overview.overdue_tasks ?? 0;
 
     const stageRows = ((stagesRes.data ?? []) as StageRow[]).filter((row) => (row.contacts ?? 0) > 0);
-    const funnel = stageRows.length
-      ? stageRows.map((row) => ({ label: row.name ?? row.stage ?? 'Без стадии', count: row.contacts ?? 0, percent: percent(row.contacts ?? 0, total) }))
-      : demoDashboardData(insights, hypotheses, refusals).funnel;
+    const funnel = stageRows.map((row) => ({ label: row.name ?? row.stage ?? 'Без стадии', count: row.contacts ?? 0, percent: percent(row.contacts ?? 0, total) }));
 
     const hotContacts = ((hotRes.data ?? []) as LeadRow[]).map((lead) => ({
       id: lead.id,
@@ -303,6 +326,6 @@ export async function getDashboardData(): Promise<DashboardData> {
       focus: buildFocus({ overdue, ready, active, hot: hotCount })
     };
   } catch {
-    return demoDashboardData(insights, hypotheses, refusals);
+    return emptyDashboardData(insights, hypotheses, refusals);
   }
 }

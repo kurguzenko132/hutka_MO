@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { Bell, LogOut, Plus, Search } from 'lucide-react';
 import { signOutAction } from '@/actions/auth.actions';
 import { Badge } from '@/components/ui/badge';
@@ -58,7 +59,7 @@ export function Topbar({
           <Badge tone={roleTone(role)}>{roleLabels[role]}</Badge>
           <Link href="/profile" className="flex max-w-[240px] items-center gap-2 rounded-xl border border-app-line bg-white px-2.5 py-1.5 text-xs transition hover:border-purple-200 hover:bg-purple-50">
             {userAvatarUrl ? (
-              <img src={userAvatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" />
+              <Image src={userAvatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" />
             ) : (
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-[10px] font-black text-white">
                 {initials}

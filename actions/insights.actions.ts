@@ -15,6 +15,11 @@ function getMany(formData: FormData, key: string) {
   return formData.getAll(key).map((value) => String(value)).filter(Boolean);
 }
 
+async function insightExists(supabase: Awaited<ReturnType<typeof createClient>>, insightId: string) {
+  const { data, error } = await supabase.from('insights').select('id').eq('id', insightId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function createInsightAction(formData: FormData) {
   await requirePermission('manageInsights', '/insights?error=forbidden');
   const title = getText(formData, 'title');
@@ -47,15 +52,18 @@ export async function createInsightAction(formData: FormData) {
   const surveyIds = getMany(formData, 'survey_ids');
 
   if (leadIds.length > 0) {
-    await supabase.from('insight_leads').insert(leadIds.map((leadId) => ({ insight_id: insightId, lead_id: leadId })));
+    const { error: leadsError } = await supabase.from('insight_leads').insert(leadIds.map((leadId) => ({ insight_id: insightId, lead_id: leadId })));
+    if (leadsError) redirect(`/insights/${insightId}?error=relations-save-failed`);
   }
 
   if (campaignIds.length > 0) {
-    await supabase.from('insight_campaigns').insert(campaignIds.map((campaignId) => ({ insight_id: insightId, campaign_id: campaignId })));
+    const { error: campaignsError } = await supabase.from('insight_campaigns').insert(campaignIds.map((campaignId) => ({ insight_id: insightId, campaign_id: campaignId })));
+    if (campaignsError) redirect(`/insights/${insightId}?error=relations-save-failed`);
   }
 
   if (surveyIds.length > 0) {
-    await supabase.from('insight_surveys').insert(surveyIds.map((surveyId) => ({ insight_id: insightId, survey_id: surveyId })));
+    const { error: surveysError } = await supabase.from('insight_surveys').insert(surveyIds.map((surveyId) => ({ insight_id: insightId, survey_id: surveyId })));
+    if (surveysError) redirect(`/insights/${insightId}?error=relations-save-failed`);
   }
 
   revalidatePath('/insights');
@@ -73,6 +81,8 @@ export async function updateInsightAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await insightExists(supabase, insightId))) redirect('/insights?error=insight-not-found');
+
   const { error } = await supabase
     .from('insights')
     .update({
@@ -101,6 +111,8 @@ export async function deleteInsightAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await insightExists(supabase, insightId))) redirect('/insights?error=insight-not-found');
+
   const { error } = await supabase.from('insights').delete().eq('id', insightId);
   if (error) redirect(`/insights/${insightId}?error=delete-failed`);
 

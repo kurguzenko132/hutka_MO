@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Archive, CheckCircle2, Database, Download, ExternalLink, FileText, Rocket, ShieldCheck } from 'lucide-react';
+import { Archive, Database, Download, ExternalLink, FileText, Rocket, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -112,8 +112,8 @@ export default async function LaunchPage() {
             {readiness.tableStatus.map((item) => (
               <div key={item.table} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-app-text">{item.table}</p>
-                  {item.error ? <p className="mt-1 truncate text-xs text-app-red">{item.error}</p> : <p className="mt-1 text-xs text-app-muted">Доступна</p>}
+                  <p className="truncate text-sm font-black text-app-text">{item.label}</p>
+                  {item.error ? <p className="mt-1 truncate text-xs text-app-red">{item.error}</p> : <p className="mt-1 truncate text-xs text-app-muted">{item.table} · доступна</p>}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={item.ok ? 'green' : 'red'}>{item.ok ? 'OK' : 'Ошибка'}</Badge>
@@ -151,7 +151,7 @@ export default async function LaunchPage() {
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-app-muted">
-            Экспорт выгружает основные рабочие таблицы в один JSON-файл: контакты, задачи, опросы, кампании, инсайты, гипотезы, настройки и связи. Делай такой экспорт перед массовыми импортами, изменением schema.sql и активным использованием команды.
+            Экспорт выгружает все таблицы рабочей схемы в один JSON-файл: контакты, задачи, опросы, персональные анкеты, кампании, инсайты, гипотезы, настройки, справочники, шаблоны, причины отказов, сохраненные виды и Telegram-логи. Делай такой экспорт перед массовыми импортами, изменением schema.sql и активным использованием команды.
           </div>
           <Button asChild size="lg">
             <Link href="/backup/export">

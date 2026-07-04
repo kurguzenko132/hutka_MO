@@ -80,7 +80,7 @@ create table if not exists public.tasks (
   title text not null,
   description text,
   due_date timestamptz,
-  priority text default 'medium' check (priority in ('low', 'medium', 'high', 'urgent')),
+  priority text default 'none' check (priority in ('none', 'low', 'medium', 'high', 'urgent')),
   status text default 'todo' check (status in ('todo', 'in_progress', 'done', 'cancelled')),
   created_by uuid references public.profiles(id),
   created_at timestamptz default now(),
@@ -223,7 +223,7 @@ from public.leads
 group by city
 order by total_leads desc;
 
--- Enable RLS. Add stricter policies before production if needed.
+-- Enable RLS on workspace data tables before defining scoped policies.
 alter table public.profiles enable row level security;
 alter table public.sources enable row level security;
 alter table public.funnel_stages enable row level security;
@@ -240,8 +240,7 @@ alter table public.campaign_leads enable row level security;
 alter table public.insights enable row level security;
 alter table public.hypotheses enable row level security;
 
--- MVP policy: authenticated users can read/write workspace data.
--- For production, replace with role-based policies.
+-- Remove broad MVP policies if they were created by an older schema revision.
 do $$
 declare
   tbl text;
@@ -253,34 +252,15 @@ begin
   ] loop
     policy_name := 'Authenticated users can manage ' || tbl;
     execute format('drop policy if exists %I on public.%I', policy_name, tbl);
-    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
   end loop;
 end $$;
 
 
--- Public policies for active survey forms.
+-- Public survey forms are read and submitted through Next.js server actions
+-- with the service role key. Keep these drops so older anon policies are removed.
 drop policy if exists "Anyone can read active surveys" on public.surveys;
-create policy "Anyone can read active surveys" on public.surveys
-  for select to anon
-  using (status = 'active');
-
 drop policy if exists "Anyone can read active survey questions" on public.survey_questions;
-create policy "Anyone can read active survey questions" on public.survey_questions
-  for select to anon
-  using (exists (
-    select 1 from public.surveys
-    where surveys.id = survey_questions.survey_id
-    and surveys.status = 'active'
-  ));
-
 drop policy if exists "Anyone can submit active survey answers" on public.survey_answers;
-create policy "Anyone can submit active survey answers" on public.survey_answers
-  for insert to anon
-  with check (exists (
-    select 1 from public.surveys
-    where surveys.id = survey_answers.survey_id
-    and surveys.status = 'active'
-  ));
 
 -- Step 8 campaign helper indexes and view
 create index if not exists campaign_leads_campaign_id_idx on public.campaign_leads(campaign_id);
@@ -346,7 +326,7 @@ alter table public.insight_leads enable row level security;
 alter table public.insight_campaigns enable row level security;
 alter table public.insight_surveys enable row level security;
 
--- MVP policies for insight link tables.
+-- Remove broad MVP policies for insight link tables if they exist.
 do $$
 declare
   tbl text;
@@ -355,7 +335,6 @@ begin
   foreach tbl in array array['insight_leads','insight_campaigns','insight_surveys'] loop
     policy_name := 'Authenticated users can manage ' || tbl;
     execute format('drop policy if exists %I on public.%I', policy_name, tbl);
-    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
   end loop;
 end $$;
 
@@ -429,7 +408,7 @@ alter table public.hypothesis_insights enable row level security;
 alter table public.hypothesis_campaigns enable row level security;
 alter table public.hypothesis_surveys enable row level security;
 
--- MVP policies for hypothesis link tables.
+-- Remove broad MVP policies for hypothesis link tables if they exist.
 do $$
 declare
   tbl text;
@@ -438,7 +417,6 @@ begin
   foreach tbl in array array['hypothesis_leads','hypothesis_insights','hypothesis_campaigns','hypothesis_surveys'] loop
     policy_name := 'Authenticated users can manage ' || tbl;
     execute format('drop policy if exists %I on public.%I', policy_name, tbl);
-    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
   end loop;
 end $$;
 
@@ -670,6 +648,26 @@ create index if not exists tasks_priority_idx on public.tasks(priority);
 create index if not exists tasks_due_date_idx on public.tasks(due_date);
 create index if not exists tasks_lead_id_idx on public.tasks(lead_id);
 
+alter table public.tasks drop constraint if exists tasks_priority_check;
+alter table public.tasks alter column priority set default 'none';
+update public.tasks set priority = 'none' where priority is null or priority = '';
+update public.tasks set priority = 'none' where priority not in ('none', 'low', 'medium', 'high', 'urgent');
+alter table public.tasks add constraint tasks_priority_check check (priority in ('none', 'low', 'medium', 'high', 'urgent'));
+
+create table if not exists public.task_assignees (
+  task_id uuid references public.tasks(id) on delete cascade,
+  profile_id uuid references public.profiles(id) on delete cascade,
+  role text not null check (role in ('responsible', 'executor', 'co_executor')),
+  created_at timestamptz default now(),
+  primary key (task_id, profile_id, role)
+);
+
+alter table public.task_assignees enable row level security;
+
+create index if not exists task_assignees_task_id_idx on public.task_assignees(task_id);
+create index if not exists task_assignees_profile_id_idx on public.task_assignees(profile_id);
+create index if not exists task_assignees_role_idx on public.task_assignees(role);
+
 -- Step 16: Settings and editable dictionaries
 create table if not exists public.app_settings (
   key text primary key,
@@ -692,11 +690,6 @@ create index if not exists tags_name_idx on public.tags(name);
 alter table public.app_settings enable row level security;
 
 drop policy if exists "Authenticated users can manage app_settings" on public.app_settings;
-create policy "Authenticated users can manage app_settings"
-  on public.app_settings
-  for all to authenticated
-  using (true)
-  with check (true);
 
 -- Step 18: production auth helpers
 create unique index if not exists profiles_user_id_unique_idx on public.profiles(user_id);
@@ -1109,42 +1102,46 @@ create index if not exists lead_questionnaire_questions_form_idx on public.lead_
 create index if not exists lead_questionnaire_answers_form_idx on public.lead_questionnaire_answers(questionnaire_id, created_at desc);
 create index if not exists lead_questionnaire_answers_lead_id_idx on public.lead_questionnaire_answers(lead_id);
 
--- Workspace users can manage personal questionnaires.
+-- Workspace users can read personal questionnaires; only editors can manage them.
 do $$
 declare
   tbl text;
-  policy_name text;
+  action text;
 begin
   foreach tbl in array array['lead_questionnaires','lead_questionnaire_questions','lead_questionnaire_answers'] loop
-    policy_name := 'Authenticated users can manage ' || tbl;
-    execute format('drop policy if exists %I on public.%I', policy_name, tbl);
-    execute format('create policy %I on public.%I for all to authenticated using (true) with check (true)', policy_name, tbl);
+    execute format('drop policy if exists %I on public.%I', 'Authenticated users can manage ' || tbl, tbl);
+    execute format('drop policy if exists %I on public.%I', 'Authenticated users can read ' || tbl, tbl);
+    execute format('create policy %I on public.%I for select to authenticated using (true)', 'Authenticated users can read ' || tbl, tbl);
+
+    foreach action in array array['insert','update','delete'] loop
+      execute format('drop policy if exists %I on public.%I', 'Workspace editors can ' || action || ' ' || tbl, tbl);
+    end loop;
+
+    execute format(
+      'create policy %I on public.%I for insert to authenticated with check (public.current_profile_role() in (''admin'', ''marketer''))',
+      'Workspace editors can insert ' || tbl,
+      tbl
+    );
+    execute format(
+      'create policy %I on public.%I for update to authenticated using (public.current_profile_role() in (''admin'', ''marketer'')) with check (public.current_profile_role() in (''admin'', ''marketer''))',
+      'Workspace editors can update ' || tbl,
+      tbl
+    );
+    execute format(
+      'create policy %I on public.%I for delete to authenticated using (public.current_profile_role() in (''admin'', ''marketer''))',
+      'Workspace editors can delete ' || tbl,
+      tbl
+    );
   end loop;
 end $$;
 
--- Public recipients can open active personal questionnaire links and submit answers.
+-- Public personal questionnaire links are read and submitted through Next.js
+-- server actions with the service role key. Keep these drops so older anon
+-- policies are removed and active questionnaire tokens cannot be enumerated
+-- through the Supabase anon API.
 drop policy if exists "Anyone can read active lead questionnaires" on public.lead_questionnaires;
-create policy "Anyone can read active lead questionnaires" on public.lead_questionnaires
-  for select to anon
-  using (status = 'active');
-
 drop policy if exists "Anyone can read active lead questionnaire questions" on public.lead_questionnaire_questions;
-create policy "Anyone can read active lead questionnaire questions" on public.lead_questionnaire_questions
-  for select to anon
-  using (exists (
-    select 1 from public.lead_questionnaires
-    where lead_questionnaires.id = lead_questionnaire_questions.questionnaire_id
-    and lead_questionnaires.status = 'active'
-  ));
-
 drop policy if exists "Anyone can submit active lead questionnaire answers" on public.lead_questionnaire_answers;
-create policy "Anyone can submit active lead questionnaire answers" on public.lead_questionnaire_answers
-  for insert to anon
-  with check (exists (
-    select 1 from public.lead_questionnaires
-    where lead_questionnaires.id = lead_questionnaire_answers.questionnaire_id
-    and lead_questionnaires.status = 'active'
-  ));
 
 -- Step 33: editable question packs.
 create table if not exists public.question_packs (
@@ -1608,11 +1605,12 @@ create policy "Authenticated users can read telegram delivery logs"
   using (true);
 
 drop policy if exists "Authenticated users can insert telegram delivery logs" on public.telegram_delivery_logs;
-create policy "Authenticated users can insert telegram delivery logs"
+drop policy if exists "Workspace editors can insert telegram delivery logs" on public.telegram_delivery_logs;
+create policy "Workspace editors can insert telegram delivery logs"
   on public.telegram_delivery_logs
   for insert
   to authenticated
-  with check (true);
+  with check (public.current_profile_role() in ('admin', 'marketer'));
 
 -- STEP 39: Telegram notifications
 alter table public.profiles add column if not exists telegram_chat_id text;
@@ -1621,3 +1619,29 @@ alter table public.profiles add column if not exists telegram_last_test_at times
 
 create index if not exists profiles_telegram_chat_id_idx on public.profiles(telegram_chat_id);
 create index if not exists profiles_telegram_notifications_enabled_idx on public.profiles(telegram_notifications_enabled);
+
+-- Step 41: task team roles
+drop policy if exists "Authenticated users can read task_assignees" on public.task_assignees;
+create policy "Authenticated users can read task_assignees"
+  on public.task_assignees
+  for select to authenticated
+  using (true);
+
+drop policy if exists "Workspace editors can insert task_assignees" on public.task_assignees;
+create policy "Workspace editors can insert task_assignees"
+  on public.task_assignees
+  for insert to authenticated
+  with check (public.current_profile_role() in ('admin', 'marketer'));
+
+drop policy if exists "Workspace editors can update task_assignees" on public.task_assignees;
+create policy "Workspace editors can update task_assignees"
+  on public.task_assignees
+  for update to authenticated
+  using (public.current_profile_role() in ('admin', 'marketer'))
+  with check (public.current_profile_role() in ('admin', 'marketer'));
+
+drop policy if exists "Workspace editors can delete task_assignees" on public.task_assignees;
+create policy "Workspace editors can delete task_assignees"
+  on public.task_assignees
+  for delete to authenticated
+  using (public.current_profile_role() in ('admin', 'marketer'));

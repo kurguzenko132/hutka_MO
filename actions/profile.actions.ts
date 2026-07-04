@@ -37,6 +37,16 @@ export async function updateOwnProfileAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (profileError || !profile?.id) {
+    redirect('/profile?error=profile-not-found');
+  }
+
   const { error } = await supabase
     .from('profiles')
     .update({

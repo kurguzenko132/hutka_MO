@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Settings } from 'lucide-react';
 import { navItems } from '@/lib/data';
@@ -66,7 +67,7 @@ export function Sidebar({
       >
         <div className="flex items-center gap-3">
           {userAvatarUrl ? (
-            <img src={userAvatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+            <Image src={userAvatarUrl} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-full object-cover" />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-bold text-white">
               {initials}

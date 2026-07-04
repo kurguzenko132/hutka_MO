@@ -15,6 +15,11 @@ function getMany(formData: FormData, key: string) {
   return formData.getAll(key).map((value) => String(value)).filter(Boolean);
 }
 
+async function hypothesisExists(supabase: Awaited<ReturnType<typeof createClient>>, hypothesisId: string) {
+  const { data, error } = await supabase.from('hypotheses').select('id').eq('id', hypothesisId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function createHypothesisAction(formData: FormData) {
   await requirePermission('manageHypotheses', '/hypotheses?error=forbidden');
   const title = getText(formData, 'title');
@@ -52,19 +57,23 @@ export async function createHypothesisAction(formData: FormData) {
   const surveyIds = getMany(formData, 'survey_ids');
 
   if (leadIds.length > 0) {
-    await supabase.from('hypothesis_leads').insert(leadIds.map((leadId) => ({ hypothesis_id: hypothesisId, lead_id: leadId })));
+    const { error: leadsError } = await supabase.from('hypothesis_leads').insert(leadIds.map((leadId) => ({ hypothesis_id: hypothesisId, lead_id: leadId })));
+    if (leadsError) redirect(`/hypotheses/${hypothesisId}?error=relations-save-failed`);
   }
 
   if (insightIds.length > 0) {
-    await supabase.from('hypothesis_insights').insert(insightIds.map((insightId) => ({ hypothesis_id: hypothesisId, insight_id: insightId })));
+    const { error: insightsError } = await supabase.from('hypothesis_insights').insert(insightIds.map((insightId) => ({ hypothesis_id: hypothesisId, insight_id: insightId })));
+    if (insightsError) redirect(`/hypotheses/${hypothesisId}?error=relations-save-failed`);
   }
 
   if (campaignIds.length > 0) {
-    await supabase.from('hypothesis_campaigns').insert(campaignIds.map((campaignId) => ({ hypothesis_id: hypothesisId, campaign_id: campaignId })));
+    const { error: campaignsError } = await supabase.from('hypothesis_campaigns').insert(campaignIds.map((campaignId) => ({ hypothesis_id: hypothesisId, campaign_id: campaignId })));
+    if (campaignsError) redirect(`/hypotheses/${hypothesisId}?error=relations-save-failed`);
   }
 
   if (surveyIds.length > 0) {
-    await supabase.from('hypothesis_surveys').insert(surveyIds.map((surveyId) => ({ hypothesis_id: hypothesisId, survey_id: surveyId })));
+    const { error: surveysError } = await supabase.from('hypothesis_surveys').insert(surveyIds.map((surveyId) => ({ hypothesis_id: hypothesisId, survey_id: surveyId })));
+    if (surveysError) redirect(`/hypotheses/${hypothesisId}?error=relations-save-failed`);
   }
 
   revalidatePath('/hypotheses');
@@ -82,6 +91,8 @@ export async function updateHypothesisAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await hypothesisExists(supabase, hypothesisId))) redirect('/hypotheses?error=hypothesis-not-found');
+
   const { error } = await supabase
     .from('hypotheses')
     .update({
@@ -112,6 +123,8 @@ export async function deleteHypothesisAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await hypothesisExists(supabase, hypothesisId))) redirect('/hypotheses?error=hypothesis-not-found');
+
   const { error } = await supabase.from('hypotheses').delete().eq('id', hypothesisId);
   if (error) redirect(`/hypotheses/${hypothesisId}?error=delete-failed`);
 

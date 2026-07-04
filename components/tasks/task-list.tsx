@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Check, Clock, ExternalLink, RotateCcw, Trash2, X } from 'lucide-react';
+import { Check, Clock, ExternalLink, RotateCcw, Trash2, Users, X } from 'lucide-react';
 import { deleteTaskAction, updateTaskStatusAction } from '@/actions/tasks.actions';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const groupTone: Record<TaskListItem['group'], BadgeTone> = {
 };
 
 const priorityTone: Record<TaskListItem['priorityValue'], BadgeTone> = {
+  none: 'gray',
   low: 'gray',
   medium: 'blue',
   high: 'yellow',
@@ -39,8 +40,6 @@ function StatusForm({ task, status, returnTo, label, icon }: { task: TaskListIte
     <form action={updateTaskStatusAction}>
       <input type="hidden" name="task_id" value={task.id} />
       <input type="hidden" name="status" value={status} />
-      <input type="hidden" name="lead_id" value={task.leadId ?? ''} />
-      <input type="hidden" name="title" value={task.title} />
       <input type="hidden" name="return_to" value={returnTo} />
       <Button type="submit" variant="secondary" size="sm">
         {icon}
@@ -104,6 +103,20 @@ export function TaskList({ tasks, returnTo, role = 'viewer' }: { tasks: TaskList
                           <span>Без контакта</span>
                         )}
                       </div>
+                      {task.assignees.length > 0 && (
+                        <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                          <span className="inline-flex items-center gap-1 font-semibold text-app-faint">
+                            <Users className="h-3.5 w-3.5" />
+                            Команда:
+                          </span>
+                          {task.assignees.map((assignee) => (
+                            <span key={`${task.id}-${assignee.role}-${assignee.id}`} className="inline-flex items-center gap-1 rounded-full bg-app-soft px-2.5 py-1 text-app-muted">
+                              <span className="font-bold text-app-text">{assignee.fullName}</span>
+                              <span>· {assignee.roleLabel}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {can(role, 'manageTasks') && (

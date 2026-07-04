@@ -39,6 +39,16 @@ async function ensureRefusalStageId(supabase: Awaited<ReturnType<typeof createCl
   return created.data?.id ? String(created.data.id) : null;
 }
 
+async function leadExists(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
+  const { data, error } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
+async function refusalReasonExists(supabase: Awaited<ReturnType<typeof createClient>>, id: string) {
+  const { data, error } = await supabase.from('refusal_reasons').select('id').eq('id', id).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function markLeadRefusedAction(formData: FormData) {
   await requirePermission('manageContacts', '/people?error=forbidden');
 
@@ -55,21 +65,31 @@ export async function markLeadRefusedAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await leadExists(supabase, leadId))) redirect('/people?error=contact-not-found');
+
   let reasonName = manualReason;
+  let resolvedReasonId: string | null = reasonId || null;
 
   if (reasonId) {
     const reason = await supabase.from('refusal_reasons').select('name').eq('id', reasonId).maybeSingle();
-    reasonName = reason.data?.name ? String(reason.data.name) : manualReason;
+    if (reason.data?.name) {
+      reasonName = String(reason.data.name);
+    } else {
+      resolvedReasonId = null;
+      if (!manualReason) redirect(`/people/${leadId}?error=missing-refusal-reason`);
+    }
   }
 
   const refusalStageId = await ensureRefusalStageId(supabase);
+  if (!refusalStageId) redirect(`/people/${leadId}?error=refusal-stage-failed`);
+
   const now = new Date().toISOString();
 
   const { error } = await supabase
     .from('leads')
     .update({
       stage_id: refusalStageId,
-      refusal_reason_id: reasonId || null,
+      refusal_reason_id: resolvedReasonId,
       refusal_reason: reasonName || 'Причина не указана',
       refusal_comment: comment || null,
       refused_at: now,
@@ -98,6 +118,8 @@ export async function clearLeadRefusalAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirect(`/people/${leadId}?refusal=demo`);
 
   const supabase = await createClient();
+  if (!(await leadExists(supabase, leadId))) redirect('/people?error=contact-not-found');
+
   const { error } = await supabase
     .from('leads')
     .update({
@@ -151,6 +173,8 @@ export async function updateRefusalReasonAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirect('/settings/refusal-reasons?demo=1');
 
   const supabase = await createClient();
+  if (!(await refusalReasonExists(supabase, id))) redirect('/settings/refusal-reasons?error=reason-not-found');
+
   const { error } = await supabase
     .from('refusal_reasons')
     .update({
@@ -175,6 +199,8 @@ export async function deleteRefusalReasonAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirect('/settings/refusal-reasons?demo=1');
 
   const supabase = await createClient();
+  if (!(await refusalReasonExists(supabase, id))) redirect('/settings/refusal-reasons?error=reason-not-found');
+
   const { error } = await supabase.from('refusal_reasons').delete().eq('id', id);
   if (error) redirect('/settings/refusal-reasons?error=in-use');
 

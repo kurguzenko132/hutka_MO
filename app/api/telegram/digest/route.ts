@@ -17,6 +17,7 @@ export async function GET(request: Request) {
   const focus = followups.recommendations[0];
 
   const result = await sendWorkspaceTelegramNotification({
+    eventType: 'daily_digest',
     title: 'ежедневный дайджест',
     text: [
       `Follow-up рекомендаций: ${followups.summary.total}`,
@@ -28,5 +29,5 @@ export async function GET(request: Request) {
     href: '/followups'
   });
 
-  return NextResponse.json(result, { status: result.failed > 0 ? 400 : 200 });
+  return NextResponse.json(result, { status: result.skipped ? 202 : result.failed > 0 ? 400 : 200 });
 }

@@ -14,6 +14,7 @@ import { getSettingsData } from '@/lib/settings';
 
 const errorMessages: Record<string, string> = {
   'missing-file': 'Выбери CSV-файл для импорта.',
+  'import-log-failed': 'Контакты обработаны, но не удалось записать журнал импорта. Проверь таблицу import_logs и RLS.',
   'save-failed': 'Не удалось импортировать контакты. Проверь файл и настройки Supabase.'
 };
 

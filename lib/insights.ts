@@ -245,7 +245,7 @@ export async function getInsights(): Promise<InsightListItem[]> {
     .select(insightSelect)
     .order('created_at', { ascending: false });
 
-  if (error || !data) return demoInsights;
+  if (error || !data) return [];
 
   return data.map((row) => mapInsight(row as Record<string, unknown>));
 }
@@ -260,14 +260,14 @@ export async function getInsightById(id: string): Promise<InsightDetail | null> 
     .eq('id', id)
     .maybeSingle();
 
-  if (error || !data) return demoInsights.find((insight) => insight.id === id) ?? null;
+  if (error || !data) return null;
 
   return mapInsight(data as Record<string, unknown>);
 }
 
 export async function getDashboardInsights(): Promise<string[]> {
   const items = await getInsights();
-  if (items.length === 0) return dashboardMockInsights;
+  if (items.length === 0) return isSupabaseConfigured() ? [] : dashboardMockInsights;
   return items.slice(0, 3).map((item) => item.title);
 }
 

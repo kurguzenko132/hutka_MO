@@ -64,7 +64,19 @@ function StageMoveButton({ leadId, stage }: { leadId: string; stage: FunnelColum
   );
 }
 
-function LeadCard({ lead, column, columns, nextStage }: { lead: FunnelLead; column: FunnelColumn; columns: FunnelColumn[]; nextStage?: FunnelColumn }) {
+function LeadCard({
+  lead,
+  column,
+  columns,
+  nextStage,
+  canManageFunnels
+}: {
+  lead: FunnelLead;
+  column: FunnelColumn;
+  columns: FunnelColumn[];
+  nextStage?: FunnelColumn;
+  canManageFunnels: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-app-line bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-card">
       <div className="flex items-start justify-between gap-3">
@@ -98,8 +110,12 @@ function LeadCard({ lead, column, columns, nextStage }: { lead: FunnelLead; colu
         <p className="mt-1 text-sm font-semibold text-app-text">{lead.nextStep || 'Связаться'}</p>
       </div>
 
-      <MoveForm lead={lead} columns={columns} currentStage={column.name} />
-      {nextStage && <StageMoveButton leadId={lead.id} stage={nextStage} />}
+      {canManageFunnels && (
+        <>
+          <MoveForm lead={lead} columns={columns} currentStage={column.name} />
+          {nextStage && <StageMoveButton leadId={lead.id} stage={nextStage} />}
+        </>
+      )}
     </div>
   );
 }
@@ -107,6 +123,7 @@ function LeadCard({ lead, column, columns, nextStage }: { lead: FunnelLead; colu
 export default async function FunnelsPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
   const user = await getCurrentUserContext();
   const role = user?.role ?? 'viewer';
+  const canManageFunnels = can(role, 'manageFunnels');
   const params = await searchParams;
   const board = await getFunnelBoard();
 
@@ -214,7 +231,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
             </CardHeader>
             <CardContent className="space-y-3">
               {column.leads.map((lead) => (
-                <LeadCard key={lead.id} lead={lead} column={column} columns={board.columns} nextStage={board.columns[index + 1]} />
+                <LeadCard key={lead.id} lead={lead} column={column} columns={board.columns} nextStage={board.columns[index + 1]} canManageFunnels={canManageFunnels} />
               ))}
               {column.leads.length === 0 && (
                 <div className="rounded-2xl border border-dashed border-app-line bg-white p-4 text-sm text-app-muted">

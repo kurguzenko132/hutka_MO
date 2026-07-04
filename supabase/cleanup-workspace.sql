@@ -5,6 +5,7 @@
 begin;
 
 truncate table if exists
+  public.telegram_delivery_logs,
   public.notification_reads,
   public.saved_lead_views,
   public.import_logs,
@@ -23,6 +24,7 @@ truncate table if exists
   public.campaign_leads,
   public.lead_tags,
   public.lead_interactions,
+  public.task_assignees,
   public.tasks,
   public.hypotheses,
   public.insights,

@@ -275,8 +275,8 @@ export async function getFollowUpRecommendations(): Promise<FollowUpData> {
   ]);
 
   if (leadsResult.error || !leadsResult.data) {
-    const recommendations = buildDemoRecommendations();
-    return { recommendations, summary: summarize(recommendations), demoMode: true };
+    const recommendations: FollowUpRecommendation[] = [];
+    return { recommendations, summary: summarize(recommendations), demoMode: false };
   }
 
   const openTasks = (tasksResult.data ?? []) as DbTask[];

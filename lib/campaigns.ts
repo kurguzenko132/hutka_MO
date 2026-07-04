@@ -255,7 +255,7 @@ export async function getCampaigns(): Promise<CampaignListItem[]> {
     .select(campaignSelect)
     .order('created_at', { ascending: false });
 
-  if (error || !data) return demoCampaigns;
+  if (error || !data) return [];
 
   return data.map((row) => mapCampaign(row as Record<string, unknown>));
 }
@@ -272,9 +272,7 @@ export async function getCampaignById(id: string): Promise<CampaignDetail | null
     .eq('id', id)
     .maybeSingle();
 
-  if (error || !data) {
-    return demoCampaigns.find((campaign) => campaign.id === id) ?? null;
-  }
+  if (error || !data) return null;
 
   return mapCampaign(data as Record<string, unknown>);
 }

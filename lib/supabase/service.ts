@@ -1,18 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServiceConfig, isSupabaseServiceConfigured as hasSupabaseServiceConfig } from '@/lib/supabase/config';
 
 export function isSupabaseServiceConfigured() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return hasSupabaseServiceConfig();
 }
 
 export function createServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const config = getSupabaseServiceConfig();
 
-  if (!url || !serviceRoleKey) {
+  if (!config) {
     throw new Error('Supabase service env variables are not configured');
   }
 
-  return createClient(url, serviceRoleKey, {
+  return createClient(config.url, config.serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false

@@ -47,6 +47,22 @@ function redirectToDemo() {
   redirect('/settings/question-packs?demo=1');
 }
 
+async function packExists(supabase: Awaited<ReturnType<typeof createClient>>, packId: string) {
+  const { data, error } = await supabase.from('question_packs').select('id').eq('id', packId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
+async function packQuestionExists(supabase: Awaited<ReturnType<typeof createClient>>, packId: string, questionId: string) {
+  const { data, error } = await supabase
+    .from('question_pack_questions')
+    .select('id')
+    .eq('id', questionId)
+    .eq('pack_id', packId)
+    .maybeSingle();
+
+  return !error && Boolean(data?.id);
+}
+
 export async function createQuestionPackAction(formData: FormData) {
   await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
@@ -83,6 +99,8 @@ export async function updateQuestionPackAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await packExists(supabase, id))) redirect('/settings/question-packs?error=pack-not-found');
+
   const { error } = await supabase
     .from('question_packs')
     .update({
@@ -110,6 +128,8 @@ export async function deleteQuestionPackAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await packExists(supabase, id))) redirect('/settings/question-packs?error=pack-not-found');
+
   const { error } = await supabase.from('question_packs').delete().eq('id', id);
   if (error) redirect(`/settings/question-packs/${id}?error=delete-failed`);
 
@@ -126,6 +146,8 @@ export async function addQuestionToPackAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await packExists(supabase, packId))) redirect('/settings/question-packs?error=pack-not-found');
+
   const { count } = await supabase
     .from('question_pack_questions')
     .select('id', { count: 'exact', head: true })
@@ -156,6 +178,10 @@ export async function updateQuestionPackQuestionAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await packQuestionExists(supabase, packId, questionId))) {
+    redirect(`/settings/question-packs/${packId}?error=question-not-found`);
+  }
+
   const { error } = await supabase
     .from('question_pack_questions')
     .update({
@@ -183,6 +209,10 @@ export async function deleteQuestionPackQuestionAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
+  if (!(await packQuestionExists(supabase, packId, questionId))) {
+    redirect(`/settings/question-packs/${packId}?error=question-not-found`);
+  }
+
   const { error } = await supabase
     .from('question_pack_questions')
     .delete()

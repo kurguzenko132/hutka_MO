@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { databaseTableLabels, databaseTables } from '@/lib/database-tables';
 
 export type QualityStatus = 'ok' | 'warning' | 'error';
 
@@ -53,9 +54,9 @@ export async function getQualityReport(): Promise<QualityReport> {
     checks: [
       {
         label: 'Supabase env',
-        description: configured ? 'Переменные Supabase настроены.' : 'NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY не найдены.',
+        description: configured ? 'Переменные Supabase настроены.' : 'NEXT_PUBLIC_SUPABASE_URL или NEXT_PUBLIC_SUPABASE_ANON_KEY не заданы либо невалидны.',
         status: configured ? 'ok' : 'error',
-        action: configured ? undefined : 'Добавь переменные окружения в Vercel и .env.local.'
+        action: configured ? undefined : 'Укажи настоящий Supabase URL вида https://<project-ref>.supabase.co и anon key в Vercel и .env.local.'
       },
       {
         label: 'App URL',
@@ -69,21 +70,9 @@ export async function getQualityReport(): Promise<QualityReport> {
   if (!configured) return base;
 
   const supabase = await createClient();
-  const tables = [
-    ['Контакты', 'leads'],
-    ['Задачи', 'tasks'],
-    ['Опросники', 'surveys'],
-    ['Кампании', 'campaigns'],
-    ['Инсайты', 'insights'],
-    ['Гипотезы', 'hypotheses'],
-    ['Источники', 'sources'],
-    ['Стадии', 'funnel_stages'],
-    ['Теги', 'tags']
-  ] as const;
-
-  for (const [label, table] of tables) {
+  for (const table of databaseTables) {
     const count = await safeCount(supabase, table);
-    base.counts.push({ label, value: count ?? 0 });
+    base.counts.push({ label: databaseTableLabels[table], value: count ?? 0 });
     base.checks.push({
       label: `Таблица ${table}`,
       description: count === null ? 'Таблица недоступна или RLS не позволяет чтение.' : `Доступна, записей: ${count}.`,

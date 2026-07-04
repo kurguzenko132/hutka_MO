@@ -36,14 +36,16 @@ export type SettingsData = {
   isDemo: boolean;
 };
 
+const defaultAppSettings: AppSettings = {
+  productName: 'Hutka',
+  workspaceName: 'Beauty CRM Launch',
+  defaultCity: 'Минск',
+  weeklyReportDay: 'Понедельник'
+};
+
 const demoSettings: SettingsData = {
   isDemo: true,
-  app: {
-    productName: 'Hutka',
-    workspaceName: 'Beauty CRM Launch',
-    defaultCity: 'Минск',
-    weeklyReportDay: 'Понедельник'
-  },
+  app: defaultAppSettings,
   sources: [
     { id: 'instagram', name: 'Instagram', type: 'social', usageCount: 12 },
     { id: 'telegram', name: 'Telegram', type: 'social', usageCount: 8 },
@@ -73,6 +75,15 @@ const demoSettings: SettingsData = {
   ]
 };
 
+const emptySettingsData: SettingsData = {
+  isDemo: false,
+  app: defaultAppSettings,
+  sources: [],
+  stages: [],
+  tags: [],
+  users: []
+};
+
 function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
@@ -85,10 +96,10 @@ function normalizeSettings(rows: Array<{ key?: string | null; value?: string | n
   const map = new Map(rows.map((row) => [String(row.key), String(row.value ?? '')]));
 
   return {
-    productName: map.get('product_name') || demoSettings.app.productName,
-    workspaceName: map.get('workspace_name') || demoSettings.app.workspaceName,
-    defaultCity: map.get('default_city') || demoSettings.app.defaultCity,
-    weeklyReportDay: map.get('weekly_report_day') || demoSettings.app.weeklyReportDay
+    productName: map.get('product_name') || defaultAppSettings.productName,
+    workspaceName: map.get('workspace_name') || defaultAppSettings.workspaceName,
+    defaultCity: map.get('default_city') || defaultAppSettings.defaultCity,
+    weeklyReportDay: map.get('weekly_report_day') || defaultAppSettings.weeklyReportDay
   };
 }
 
@@ -148,19 +159,19 @@ export async function getSettingsData(): Promise<SettingsData> {
       fullName: asString(row.full_name, 'Без имени'),
       jobTitle: asString(row.job_title, ''),
       avatarUrl: asString(row.avatar_url, ''),
-      role: row.role === 'admin' || row.role === 'viewer' || row.role === 'marketer' ? row.role : 'marketer',
+      role: row.role === 'admin' || row.role === 'viewer' || row.role === 'marketer' ? row.role : 'viewer',
       createdAt: asString(row.created_at, '')
     }));
 
     return {
-      isDemo: Boolean(settingsResult.error || sourcesResult.error || stagesResult.error || tagsResult.error || usersResult.error),
-      app: settingsResult.error ? demoSettings.app : normalizeSettings(settingsResult.data ?? []),
-      sources: sourcesResult.error ? demoSettings.sources : sources,
-      stages: stagesResult.error ? demoSettings.stages : stages,
-      tags: tagsResult.error ? demoSettings.tags : tags,
-      users: usersResult.error ? demoSettings.users : users
+      isDemo: false,
+      app: settingsResult.error ? defaultAppSettings : normalizeSettings(settingsResult.data ?? []),
+      sources: sourcesResult.error ? [] : sources,
+      stages: stagesResult.error ? [] : stages,
+      tags: tagsResult.error ? [] : tags,
+      users: usersResult.error ? [] : users
     };
   } catch {
-    return demoSettings;
+    return emptySettingsData;
   }
 }

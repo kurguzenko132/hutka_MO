@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { databaseTableLabels, databaseTables } from '@/lib/database-tables';
 
 export type LaunchCheck = {
   id: string;
@@ -60,38 +61,24 @@ const launchChecks: LaunchCheck[] = [
   }
 ];
 
-const requiredTables = [
-  'profiles',
-  'leads',
-  'lead_interactions',
-  'tasks',
-  'surveys',
-  'campaigns',
-  'insights',
-  'hypotheses',
-  'sources',
-  'funnel_stages',
-  'tags'
-] as const;
-
 export async function getLaunchReadiness() {
   const metrics: LaunchMetric[] = [];
-  const tableStatus: { table: string; ok: boolean; count: number; error?: string }[] = [];
+  const tableStatus: { table: string; label: string; ok: boolean; count: number; error?: string }[] = [];
 
   if (!isSupabaseConfigured()) {
     return {
       checks: launchChecks,
       metrics,
-      tableStatus: requiredTables.map((table) => ({ table, ok: false, count: 0, error: 'Supabase env не настроен' })),
+      tableStatus: databaseTables.map((table) => ({ table, label: databaseTableLabels[table], ok: false, count: 0, error: 'Supabase env не настроен' })),
       readyPercent: 20
     };
   }
 
   const supabase = await createClient();
 
-  for (const table of requiredTables) {
+  for (const table of databaseTables) {
     const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
-    tableStatus.push({ table, ok: !error, count: count ?? 0, error: error?.message });
+    tableStatus.push({ table, label: databaseTableLabels[table], ok: !error, count: count ?? 0, error: error?.message });
   }
 
   const getCount = (table: string) => tableStatus.find((item) => item.table === table)?.count ?? 0;
@@ -106,7 +93,7 @@ export async function getLaunchReadiness() {
 
   const okTables = tableStatus.filter((item) => item.ok).length;
   const hasDataScore = metrics.filter((metric) => metric.value > 0).length;
-  const readyPercent = Math.min(100, Math.round((okTables / requiredTables.length) * 55 + (hasDataScore / metrics.length) * 45));
+  const readyPercent = Math.min(100, Math.round((okTables / databaseTables.length) * 55 + (hasDataScore / metrics.length) * 45));
 
   return {
     checks: launchChecks,

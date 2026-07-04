@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Check, Copy, MessageSquareText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -81,7 +82,17 @@ function channelLabel(value: string) {
   return map[value] ?? value;
 }
 
-export function MessageTemplatePanel({ lead, sender, templates }: { lead: MessageTemplateLead; sender: MessageTemplateSender; templates: MessageTemplate[] }) {
+export function MessageTemplatePanel({
+  lead,
+  sender,
+  templates,
+  canEditTemplates = false
+}: {
+  lead: MessageTemplateLead;
+  sender: MessageTemplateSender;
+  templates: MessageTemplate[];
+  canEditTemplates?: boolean;
+}) {
   const [selectedId, setSelectedId] = useState(templates[0]?.id ?? '');
   const [questionnaireLink, setQuestionnaireLink] = useState('');
   const [copied, setCopied] = useState(false);
@@ -130,16 +141,18 @@ export function MessageTemplatePanel({ lead, sender, templates }: { lead: Messag
 
             {selected?.description && <p className="text-sm leading-6 text-app-muted">{selected.description}</p>}
 
-            <Textarea value={text} onChange={(event) => undefined} readOnly rows={10} className="min-h-[220px] text-sm leading-6" />
+            <Textarea value={text} readOnly rows={10} className="min-h-[220px] text-sm leading-6" />
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" onClick={copyText}>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Скопировано' : 'Скопировать сообщение'}
               </Button>
-              <Button asChild type="button" variant="secondary">
-                <a href="/settings/message-templates">Редактировать шаблоны</a>
-              </Button>
+              {canEditTemplates && (
+                <Button asChild type="button" variant="secondary">
+                  <Link href="/settings/message-templates">Редактировать шаблоны</Link>
+                </Button>
+              )}
             </div>
 
             <div className="rounded-2xl bg-app-soft p-4 text-xs leading-6 text-app-muted">

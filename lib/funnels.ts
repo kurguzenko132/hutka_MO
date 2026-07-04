@@ -130,6 +130,16 @@ function buildFallbackBoard(): FunnelBoard {
   };
 }
 
+function buildEmptyBoard(columns: FunnelColumn[] = []): FunnelBoard {
+  return {
+    columns,
+    totalContacts: 0,
+    hotContacts: 0,
+    readyContacts: 0,
+    activeParticipants: 0
+  };
+}
+
 export async function getFunnelBoard(): Promise<FunnelBoard> {
   if (!isSupabaseConfigured()) {
     return buildFallbackBoard();
@@ -141,9 +151,7 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
     .select('id,name,type,order_index,color')
     .order('order_index', { ascending: true });
 
-  if (stagesError || !stageRows) {
-    return buildFallbackBoard();
-  }
+  if (stagesError || !stageRows) return buildEmptyBoard();
 
   const uniqueStages = new Map<string, FunnelColumn>();
   for (const row of stageRows) {
@@ -167,7 +175,7 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
     .order('updated_at', { ascending: false });
 
   if (leadsError || !leadRows) {
-    return buildFallbackBoard();
+    return buildEmptyBoard(Array.from(uniqueStages.values()).sort((a, b) => a.orderIndex - b.orderIndex));
   }
 
   for (const row of leadRows) {

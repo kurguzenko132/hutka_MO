@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 import { requireAdmin } from '@/lib/permissions';
+import { directoryDataTables, workDataTables } from '@/lib/database-tables';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -15,27 +16,6 @@ async function clearTables(supabase: ReturnType<typeof createServiceClient>, tab
     if (error) throw new Error(`${table}: ${error.message}`);
   }
 }
-
-const workTables = [
-  'notification_reads',
-  'saved_lead_views',
-  'import_logs',
-  'tasks',
-  'hypotheses',
-  'insights',
-  'campaigns',
-  'surveys',
-  'leads'
-];
-
-const directoryTables = [
-  'question_packs',
-  'message_templates',
-  'refusal_reasons',
-  'tags',
-  'sources',
-  'funnel_stages'
-];
 
 export async function resetWorkspaceDataAction(formData: FormData) {
   await requireAdmin('/settings?error=forbidden');
@@ -53,10 +33,10 @@ export async function resetWorkspaceDataAction(formData: FormData) {
   const supabase = createServiceClient();
 
   try {
-    await clearTables(supabase, workTables);
+    await clearTables(supabase, [...workDataTables]);
 
     if (mode === 'full') {
-      await clearTables(supabase, directoryTables);
+      await clearTables(supabase, [...directoryDataTables]);
     }
   } catch (error) {
     console.error(error);

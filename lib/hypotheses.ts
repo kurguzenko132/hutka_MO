@@ -274,7 +274,7 @@ export async function getHypotheses(): Promise<HypothesisListItem[]> {
     .select(hypothesisSelect)
     .order('created_at', { ascending: false });
 
-  if (error || !data) return demoHypotheses;
+  if (error || !data) return [];
   return data.map((row) => mapHypothesis(row as Record<string, unknown>));
 }
 
@@ -288,7 +288,7 @@ export async function getHypothesisById(id: string): Promise<HypothesisDetail | 
     .eq('id', id)
     .maybeSingle();
 
-  if (error || !data) return demoHypotheses.find((item) => item.id === id) ?? null;
+  if (error || !data) return null;
   return mapHypothesis(data as Record<string, unknown>);
 }
 

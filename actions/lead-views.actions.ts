@@ -60,6 +60,15 @@ export async function deleteSavedLeadViewAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const { data: view, error: viewError } = await supabase
+    .from('saved_lead_views')
+    .select('id')
+    .eq('id', id)
+    .eq('profile_id', user.profileId)
+    .maybeSingle();
+
+  if (viewError || !view?.id) redirect('/people?error=view-not-found');
+
   const { error } = await supabase
     .from('saved_lead_views')
     .delete()

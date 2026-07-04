@@ -10,9 +10,18 @@ function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
 }
 
+function looksLikeUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>, stageId: string, stageName: string) {
   if (stageId && !stageId.startsWith('stage-') && !stageId.startsWith('missing-')) {
-    return stageId;
+    if (looksLikeUuid(stageId)) {
+      const existing = await supabase.from('funnel_stages').select('id').eq('id', stageId).maybeSingle();
+      if (existing.data?.id) return stageId;
+    }
+
+    if (!stageName) throw new Error('Stage not found');
   }
 
   const name = stageName || 'Найден';
@@ -52,7 +61,17 @@ export async function moveLeadToStageAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const nextStageId = await ensureStageId(supabase, stageId, stageName);
+  const { data: lead, error: leadError } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
+  if (leadError || !lead?.id) redirect('/funnels?error=lead-not-found');
+
+  let nextStageId: string;
+
+  try {
+    nextStageId = await ensureStageId(supabase, stageId, stageName);
+  } catch {
+    redirect('/funnels?error=stage-not-found');
+  }
+
   let nextStageName = stageName;
 
   if (!nextStageName) {

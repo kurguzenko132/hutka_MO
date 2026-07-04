@@ -15,6 +15,24 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   const sent = typeof searchParams.sent === 'string' ? searchParams.sent : '0';
   const failed = typeof searchParams.failed === 'string' ? searchParams.failed : '0';
 
+  if (error === 'bot-not-configured') {
+    return (
+      <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <span>Telegram bot token не настроен. Добавь TELEGRAM_BOT_TOKEN в переменные окружения и сделай redeploy.</span>
+      </div>
+    );
+  }
+
+  if (error === 'service-not-configured') {
+    return (
+      <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <AlertCircle className="mt-0.5 h-4 w-4" />
+        <span>Не настроен SUPABASE_SERVICE_ROLE_KEY. Без него серверные Telegram-уведомления не смогут найти получателей.</span>
+      </div>
+    );
+  }
+
   if (error === 'no-recipients') {
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -52,7 +70,7 @@ export default async function TelegramSettingsPage({ searchParams }: { searchPar
 
       <Notice searchParams={params} />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card>
           <CardContent className="p-5">
             <p className="text-xs font-bold uppercase tracking-wide text-app-muted">Bot token</p>
@@ -64,11 +82,20 @@ export default async function TelegramSettingsPage({ searchParams }: { searchPar
         </Card>
         <Card>
           <CardContent className="p-5">
+            <p className="text-xs font-bold uppercase tracking-wide text-app-muted">Service role</p>
+            <div className="mt-3 flex items-center gap-2">
+              <Badge tone={status.serviceConfigured ? 'green' : 'red'}>{status.serviceConfigured ? 'Настроен' : 'Не настроен'}</Badge>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-app-muted">Нужен для поиска получателей сервером и логов отправки.</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
             <p className="text-xs font-bold uppercase tracking-wide text-app-muted">App URL</p>
             <div className="mt-3 flex items-center gap-2">
               <Badge tone={status.appUrlConfigured ? 'green' : 'yellow'}>{status.appUrlConfigured ? 'Настроен' : 'Не указан'}</Badge>
             </div>
-            <p className="mt-3 text-sm leading-6 text-app-muted">Нужен, чтобы в уведомлениях были ссылки на карточки и разделы.</p>
+            <p className="mt-3 truncate text-sm leading-6 text-app-muted">{status.appUrl || 'Нужен, чтобы в уведомлениях были ссылки.'}</p>
           </CardContent>
         </Card>
         <Card>

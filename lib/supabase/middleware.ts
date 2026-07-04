@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { buildLoginPath, getSafeRedirectPath, isAuthPath, isDashboardPath } from '@/lib/auth';
-import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { getSupabasePublicConfig } from '@/lib/supabase/config';
 
 type CookieToSet = {
   name: string;
@@ -18,8 +18,9 @@ function redirectTo(request: NextRequest, path: string) {
 
 export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const supabaseConfig = getSupabasePublicConfig();
 
-  if (!isSupabaseConfigured()) {
+  if (!supabaseConfig) {
     if (isDashboardPath(pathname)) {
       return redirectTo(request, buildLoginPath(pathname + request.nextUrl.search, 'config'));
     }
@@ -34,8 +35,8 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseConfig.url,
+    supabaseConfig.anonKey,
     {
       cookies: {
         getAll() {

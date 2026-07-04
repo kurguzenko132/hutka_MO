@@ -11,9 +11,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getHypothesisById, hypothesisConfidenceTone, hypothesisStatusTone } from '@/lib/hypotheses';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
 export default async function HypothesisDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const [{ id }, currentUser] = await Promise.all([params, getCurrentUserContext()]);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageHypotheses = can(currentRole, 'manageHypotheses');
   const hypothesis = await getHypothesisById(id);
   if (!hypothesis) notFound();
 
@@ -69,43 +73,45 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
         </main>
 
         <aside className="space-y-6">
-          <form action={updateHypothesisAction}>
-            <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
-            <FormSection title="Обновить проверку" subtitle="Зафиксируй текущий статус, данные и результат.">
-              <div className="space-y-4">
-                <Field label="Статус">
-                  <Select name="status" defaultValue={hypothesis.statusLabel}>
-                    <option>Новая</option>
-                    <option>В проверке</option>
-                    <option>Подтверждается</option>
-                    <option>Не подтверждается</option>
-                    <option>Нужно больше данных</option>
-                    <option>Закрыта</option>
-                  </Select>
-                </Field>
-                <Field label="Уверенность">
-                  <Select name="confidence" defaultValue={hypothesis.confidenceLabel}>
-                    <option>Низкая</option>
-                    <option>Средняя</option>
-                    <option>Высокая</option>
-                  </Select>
-                </Field>
-                <Field label="Данные за">
-                  <Textarea name="evidence_for" defaultValue={hypothesis.evidenceFor || ''} />
-                </Field>
-                <Field label="Данные против">
-                  <Textarea name="evidence_against" defaultValue={hypothesis.evidenceAgainst || ''} />
-                </Field>
-                <Field label="Результат">
-                  <Textarea name="result" defaultValue={hypothesis.result || ''} />
-                </Field>
-                <Field label="Следующее действие">
-                  <Textarea name="next_action" defaultValue={hypothesis.nextAction || ''} />
-                </Field>
-                <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить</Button>
-              </div>
-            </FormSection>
-          </form>
+          {canManageHypotheses && (
+            <form action={updateHypothesisAction}>
+              <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
+              <FormSection title="Обновить проверку" subtitle="Зафиксируй текущий статус, данные и результат.">
+                <div className="space-y-4">
+                  <Field label="Статус">
+                    <Select name="status" defaultValue={hypothesis.statusLabel}>
+                      <option>Новая</option>
+                      <option>В проверке</option>
+                      <option>Подтверждается</option>
+                      <option>Не подтверждается</option>
+                      <option>Нужно больше данных</option>
+                      <option>Закрыта</option>
+                    </Select>
+                  </Field>
+                  <Field label="Уверенность">
+                    <Select name="confidence" defaultValue={hypothesis.confidenceLabel}>
+                      <option>Низкая</option>
+                      <option>Средняя</option>
+                      <option>Высокая</option>
+                    </Select>
+                  </Field>
+                  <Field label="Данные за">
+                    <Textarea name="evidence_for" defaultValue={hypothesis.evidenceFor || ''} />
+                  </Field>
+                  <Field label="Данные против">
+                    <Textarea name="evidence_against" defaultValue={hypothesis.evidenceAgainst || ''} />
+                  </Field>
+                  <Field label="Результат">
+                    <Textarea name="result" defaultValue={hypothesis.result || ''} />
+                  </Field>
+                  <Field label="Следующее действие">
+                    <Textarea name="next_action" defaultValue={hypothesis.nextAction || ''} />
+                  </Field>
+                  <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить</Button>
+                </div>
+              </FormSection>
+            </form>
+          )}
 
           <Card>
             <CardContent>
@@ -120,12 +126,14 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
             </CardContent>
           </Card>
 
-          <form action={deleteHypothesisAction}>
-            <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
-            <FormSection title="Удалить гипотезу" subtitle="Удалится гипотеза и ее связи. Контакты, кампании, инсайты и опросы останутся.">
-              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить гипотезу</Button>
-            </FormSection>
-          </form>
+          {canManageHypotheses && (
+            <form action={deleteHypothesisAction}>
+              <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
+              <FormSection title="Удалить гипотезу" subtitle="Удалится гипотеза и ее связи. Контакты, кампании, инсайты и опросы останутся.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить гипотезу</Button>
+              </FormSection>
+            </form>
+          )}
         </aside>
       </div>
     </div>

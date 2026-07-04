@@ -191,12 +191,14 @@ export function PeopleFilters({
                   Сбросить
                 </Link>
               </Button>
-              <Button asChild variant="secondary">
-                <Link href={buildHref('/people/export', filters)}>
-                  <Download className="h-4 w-4" />
-                  Экспорт
-                </Link>
-              </Button>
+              {canManageContacts && (
+                <Button asChild variant="secondary">
+                  <Link href={buildHref('/people/export', filters)}>
+                    <Download className="h-4 w-4" />
+                    Экспорт
+                  </Link>
+                </Button>
+              )}
               {canManageContacts && (
                 <Button asChild variant="secondary">
                   <Link href="/people/import">

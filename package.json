@@ -2,13 +2,20 @@
   "name": "hutka",
   "version": "1.0.14-mvp",
   "private": true,
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
+    "node:check": "node scripts/check-node.mjs",
+    "dev": "pnpm node:check && next dev",
+    "build": "pnpm node:check && next build",
+    "start": "pnpm node:check && next start",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm build"
+    "audit:schema": "node scripts/audit-schema.mjs",
+    "smoke:local": "pnpm node:check && node scripts/smoke-local.mjs",
+    "smoke:url": "node scripts/smoke-url.mjs",
+    "check": "pnpm node:check && pnpm lint && pnpm typecheck && pnpm audit:schema && pnpm build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -28,6 +35,7 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.5",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",

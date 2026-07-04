@@ -11,6 +11,16 @@ function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
 }
 
+async function campaignExists(supabase: Awaited<ReturnType<typeof createClient>>, campaignId: string) {
+  const { data, error } = await supabase.from('campaigns').select('id').eq('id', campaignId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
+async function leadExists(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
+  const { data, error } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function createCampaignAction(formData: FormData) {
   await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const name = getText(formData, 'name');
@@ -58,6 +68,14 @@ export async function addLeadToCampaignAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const [hasCampaign, hasLead] = await Promise.all([
+    campaignExists(supabase, campaignId),
+    leadExists(supabase, leadId)
+  ]);
+
+  if (!hasCampaign) redirect('/campaigns?error=campaign-not-found');
+  if (!hasLead) redirect(`/campaigns/${campaignId}?error=lead-not-found`);
+
   const { error } = await supabase
     .from('campaign_leads')
     .upsert({ campaign_id: campaignId, lead_id: leadId }, { onConflict: 'campaign_id,lead_id' });
@@ -88,6 +106,8 @@ export async function updateCampaignResultAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await campaignExists(supabase, campaignId))) redirect('/campaigns?error=campaign-not-found');
+
   const { error } = await supabase
     .from('campaigns')
     .update({
@@ -115,6 +135,8 @@ export async function deleteCampaignAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  if (!(await campaignExists(supabase, campaignId))) redirect('/campaigns?error=campaign-not-found');
+
   const { error } = await supabase.from('campaigns').delete().eq('id', campaignId);
   if (error) redirect(`/campaigns/${campaignId}?error=delete-failed`);
 

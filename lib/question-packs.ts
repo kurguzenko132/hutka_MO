@@ -271,7 +271,7 @@ export async function getQuestionPacks(audience?: QuestionPackAudience | 'all', 
     if (audience && audience !== 'all') query = query.in('audience', [audience, 'any']);
 
     const { data, error } = await query;
-    if (error || !data) return defaultQuestionPacks;
+    if (error || !data) return [];
 
     return data.map((raw) => {
       const row = raw as Record<string, unknown>;
@@ -292,7 +292,7 @@ export async function getQuestionPacks(audience?: QuestionPackAudience | 'all', 
       };
     });
   } catch {
-    return defaultQuestionPacks;
+    return [];
   }
 }
 
@@ -309,10 +309,10 @@ export async function getQuestionPackList(includeInactive = true): Promise<Quest
     if (!includeInactive) query = query.eq('status', 'active');
 
     const { data, error } = await query;
-    if (error || !data) return defaultQuestionPacks.map(mapStaticPack);
+    if (error || !data) return [];
     return data.map((row) => mapPackRow(row as Record<string, unknown>));
   } catch {
-    return defaultQuestionPacks.map(mapStaticPack);
+    return [];
   }
 }
 
@@ -331,7 +331,7 @@ export async function getQuestionPackById(id: string): Promise<QuestionPack | nu
       .eq('id', id)
       .maybeSingle();
 
-    if (error || !data) return defaultQuestionPacks.find((pack) => pack.id === id) ?? null;
+    if (error || !data) return null;
 
     const row = data as Record<string, unknown>;
     const questions = Array.isArray(row.question_pack_questions)
@@ -351,6 +351,6 @@ export async function getQuestionPackById(id: string): Promise<QuestionPack | nu
       questions
     };
   } catch {
-    return defaultQuestionPacks.find((pack) => pack.id === id) ?? null;
+    return null;
   }
 }

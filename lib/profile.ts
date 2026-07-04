@@ -26,28 +26,34 @@ function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
+type AuthenticatedUser = Awaited<ReturnType<typeof requireUser>>;
+
+function buildProfileFallback(user: AuthenticatedUser, isDemo: boolean): MarketingProfile {
+  return {
+    id: user.profileId ?? (isDemo ? 'demo-profile' : 'missing-profile'),
+    userId: user.id,
+    email: user.email,
+    fullName: user.fullName,
+    jobTitle: user.jobTitle || 'Маркетолог',
+    role: user.role,
+    avatarUrl: user.avatarUrl ?? '',
+    phone: '',
+    telegram: '',
+    telegramChatId: '',
+    telegramNotificationsEnabled: false,
+    telegramLastTestAt: '',
+    bio: '',
+    createdAt: '',
+    updatedAt: '',
+    isDemo
+  };
+}
+
 export async function getOwnMarketingProfile(): Promise<MarketingProfile> {
   const user = await requireUser('/profile');
 
   if (!isSupabaseConfigured()) {
-    return {
-      id: user.profileId ?? 'demo-profile',
-      userId: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      jobTitle: user.jobTitle || 'Маркетолог',
-      role: user.role,
-      avatarUrl: user.avatarUrl ?? '',
-      phone: '',
-      telegram: '',
-      telegramChatId: '',
-      telegramNotificationsEnabled: false,
-      telegramLastTestAt: '',
-      bio: '',
-      createdAt: '',
-      updatedAt: '',
-      isDemo: true
-    };
+    return buildProfileFallback(user, true);
   }
 
   const supabase = await createClient();
@@ -58,24 +64,7 @@ export async function getOwnMarketingProfile(): Promise<MarketingProfile> {
     .maybeSingle();
 
   if (error || !data) {
-    return {
-      id: user.profileId ?? 'missing-profile',
-      userId: user.id,
-      email: user.email,
-      fullName: user.fullName,
-      jobTitle: user.jobTitle || 'Маркетолог',
-      role: user.role,
-      avatarUrl: user.avatarUrl ?? '',
-      phone: '',
-      telegram: '',
-      telegramChatId: '',
-      telegramNotificationsEnabled: false,
-      telegramLastTestAt: '',
-      bio: '',
-      createdAt: '',
-      updatedAt: '',
-      isDemo: true
-    };
+    return buildProfileFallback(user, false);
   }
 
   return {

@@ -3,7 +3,12 @@
 ## 1. Техническая готовность
 
 - [ ] Vercel deployment имеет статус Ready.
-- [ ] В Vercel настроены переменные `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`.
+- [ ] Runtime локально и на Vercel — Node.js 22+.
+- [ ] В Vercel Install Command и Output Directory оставлены пустыми; Build Command — `pnpm build`.
+- [ ] В Vercel настроены переменные `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`.
+- [ ] `NEXT_PUBLIC_SUPABASE_URL` имеет вид `https://<project-ref>.supabase.co`, без placeholder-значений.
+- [ ] Серверный `SUPABASE_SERVICE_ROLE_KEY` хранится только в server env Vercel и нужен для публичных форм, Telegram/admin-операций и backup.
+- [ ] `/api/health` показывает `supabase-public-env: ok`, `service-role: ok`, `node-runtime: ok` и пустой `blockers`.
 - [ ] В Supabase выполнен актуальный `supabase/schema.sql`.
 - [ ] Создан минимум один пользователь с ролью `admin`.
 - [ ] Страницы `/dashboard`, `/people`, `/tasks`, `/reports`, `/settings`, `/quality`, `/launch` открываются без ошибок.
@@ -15,7 +20,7 @@
 - [ ] Настроены реальные источники: Instagram, Telegram, рекомендации, партнеры, реклама.
 - [ ] Настроены стадии воронки под текущий процесс.
 - [ ] Добавлены базовые теги для сегментации контактов.
-- [ ] Проверены роли пользователей: admin, marketer, viewer.
+- [ ] Проверены роли пользователей: admin, marketer, viewer. Viewer видит данные, но не видит формы создания, редактирования, удаления и смены стадий.
 
 ## 3. Первый рабочий сценарий
 

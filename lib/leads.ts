@@ -175,13 +175,14 @@ function interactionTitle(type?: string | null) {
 
 function priorityLabel(priority?: string | null) {
   const map: Record<string, string> = {
+    none: 'Без приоритета',
     low: 'Низкий',
     medium: 'Средний',
     high: 'Высокий',
     urgent: 'Срочно'
   };
 
-  return map[priority ?? ''] ?? 'Средний';
+  return map[priority ?? ''] ?? 'Без приоритета';
 }
 
 function statusLabel(status?: string | null) {
@@ -247,7 +248,7 @@ export async function getLeads(filters: LeadFilters = {}): Promise<Lead[]> {
       .order('created_at', { ascending: false });
 
     if (error || !data) {
-      items = mockLeads;
+      items = [];
     } else {
       items = data.map((row) => mapDbLead(row as Record<string, unknown>));
     }
@@ -282,9 +283,7 @@ export async function getLeadById(id: string): Promise<Lead | null> {
     .eq('id', id)
     .maybeSingle();
 
-  if (error || !data) {
-    return mockLeads.find((lead) => lead.id === id) ?? null;
-  }
+  if (error || !data) return null;
 
   return mapDbLead(data as Record<string, unknown>);
 }

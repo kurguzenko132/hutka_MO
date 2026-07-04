@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { AlertCircle, CheckCircle2, Mail, Send, ShieldCheck, UserRound } from 'lucide-react';
 import { updateOwnProfileAction } from '@/actions/profile.actions';
 import { sendOwnTelegramTestAction } from '@/actions/telegram.actions';
@@ -24,7 +25,9 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   if (error) {
     const message = error === 'name-required'
       ? 'Укажи имя, которое будет отображаться в интерфейсе.'
-      : 'Не удалось сохранить профиль. Проверь данные и попробуй еще раз.';
+      : error === 'profile-not-found'
+        ? 'Профиль пользователя не найден. Проверь Supabase trigger создания профиля.'
+        : 'Не удалось сохранить профиль. Проверь данные и попробуй еще раз.';
 
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -34,10 +37,14 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
     );
   }
 
-  if (telegram === 'chat-required' || telegram === 'failed') {
+  if (telegram === 'chat-required' || telegram === 'failed' || telegram === 'profile-not-found' || telegram === 'profile-update-failed') {
     const message = telegram === 'chat-required'
       ? 'Укажи Telegram chat ID и сохрани профиль перед тестом.'
-      : 'Не удалось отправить тестовое сообщение. Проверь TELEGRAM_BOT_TOKEN и chat ID.';
+      : telegram === 'profile-not-found'
+        ? 'Профиль пользователя не найден. Проверь Supabase trigger создания профиля.'
+        : telegram === 'profile-update-failed'
+          ? 'Тест отправлен, но не удалось обновить профиль в Supabase.'
+          : 'Не удалось отправить тестовое сообщение. Проверь TELEGRAM_BOT_TOKEN и chat ID.';
 
     return (
       <div className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -132,7 +139,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <CardContent className="-mt-12 space-y-5">
               <div className="flex items-end gap-4">
                 {profile.avatarUrl ? (
-                  <img src={profile.avatarUrl} alt={profile.fullName} className="h-24 w-24 rounded-3xl border-4 border-white object-cover shadow-card" />
+                  <Image src={profile.avatarUrl} alt={profile.fullName} width={96} height={96} unoptimized className="h-24 w-24 rounded-3xl border-4 border-white object-cover shadow-card" />
                 ) : (
                   <div className="flex h-24 w-24 items-center justify-center rounded-3xl border-4 border-white bg-gradient-to-br from-pink-400 to-purple-600 text-2xl font-black text-white shadow-card">
                     {initials}
@@ -171,7 +178,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               <div className="rounded-2xl border border-app-line bg-gradient-to-br from-white to-purple-50 p-3">
                 <div className="flex items-center gap-3">
                   {profile.avatarUrl ? (
-                    <img src={profile.avatarUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                    <Image src={profile.avatarUrl} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-full object-cover" />
                   ) : (
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-bold text-white">
                       {initials}

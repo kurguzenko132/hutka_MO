@@ -32,6 +32,7 @@ import { getQuestionPacks, type QuestionPack } from '@/lib/question-packs';
 import { getRefusalReasons, type RefusalReason } from '@/lib/refusals';
 import { getMessageTemplatesForLead } from '@/lib/message-templates';
 import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 import { MessageTemplatePanel } from '@/components/people/message-template-panel';
 import { LeadNextActionCard } from '@/components/people/lead-next-action-card';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
@@ -218,7 +219,7 @@ function RefusalManagementCard({ leadId, lead, reasons }: { leadId: string; lead
 }
 
 
-function LeadQuestionnairesCard({ items }: { items: LeadQuestionnaireListItem[] }) {
+function LeadQuestionnairesCard({ items, canManageQuestionnaires = false }: { items: LeadQuestionnaireListItem[]; canManageQuestionnaires?: boolean }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
@@ -241,15 +242,19 @@ function LeadQuestionnairesCard({ items }: { items: LeadQuestionnaireListItem[] 
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               <Button asChild size="sm" variant="secondary"><a href={item.publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Открыть ссылку</a></Button>
-              <form action={deleteLeadQuestionnaireAction}>
-                <input type="hidden" name="questionnaire_id" value={item.id} />
-                <input type="hidden" name="lead_id" value={item.leadId} />
-                <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" />Удалить</Button>
-              </form>
+              {canManageQuestionnaires && (
+                <form action={deleteLeadQuestionnaireAction}>
+                  <input type="hidden" name="questionnaire_id" value={item.id} />
+                  <input type="hidden" name="lead_id" value={item.leadId} />
+                  <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" />Удалить</Button>
+                </form>
+              )}
             </div>
           </div>
         )) : (
-          <p className="text-sm text-app-muted">Пока нет персональных анкет. Создай вопросы ниже и отправь человеку ссылку.</p>
+          <p className="text-sm text-app-muted">
+            {canManageQuestionnaires ? 'Пока нет персональных анкет. Создай вопросы ниже и отправь человеку ссылку.' : 'Персональных анкет пока нет.'}
+          </p>
         )}
       </CardContent>
     </Card>
@@ -393,14 +398,25 @@ function ContactRelationsHub({
   campaigns,
   insights,
   hypotheses,
-  surveys
+  surveys,
+  canManageCampaigns = false,
+  canManageSurveys = false,
+  canManageInsights = false,
+  canManageHypotheses = false
 }: {
   leadId: string;
   campaigns: CampaignOption[];
   insights: InsightOption[];
   hypotheses: HypothesisOption[];
   surveys: SurveyOption[];
+  canManageCampaigns?: boolean;
+  canManageSurveys?: boolean;
+  canManageInsights?: boolean;
+  canManageHypotheses?: boolean;
 }) {
+  const hasRelationActions = canManageCampaigns || canManageSurveys || canManageInsights || canManageHypotheses;
+  if (!hasRelationActions) return null;
+
   return (
     <Card>
       <CardHeader>
@@ -408,64 +424,72 @@ function ContactRelationsHub({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm leading-6 text-app-muted">
-          Добавляй контакт в кампании, связывай его с инсайтами и гипотезами, а также создавай персональную ссылку на опрос прямо из карточки.
+          Добавляй контакт в кампании, связывай его с инсайтами и гипотезами, а также фиксируй отправку общей ссылки на опрос прямо из карточки.
         </p>
 
-        <form action={attachLeadToCampaignFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-          <input type="hidden" name="lead_id" value={leadId} />
-          <p className="text-sm font-bold text-app-text">Добавить в кампанию</p>
-          <Select name="campaign_id" defaultValue="" required disabled={campaigns.length === 0}>
-            <EmptyOption label={campaigns.length ? 'Выбери кампанию' : 'Кампаний пока нет'} />
-            {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
-          </Select>
-          <Button type="submit" variant="secondary" className="w-full" disabled={campaigns.length === 0}>
-            <FlaskConical className="h-4 w-4" />
-            Привязать к кампании
-          </Button>
-        </form>
+        {canManageCampaigns && (
+          <form action={attachLeadToCampaignFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+            <input type="hidden" name="lead_id" value={leadId} />
+            <p className="text-sm font-bold text-app-text">Добавить в кампанию</p>
+            <Select name="campaign_id" defaultValue="" required disabled={campaigns.length === 0}>
+              <EmptyOption label={campaigns.length ? 'Выбери кампанию' : 'Кампаний пока нет'} />
+              {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
+            </Select>
+            <Button type="submit" variant="secondary" className="w-full" disabled={campaigns.length === 0}>
+              <FlaskConical className="h-4 w-4" />
+              Привязать к кампании
+            </Button>
+          </form>
+        )}
 
-        <form action={createLeadSurveyInviteAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-          <input type="hidden" name="lead_id" value={leadId} />
-          <p className="text-sm font-bold text-app-text">Опрос для контакта</p>
-          <Select name="survey_id" defaultValue="" required disabled={surveys.length === 0}>
-            <EmptyOption label={surveys.length ? 'Выбери опрос' : 'Опросов пока нет'} />
-            {surveys.map((survey) => (
-              <option key={survey.id} value={survey.id}>
-                {survey.name}{survey.status !== 'active' ? ' · черновик' : ''}
-              </option>
-            ))}
-          </Select>
-          <Button type="submit" variant="secondary" className="w-full" disabled={surveys.length === 0}>
-            <ClipboardList className="h-4 w-4" />
-            Создать ссылку на опрос
-          </Button>
-        </form>
+        {canManageSurveys && (
+          <form action={createLeadSurveyInviteAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+            <input type="hidden" name="lead_id" value={leadId} />
+            <p className="text-sm font-bold text-app-text">Общая ссылка на опрос</p>
+            <Select name="survey_id" defaultValue="" required disabled={surveys.length === 0}>
+              <EmptyOption label={surveys.length ? 'Выбери опрос' : 'Опросов пока нет'} />
+              {surveys.map((survey) => (
+                <option key={survey.id} value={survey.id}>
+                  {survey.name}{survey.status !== 'active' ? ' · черновик' : ''}
+                </option>
+              ))}
+            </Select>
+            <Button type="submit" variant="secondary" className="w-full" disabled={surveys.length === 0}>
+              <ClipboardList className="h-4 w-4" />
+              Зафиксировать ссылку
+            </Button>
+          </form>
+        )}
 
-        <form action={attachLeadToInsightFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-          <input type="hidden" name="lead_id" value={leadId} />
-          <p className="text-sm font-bold text-app-text">Связать с инсайтом</p>
-          <Select name="insight_id" defaultValue="" required disabled={insights.length === 0}>
-            <EmptyOption label={insights.length ? 'Выбери инсайт' : 'Инсайтов пока нет'} />
-            {insights.map((insight) => <option key={insight.id} value={insight.id}>{insight.name}</option>)}
-          </Select>
-          <Button type="submit" variant="secondary" className="w-full" disabled={insights.length === 0}>
-            <Lightbulb className="h-4 w-4" />
-            Привязать инсайт
-          </Button>
-        </form>
+        {canManageInsights && (
+          <form action={attachLeadToInsightFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+            <input type="hidden" name="lead_id" value={leadId} />
+            <p className="text-sm font-bold text-app-text">Связать с инсайтом</p>
+            <Select name="insight_id" defaultValue="" required disabled={insights.length === 0}>
+              <EmptyOption label={insights.length ? 'Выбери инсайт' : 'Инсайтов пока нет'} />
+              {insights.map((insight) => <option key={insight.id} value={insight.id}>{insight.name}</option>)}
+            </Select>
+            <Button type="submit" variant="secondary" className="w-full" disabled={insights.length === 0}>
+              <Lightbulb className="h-4 w-4" />
+              Привязать инсайт
+            </Button>
+          </form>
+        )}
 
-        <form action={attachLeadToHypothesisFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-          <input type="hidden" name="lead_id" value={leadId} />
-          <p className="text-sm font-bold text-app-text">Связать с гипотезой</p>
-          <Select name="hypothesis_id" defaultValue="" required disabled={hypotheses.length === 0}>
-            <EmptyOption label={hypotheses.length ? 'Выбери гипотезу' : 'Гипотез пока нет'} />
-            {hypotheses.map((hypothesis) => <option key={hypothesis.id} value={hypothesis.id}>{hypothesis.name}</option>)}
-          </Select>
-          <Button type="submit" variant="secondary" className="w-full" disabled={hypotheses.length === 0}>
-            <Target className="h-4 w-4" />
-            Привязать гипотезу
-          </Button>
-        </form>
+        {canManageHypotheses && (
+          <form action={attachLeadToHypothesisFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+            <input type="hidden" name="lead_id" value={leadId} />
+            <p className="text-sm font-bold text-app-text">Связать с гипотезой</p>
+            <Select name="hypothesis_id" defaultValue="" required disabled={hypotheses.length === 0}>
+              <EmptyOption label={hypotheses.length ? 'Выбери гипотезу' : 'Гипотез пока нет'} />
+              {hypotheses.map((hypothesis) => <option key={hypothesis.id} value={hypothesis.id}>{hypothesis.name}</option>)}
+            </Select>
+            <Button type="submit" variant="secondary" className="w-full" disabled={hypotheses.length === 0}>
+              <Target className="h-4 w-4" />
+              Привязать гипотезу
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   );
@@ -495,6 +519,16 @@ export async function LeadProfile({ id }: { id: string }) {
   const emailHref = contactHref(lead.email, 'email');
   const phoneHref = contactHref(lead.phone, 'phone');
   const currentStageOption = stageOptions.find((stage) => stage.name === lead.stage);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageContacts = can(currentRole, 'manageContacts');
+  const canManageTasks = can(currentRole, 'manageTasks');
+  const canManageCampaigns = can(currentRole, 'manageCampaigns');
+  const canManageSurveys = can(currentRole, 'manageSurveys');
+  const canManageInsights = can(currentRole, 'manageInsights');
+  const canManageHypotheses = can(currentRole, 'manageHypotheses');
+  const canManageSettings = can(currentRole, 'manageSettings');
+  const canManageRelations = canManageCampaigns || canManageSurveys || canManageInsights || canManageHypotheses;
+  const canUseQuickManagement = canManageContacts || canManageTasks || canManageInsights || canManageHypotheses;
   const [questionPacks, messageTemplates] = await Promise.all([
     getQuestionPacks(),
     getMessageTemplatesForLead(lead.type)
@@ -516,12 +550,14 @@ export async function LeadProfile({ id }: { id: string }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="secondary">
-            <Link href={`/people/${lead.id}/edit`}>
-              <Edit3 className="h-4 w-4" />
-              Редактировать
-            </Link>
-          </Button>
+          {canManageContacts && (
+            <Button asChild variant="secondary">
+              <Link href={`/people/${lead.id}/edit`}>
+                <Edit3 className="h-4 w-4" />
+                Редактировать
+              </Link>
+            </Button>
+          )}
           {instagramHref && (
             <Button asChild variant="secondary">
               <a href={instagramHref} target="_blank" rel="noreferrer"><MessageSquare className="h-4 w-4" /> Instagram</a>
@@ -532,16 +568,20 @@ export async function LeadProfile({ id }: { id: string }) {
               <a href={telegramHref} target="_blank" rel="noreferrer"><Send className="h-4 w-4" /> Telegram</a>
             </Button>
           )}
-          <form action={updateLeadStageFromProfileAction}>
-            <input type="hidden" name="lead_id" value={lead.id} />
-            <input type="hidden" name="stage_name" value="Тест" />
-            <Button type="submit"><TestTube2 className="h-4 w-4" /> В пилот</Button>
-          </form>
-          <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
+          {canManageContacts && (
+            <>
+              <form action={updateLeadStageFromProfileAction}>
+                <input type="hidden" name="lead_id" value={lead.id} />
+                <input type="hidden" name="stage_name" value="Тест" />
+                <Button type="submit"><TestTube2 className="h-4 w-4" /> В пилот</Button>
+              </form>
+              <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
+            </>
+          )}
         </div>
       </div>
 
-      <LeadNextActionCard lead={lead} tasks={tasks} />
+      <LeadNextActionCard lead={lead} tasks={tasks} role={currentRole} />
 
       <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.2fr_1fr]">
         <div className="space-y-6">
@@ -595,59 +635,79 @@ export async function LeadProfile({ id }: { id: string }) {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Быстрое управление</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              <form action={updateLeadStageFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <p className="text-sm font-bold text-app-text">Перевести в стадию</p>
-                <Select name="stage_id" defaultValue={currentStageOption?.id ?? ''}>
-                  {stageOptions.filter((stage) => stage.name !== 'Отказ').map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-                </Select>
-                <Button type="submit" variant="secondary" className="w-full"><ArrowRight className="h-4 w-4" />Сменить стадию</Button>
-              </form>
+          {canUseQuickManagement && (
+            <Card>
+              <CardHeader><CardTitle>Быстрое управление</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                {canManageContacts && (
+                  <form action={updateLeadStageFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+                    <input type="hidden" name="lead_id" value={lead.id} />
+                    <p className="text-sm font-bold text-app-text">Перевести в стадию</p>
+                    <Select name="stage_id" defaultValue={currentStageOption?.id ?? ''}>
+                      {stageOptions.filter((stage) => stage.name !== 'Отказ').map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
+                    </Select>
+                    <Button type="submit" variant="secondary" className="w-full"><ArrowRight className="h-4 w-4" />Сменить стадию</Button>
+                  </form>
+                )}
 
-              <RefusalManagementCard leadId={lead.id} lead={lead} reasons={refusalReasons} />
+                {canManageContacts && <RefusalManagementCard leadId={lead.id} lead={lead} reasons={refusalReasons} />}
 
-              <form action={updateLeadFollowUpAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <p className="text-sm font-bold text-app-text">Следующий шаг</p>
-                <Input name="next_step" defaultValue={lead.nextStep === '—' ? '' : lead.nextStep} placeholder="Например: отправить ссылку на опрос" />
-                <Input name="next_contact_date" type="date" defaultValue={lead.nextDateRaw ?? ''} />
-                <Button type="submit" variant="secondary" className="w-full"><Flag className="h-4 w-4" />Сохранить follow-up</Button>
-              </form>
+                {canManageContacts && (
+                  <form action={updateLeadFollowUpAction} className="space-y-3 rounded-2xl border border-app-line p-4">
+                    <input type="hidden" name="lead_id" value={lead.id} />
+                    <p className="text-sm font-bold text-app-text">Следующий шаг</p>
+                    <Input name="next_step" defaultValue={lead.nextStep === '—' ? '' : lead.nextStep} placeholder="Например: отправить ссылку на опрос" />
+                    <Input name="next_contact_date" type="date" defaultValue={lead.nextDateRaw ?? ''} />
+                    <Button type="submit" variant="secondary" className="w-full"><Flag className="h-4 w-4" />Сохранить follow-up</Button>
+                  </form>
+                )}
 
-              <div className="grid gap-2">
-                <Button asChild variant="ghost" className="justify-start">
-                  <Link href={`/tasks/new?leadId=${lead.id}`}><CalendarPlus className="h-4 w-4" />Создать задачу</Link>
-                </Button>
-                <Button asChild variant="ghost" className="justify-start">
-                  <Link href={`/insights/new?leadId=${lead.id}`}><Sparkles className="h-4 w-4" />Создать новый инсайт</Link>
-                </Button>
-                <Button asChild variant="ghost" className="justify-start">
-                  <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую гипотезу</Link>
-                </Button>
-              </div>
+                <div className="grid gap-2">
+                  {canManageTasks && (
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href={`/tasks/new?leadId=${lead.id}`}><CalendarPlus className="h-4 w-4" />Создать задачу</Link>
+                    </Button>
+                  )}
+                  {canManageInsights && (
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href={`/insights/new?leadId=${lead.id}`}><Sparkles className="h-4 w-4" />Создать новый инсайт</Link>
+                    </Button>
+                  )}
+                  {canManageHypotheses && (
+                    <Button asChild variant="ghost" className="justify-start">
+                      <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую гипотезу</Link>
+                    </Button>
+                  )}
+                </div>
 
-              <form action={deleteLeadAction} className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <p className="text-sm font-black text-red-700">Удалить контакт</p>
-                <p className="mt-1 text-xs leading-5 text-red-600">Удалятся анкеты, касания и связи контакта. Задачи останутся без привязки к контакту.</p>
-                <Button type="submit" variant="danger" className="mt-3 w-full">
-                  <Trash2 className="h-4 w-4" />
-                  Удалить контакт
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                {canManageContacts && (
+                  <form action={deleteLeadAction} className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
+                    <input type="hidden" name="lead_id" value={lead.id} />
+                    <p className="text-sm font-black text-red-700">Удалить контакт</p>
+                    <p className="mt-1 text-xs leading-5 text-red-600">Удалятся анкеты, касания и связи контакта. Задачи останутся без привязки к контакту.</p>
+                    <Button type="submit" variant="danger" className="mt-3 w-full">
+                      <Trash2 className="h-4 w-4" />
+                      Удалить контакт
+                    </Button>
+                  </form>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
-          <ContactRelationsHub
-            leadId={lead.id}
-            campaigns={campaignOptions}
-            insights={insightOptions}
-            hypotheses={hypothesisOptions}
-            surveys={surveyOptions}
-          />
+          {canManageRelations && (
+            <ContactRelationsHub
+              leadId={lead.id}
+              campaigns={campaignOptions}
+              insights={insightOptions}
+              hypotheses={hypothesisOptions}
+              surveys={surveyOptions}
+              canManageCampaigns={canManageCampaigns}
+              canManageSurveys={canManageSurveys}
+              canManageInsights={canManageInsights}
+              canManageHypotheses={canManageHypotheses}
+            />
+          )}
 
           <MessageTemplatePanel
             lead={{
@@ -668,11 +728,12 @@ export async function LeadProfile({ id }: { id: string }) {
               email: currentUser?.email ?? ''
             }}
             templates={messageTemplates}
+            canEditTemplates={canManageSettings}
           />
-          <QuestionPacksCard leadId={lead.id} packs={questionPacks} />
-          <LeadQuestionnairesCard items={leadQuestionnaires} />
+          {canManageContacts && <QuestionPacksCard leadId={lead.id} packs={questionPacks} />}
+          <LeadQuestionnairesCard items={leadQuestionnaires} canManageQuestionnaires={canManageContacts} />
           <LeadQuestionnaireResponsesCard items={leadQuestionnaireResponses} />
-          <PersonalQuestionnaireBuilder leadId={lead.id} leadName={lead.name} />
+          {canManageContacts && <PersonalQuestionnaireBuilder leadId={lead.id} leadName={lead.name} />}
         </div>
 
         <div className="space-y-6">
@@ -694,35 +755,39 @@ export async function LeadProfile({ id }: { id: string }) {
                     <p className="mt-2 text-sm text-app-muted">{item.text}</p>
                   </div>
                 )) : (
-                  <p className="text-sm text-app-muted">Пока нет касаний. Добавь первое сообщение, звонок или заметку.</p>
+                  <p className="text-sm text-app-muted">
+                    {canManageContacts ? 'Пока нет касаний. Добавь первое сообщение, звонок или заметку.' : 'Касаний пока нет.'}
+                  </p>
                 )}
               </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader><CardTitle>Добавить касание</CardTitle></CardHeader>
-            <CardContent>
-              <form action={addLeadInteractionAction} className="space-y-4">
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Select name="type" defaultValue="note">
-                    <option value="note">Заметка</option>
-                    <option value="message">Сообщение</option>
-                    <option value="call">Звонок</option>
-                    <option value="meeting">Встреча</option>
-                    <option value="survey_sent">Опрос отправлен</option>
-                    <option value="survey_completed">Опрос пройден</option>
-                    <option value="status_change">Изменение статуса</option>
-                  </Select>
-                  <Input name="channel" placeholder="Канал: Instagram, Telegram..." />
-                </div>
-                <Textarea name="text" placeholder="Что произошло, что ответил контакт, что важно не забыть..." required />
-                <Input name="result" placeholder="Результат: ответил, ждём, отказ, готов к пилоту..." />
-                <Button type="submit"><Save className="h-4 w-4" />Сохранить касание</Button>
-              </form>
-            </CardContent>
-          </Card>
+          {canManageContacts && (
+            <Card>
+              <CardHeader><CardTitle>Добавить касание</CardTitle></CardHeader>
+              <CardContent>
+                <form action={addLeadInteractionAction} className="space-y-4">
+                  <input type="hidden" name="lead_id" value={lead.id} />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Select name="type" defaultValue="note">
+                      <option value="note">Заметка</option>
+                      <option value="message">Сообщение</option>
+                      <option value="call">Звонок</option>
+                      <option value="meeting">Встреча</option>
+                      <option value="survey_sent">Опрос отправлен</option>
+                      <option value="survey_completed">Опрос пройден</option>
+                      <option value="status_change">Изменение статуса</option>
+                    </Select>
+                    <Input name="channel" placeholder="Канал: Instagram, Telegram..." />
+                  </div>
+                  <Textarea name="text" placeholder="Что произошло, что ответил контакт, что важно не забыть..." required />
+                  <Input name="result" placeholder="Результат: ответил, ждём, отказ, готов к пилоту..." />
+                  <Button type="submit"><Save className="h-4 w-4" />Сохранить касание</Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -752,31 +817,35 @@ export async function LeadProfile({ id }: { id: string }) {
                   </div>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold text-app-faint">{task.status} · {task.dueDate}</p>
-                    <form action={deleteTaskAction}>
-                      <input type="hidden" name="task_id" value={task.id} />
-                      <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
-                      <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить</Button>
-                    </form>
+                    {canManageTasks && (
+                      <form action={deleteTaskAction}>
+                        <input type="hidden" name="task_id" value={task.id} />
+                        <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
+                        <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить</Button>
+                      </form>
+                    )}
                   </div>
                 </div>
               )) : <p className="text-sm text-app-muted">Задач по контакту пока нет.</p>}
 
-              <form action={createTaskAction} className="space-y-3 rounded-2xl border border-dashed border-purple-200 bg-purple-50/40 p-4">
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
-                <Input name="title" placeholder="Новая задача" required />
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Input name="due_date" type="date" />
-                  <Select name="priority" defaultValue="Средний">
-                    <option>Низкий</option>
-                    <option>Средний</option>
-                    <option>Высокий</option>
-                    <option>Срочно</option>
-                  </Select>
-                </div>
-                <Textarea name="description" placeholder="Описание задачи" />
-                <Button type="submit" variant="secondary"><CalendarPlus className="h-4 w-4" />Добавить задачу</Button>
-              </form>
+              {canManageTasks && (
+                <form action={createTaskAction} className="space-y-3 rounded-2xl border border-dashed border-purple-200 bg-purple-50/40 p-4">
+                  <input type="hidden" name="lead_id" value={lead.id} />
+                  <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
+                  <Input name="title" placeholder="Новая задача" required />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Input name="due_date" type="date" />
+                    <Select name="priority" defaultValue="Средний">
+                      <option>Низкий</option>
+                      <option>Средний</option>
+                      <option>Высокий</option>
+                      <option>Срочно</option>
+                    </Select>
+                  </div>
+                  <Textarea name="description" placeholder="Описание задачи" />
+                  <Button type="submit" variant="secondary"><CalendarPlus className="h-4 w-4" />Добавить задачу</Button>
+                </form>
+              )}
             </CardContent>
           </Card>
         </div>

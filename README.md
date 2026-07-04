@@ -10,6 +10,7 @@
 - Supabase
 - Vercel
 - pnpm
+- Node.js 22+
 
 ## Что уже сделано в этой версии
 
@@ -28,14 +29,15 @@
 - Отчеты
 - Гипотезы
 - Настройки
-- Login-страница-заглушка
-- Supabase schema для будущей базы данных
+- Supabase Auth и роли `admin`, `marketer`, `viewer`
+- Supabase schema и CRUD для рабочих разделов
 
-На текущем этапе данные в интерфейсе моковые. Следующий этап — подключение Supabase CRUD для лидов, задач, опросов и воронок.
+Если Supabase не настроен, приложение показывает demo-режим. Если Supabase настроен, но запросы к базе падают, production-страницы показывают пустые реальные состояния, а не подмешивают demo-данные.
 
 ## Запуск локально
 
 ```bash
+nvm use
 pnpm install
 pnpm dev
 ```
@@ -57,11 +59,13 @@ cp .env.example .env.local
 Заполнить:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key_server_only
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<supabase-anon-key>
+SUPABASE_SERVICE_ROLE_KEY=<supabase-service-role-key-server-only>
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+`NEXT_PUBLIC_SUPABASE_URL` должен быть настоящим `http://` или `https://` URL. Placeholder вроде `your_supabase_url` считается невалидной конфигурацией и приложение отправит защищенные страницы на `/login?error=config`, вместо падения в 500.
 
 ## Supabase
 
@@ -73,7 +77,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 supabase/schema.sql
 ```
 
-Для первой демо-версии можно пока не подключать CRUD и смотреть интерфейс на моковых данных.
+Для локального просмотра без Supabase можно оставить переменные пустыми и смотреть demo-режим. Для авторизации, CRUD, публичных опросов и реальных отчетов нужны валидные Supabase env. `SUPABASE_SERVICE_ROLE_KEY` обязателен на сервере: публичные формы `/s/[slug]` и `/q/[token]` читают и сохраняют данные через Next.js server actions, чтобы не открывать таблицы через anon API.
 
 ## Vercel
 
@@ -82,11 +86,12 @@ supabase/schema.sql
 3. В Vercel нажать Add New Project.
 4. Выбрать GitHub-репозиторий.
 5. Framework Preset: Next.js.
-6. Install Command: `pnpm install`.
+6. Install Command: оставить пустым, чтобы Vercel использовал pnpm из `packageManager` и lockfile.
 7. Build Command: `pnpm build`.
-8. Output Directory: `.next`.
+8. Output Directory: оставить пустым, чтобы Vercel сам использовал Next.js framework output.
 9. Добавить переменные окружения из `.env.local`.
 10. Нажать Deploy.
+11. Runtime должен быть Node.js 22+; это закреплено в `package.json` и `.nvmrc`.
 
 ## Главные страницы
 
@@ -106,12 +111,17 @@ supabase/schema.sql
 /login
 ```
 
-## Следующий этап разработки
+## Проверки перед деплоем
 
-1. Подключить Supabase Auth.
-2. Подключить реальные таблицы `leads`, `tasks`, `lead_interactions`.
-3. Сделать создание/редактирование лида.
-4. Сделать изменение стадии воронки.
-5. Сделать создание задач.
-6. Сделать сохранение ответов опросов.
-7. Подключить Dashboard к SQL views.
+```bash
+pnpm check
+pnpm smoke:local
+```
+
+После деплоя открыть `/api/health`: `supabase-public-env`, `service-role` и `node-runtime` должны быть `ok`, а `blockers` должен быть пустым.
+
+Для быстрой проверки деплоя:
+
+```bash
+BASE_URL=https://hutka-mo.vercel.app pnpm smoke:url
+```

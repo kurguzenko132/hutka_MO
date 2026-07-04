@@ -12,6 +12,8 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getCampaignById, statusTone } from '@/lib/campaigns';
 import { getLeadOptions } from '@/lib/leads';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
 const errorMessages: Record<string, string> = {
   'missing-lead': 'Выбери контакт для добавления в кампанию.',
@@ -32,10 +34,13 @@ export default async function CampaignDetailPage({
   params: Promise<{ id: string }>;
   searchParams?: Promise<{ error?: string }>;
 }) {
-  const [{ id }, leads, paramsValue] = await Promise.all([params, getLeadOptions(), searchParams]);
+  const [{ id }, paramsValue, currentUser] = await Promise.all([params, searchParams, getCurrentUserContext()]);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageCampaigns = can(currentRole, 'manageCampaigns');
   const campaign = await getCampaignById(id);
   if (!campaign) notFound();
 
+  const leads = canManageCampaigns ? await getLeadOptions() : [];
   const linkedIds = new Set(campaign.contacts.map((contact) => contact.id));
   const availableLeads = leads.filter((lead) => !linkedIds.has(lead.id));
   const error = paramsValue?.error ? errorMessages[paramsValue.error] : undefined;
@@ -87,7 +92,9 @@ export default async function CampaignDetailPage({
           <FormSection title="Контакты в кампании" subtitle="Список людей, которых ты добавил в этот маркетинговый эксперимент.">
             <div className="space-y-3">
               {campaign.contacts.length === 0 && (
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">Пока контактов нет. Добавь первый контакт справа.</p>
+                <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">
+                  {canManageCampaigns ? 'Пока контактов нет. Добавь первый контакт справа.' : 'Пока контактов нет.'}
+                </p>
               )}
               {campaign.contacts.map((contact) => (
                 <Link key={contact.id} href={`/people/${contact.id}`} className="block rounded-2xl border border-app-line bg-white p-4 transition hover:border-purple-200 hover:bg-purple-50/40">
@@ -108,45 +115,49 @@ export default async function CampaignDetailPage({
         </main>
 
         <aside className="space-y-6">
-          <form action={addLeadToCampaignAction}>
-            <input type="hidden" name="campaign_id" value={campaign.id} />
-            <FormSection title="Добавить контакт" subtitle="Привяжи существующий контакт к кампании.">
-              <div className="space-y-4">
-                <Field label="Контакт">
-                  <Select name="lead_id" defaultValue="">
-                    <option value="">Выбрать контакт</option>
-                    {availableLeads.map((lead) => (
-                      <option key={lead.id} value={lead.id}>{lead.name}</option>
-                    ))}
-                  </Select>
-                </Field>
-                <Button type="submit" className="w-full"><Plus className="h-4 w-4" />Добавить в кампанию</Button>
-              </div>
-            </FormSection>
-          </form>
+          {canManageCampaigns && (
+            <form action={addLeadToCampaignAction}>
+              <input type="hidden" name="campaign_id" value={campaign.id} />
+              <FormSection title="Добавить контакт" subtitle="Привяжи существующий контакт к кампании.">
+                <div className="space-y-4">
+                  <Field label="Контакт">
+                    <Select name="lead_id" defaultValue="">
+                      <option value="">Выбрать контакт</option>
+                      {availableLeads.map((lead) => (
+                        <option key={lead.id} value={lead.id}>{lead.name}</option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Button type="submit" className="w-full"><Plus className="h-4 w-4" />Добавить в кампанию</Button>
+                </div>
+              </FormSection>
+            </form>
+          )}
 
-          <form action={updateCampaignResultAction}>
-            <input type="hidden" name="campaign_id" value={campaign.id} />
-            <FormSection title="Вывод по кампании" subtitle="Фиксируй, что сработало, а что нет.">
-              <div className="space-y-4">
-                <Field label="Статус">
-                  <Select name="status" defaultValue={campaign.statusLabel}>
-                    <option>Планируется</option>
-                    <option>Активна</option>
-                    <option>На паузе</option>
-                    <option>Завершена</option>
-                  </Select>
-                </Field>
-                <Field label="Дата завершения">
-                  <Input name="end_date" type="date" />
-                </Field>
-                <Field label="Вывод / заметки">
-                  <Textarea name="result_notes" defaultValue={campaign.resultNotes ?? ''} placeholder="Например: Telegram дал меньше контактов, но выше качество и готовность к пилоту." />
-                </Field>
-                <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить вывод</Button>
-              </div>
-            </FormSection>
-          </form>
+          {canManageCampaigns && (
+            <form action={updateCampaignResultAction}>
+              <input type="hidden" name="campaign_id" value={campaign.id} />
+              <FormSection title="Вывод по кампании" subtitle="Фиксируй, что сработало, а что нет.">
+                <div className="space-y-4">
+                  <Field label="Статус">
+                    <Select name="status" defaultValue={campaign.statusLabel}>
+                      <option>Планируется</option>
+                      <option>Активна</option>
+                      <option>На паузе</option>
+                      <option>Завершена</option>
+                    </Select>
+                  </Field>
+                  <Field label="Дата завершения">
+                    <Input name="end_date" type="date" />
+                  </Field>
+                  <Field label="Вывод / заметки">
+                    <Textarea name="result_notes" defaultValue={campaign.resultNotes ?? ''} placeholder="Например: Telegram дал меньше контактов, но выше качество и готовность к пилоту." />
+                  </Field>
+                  <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить вывод</Button>
+                </div>
+              </FormSection>
+            </form>
+          )}
 
           <Card>
             <CardContent>
@@ -164,12 +175,14 @@ export default async function CampaignDetailPage({
             </CardContent>
           </Card>
 
-          <form action={deleteCampaignAction}>
-            <input type="hidden" name="campaign_id" value={campaign.id} />
-            <FormSection title="Удалить кампанию" subtitle="Удалится кампания и связи с контактами. Контакты останутся в базе.">
-              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить кампанию</Button>
-            </FormSection>
-          </form>
+          {canManageCampaigns && (
+            <form action={deleteCampaignAction}>
+              <input type="hidden" name="campaign_id" value={campaign.id} />
+              <FormSection title="Удалить кампанию" subtitle="Удалится кампания и связи с контактами. Контакты останутся в базе.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить кампанию</Button>
+              </FormSection>
+            </form>
+          )}
         </aside>
       </div>
     </div>

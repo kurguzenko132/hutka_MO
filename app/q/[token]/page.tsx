@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getLeadQuestionnaireByToken, leadQuestionTypeLabel, type LeadQuestionnaireQuestion } from '@/lib/lead-questionnaires';
+import { publicFormHoneypotName, publicFormLimits } from '@/lib/public-form-validation';
 
 function QuestionField({ question }: { question: LeadQuestionnaireQuestion }) {
   const name = `answer_${question.id}`;
 
   if (question.type === 'long_text') {
-    return <Textarea name={name} placeholder="Напишите ответ..." required={question.required} />;
+    return <Textarea name={name} placeholder="Напишите ответ..." required={question.required} maxLength={publicFormLimits.answerValue} />;
   }
 
   if (question.type === 'number') {
@@ -74,7 +75,7 @@ function QuestionField({ question }: { question: LeadQuestionnaireQuestion }) {
     );
   }
 
-  return <Input name={name} placeholder="Введите ответ" required={question.required} />;
+  return <Input name={name} placeholder="Введите ответ" required={question.required} maxLength={publicFormLimits.answerValue} />;
 }
 
 export default async function PublicLeadQuestionnairePage({
@@ -91,6 +92,15 @@ export default async function PublicLeadQuestionnairePage({
 
   const submitted = Boolean(query?.submitted);
   const error = query?.error;
+  const errorMessages: Record<string, string> = {
+    'save-failed': 'Не удалось сохранить ответы. Попробуйте еще раз.',
+    required: 'Ответьте на обязательные вопросы и отправьте форму еще раз.',
+    'not-active': 'Эта анкета сейчас недоступна для ответов.',
+    'questions-not-found': 'В этой анкете пока нет активных вопросов.',
+    config: 'Форма временно недоступна: не настроен серверный ключ Supabase.',
+    'too-long': 'Слишком длинный ответ. Сократите текст и попробуйте еще раз.'
+  };
+  const errorMessage = error ? errorMessages[error] ?? 'Не удалось сохранить ответы. Проверьте обязательные вопросы и попробуйте еще раз.' : '';
 
   return (
     <main className="min-h-screen bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
@@ -122,12 +132,17 @@ export default async function PublicLeadQuestionnairePage({
         ) : (
           <form action={submitLeadQuestionnaireAction} className="space-y-5">
             <input type="hidden" name="questionnaire_id" value={questionnaire.id} />
-            <input type="hidden" name="lead_id" value={questionnaire.leadId} />
             <input type="hidden" name="token" value={questionnaire.token} />
+            <div className="hidden" aria-hidden="true">
+              <label>
+                Website
+                <input name={publicFormHoneypotName} tabIndex={-1} autoComplete="off" />
+              </label>
+            </div>
 
-            {error && (
+            {errorMessage && (
               <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
-                Не удалось сохранить ответы. Проверьте обязательные вопросы и попробуйте еще раз.
+                {errorMessage}
               </div>
             )}
 
@@ -137,11 +152,11 @@ export default async function PublicLeadQuestionnairePage({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-bold text-app-text">Имя</span>
-                    <Input name="respondent_name" placeholder="Ваше имя" />
+                    <Input name="respondent_name" placeholder="Ваше имя" maxLength={publicFormLimits.respondentName} />
                   </label>
                   <label className="block">
                     <span className="mb-2 block text-sm font-bold text-app-text">Контакт</span>
-                    <Input name="respondent_contact" placeholder="Telegram, Instagram или телефон" />
+                    <Input name="respondent_contact" placeholder="Telegram, Instagram или телефон" maxLength={publicFormLimits.respondentContact} />
                   </label>
                 </div>
               </CardContent>

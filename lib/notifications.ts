@@ -381,7 +381,7 @@ export async function getNotificationCenterData(): Promise<NotificationCenterDat
 
     return buildNotificationData(notifications.slice(0, 60));
   } catch {
-    return demoNotifications();
+    return buildNotificationData([]);
   }
 }
 

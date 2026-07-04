@@ -91,8 +91,8 @@ export default async function QualityPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {report.counts.map((item) => (
-              <div key={item.label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
-                <span className="flex items-center gap-2 text-sm font-bold text-app-text"><Database className="h-4 w-4 text-app-purple" />{item.label}</span>
+              <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-4 py-3">
+                <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-app-text"><Database className="h-4 w-4 shrink-0 text-app-purple" /><span className="truncate">{item.label}</span></span>
                 <span className="text-sm font-black text-app-text">{item.value}</span>
               </div>
             ))}

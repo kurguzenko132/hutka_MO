@@ -10,6 +10,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 import { getPublicSurveyUrl, getSurveyById, questionTypeLabel, statusLabel } from '@/lib/surveys';
 
 function statusTone(status: string) {
@@ -19,7 +21,9 @@ function statusTone(status: string) {
 }
 
 export default async function SurveyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+  const [{ id }, currentUser] = await Promise.all([params, getCurrentUserContext()]);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageSurveys = can(currentRole, 'manageSurveys');
   const survey = await getSurveyById(id);
   if (!survey) notFound();
 
@@ -56,7 +60,9 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
           <FormSection title="Вопросы опроса">
             <div className="space-y-3">
               {survey.questions.length === 0 && (
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">Пока вопросов нет. Добавь первый вопрос справа.</p>
+                <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">
+                  {canManageSurveys ? 'Пока вопросов нет. Добавь первый вопрос справа.' : 'Пока вопросов нет.'}
+                </p>
               )}
               {survey.questions.map((question, index) => (
                 <div key={question.id} className="rounded-2xl border border-app-line bg-white p-4">
@@ -69,11 +75,13 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <p className="text-sm text-app-muted">{questionTypeLabel(question.type)}</p>
-                        <form action={deleteSurveyQuestionAction}>
-                          <input type="hidden" name="survey_id" value={survey.id} />
-                          <input type="hidden" name="question_id" value={question.id} />
-                          <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить вопрос</Button>
-                        </form>
+                        {canManageSurveys && (
+                          <form action={deleteSurveyQuestionAction}>
+                            <input type="hidden" name="survey_id" value={survey.id} />
+                            <input type="hidden" name="question_id" value={question.id} />
+                            <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить вопрос</Button>
+                          </form>
+                        )}
                       </div>
                       {question.options.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-2">
@@ -116,34 +124,36 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <aside className="space-y-6">
-          <form action={addSurveyQuestionAction}>
-            <input type="hidden" name="survey_id" value={survey.id} />
-            <FormSection title="Добавить вопрос" subtitle="Новый вопрос сразу появится в публичной форме.">
-              <div className="space-y-4">
-                <Field label="Текст вопроса">
-                  <Input name="question_text" placeholder="Например: что мешает вам расти?" required />
-                </Field>
-                <Field label="Тип вопроса">
-                  <Select name="question_type" defaultValue="long_text">
-                    <option value="short_text">Короткий ответ</option>
-                    <option value="long_text">Длинный ответ</option>
-                    <option value="single_choice">Один вариант</option>
-                    <option value="multiple_choice">Несколько вариантов</option>
-                    <option value="yes_no">Да / нет</option>
-                    <option value="rating">Оценка</option>
-                  </Select>
-                </Field>
-                <Field label="Варианты" hint="Для выбора: через запятую или с новой строки.">
-                  <Textarea name="question_options" placeholder="Да, Нет, Возможно" />
-                </Field>
-                <label className="flex items-center gap-2 rounded-2xl border border-app-line bg-white p-3 text-sm font-semibold text-app-text">
-                  <input name="required" type="checkbox" className="h-4 w-4 rounded border-app-line" />
-                  Обязательный вопрос
-                </label>
-                <Button type="submit" className="w-full"><Plus className="h-4 w-4" />Добавить вопрос</Button>
-              </div>
-            </FormSection>
-          </form>
+          {canManageSurveys && (
+            <form action={addSurveyQuestionAction}>
+              <input type="hidden" name="survey_id" value={survey.id} />
+              <FormSection title="Добавить вопрос" subtitle="Новый вопрос сразу появится в публичной форме.">
+                <div className="space-y-4">
+                  <Field label="Текст вопроса">
+                    <Input name="question_text" placeholder="Например: что мешает вам расти?" required />
+                  </Field>
+                  <Field label="Тип вопроса">
+                    <Select name="question_type" defaultValue="long_text">
+                      <option value="short_text">Короткий ответ</option>
+                      <option value="long_text">Длинный ответ</option>
+                      <option value="single_choice">Один вариант</option>
+                      <option value="multiple_choice">Несколько вариантов</option>
+                      <option value="yes_no">Да / нет</option>
+                      <option value="rating">Оценка</option>
+                    </Select>
+                  </Field>
+                  <Field label="Варианты" hint="Для выбора: через запятую или с новой строки.">
+                    <Textarea name="question_options" placeholder="Да, Нет, Возможно" />
+                  </Field>
+                  <label className="flex items-center gap-2 rounded-2xl border border-app-line bg-white p-3 text-sm font-semibold text-app-text">
+                    <input name="required" type="checkbox" className="h-4 w-4 rounded border-app-line" />
+                    Обязательный вопрос
+                  </label>
+                  <Button type="submit" className="w-full"><Plus className="h-4 w-4" />Добавить вопрос</Button>
+                </div>
+              </FormSection>
+            </form>
+          )}
 
           <Card>
             <CardContent>
@@ -153,12 +163,14 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
             </CardContent>
           </Card>
 
-          <form action={deleteSurveyAction}>
-            <input type="hidden" name="survey_id" value={survey.id} />
-            <FormSection title="Удалить опросник" subtitle="Удалится опросник, вопросы и ответы. Публичная ссылка перестанет работать.">
-              <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить опросник</Button>
-            </FormSection>
-          </form>
+          {canManageSurveys && (
+            <form action={deleteSurveyAction}>
+              <input type="hidden" name="survey_id" value={survey.id} />
+              <FormSection title="Удалить опросник" subtitle="Удалится опросник, вопросы и ответы. Публичная ссылка перестанет работать.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить опросник</Button>
+              </FormSection>
+            </form>
+          )}
         </aside>
       </div>
     </div>

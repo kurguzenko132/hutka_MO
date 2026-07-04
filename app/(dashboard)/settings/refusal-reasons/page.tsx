@@ -39,7 +39,9 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
 
   const isError = Boolean(error);
   const message = isError
-    ? 'Не удалось выполнить действие. Возможно, причина уже используется в контактах или Supabase не обновлен.'
+    ? error === 'reason-not-found'
+      ? 'Причина отказа не найдена. Возможно, она уже удалена.'
+      : 'Не удалось выполнить действие. Возможно, причина уже используется в контактах или Supabase не обновлен.'
     : demo
       ? 'Supabase еще не настроен, поэтому причины отказа показаны в demo-режиме.'
       : deleted

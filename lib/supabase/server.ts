@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { getSupabasePublicConfig } from '@/lib/supabase/config';
 
 type CookieToSet = {
   name: string;
@@ -9,14 +10,13 @@ type CookieToSet = {
 
 export async function createClient() {
   const cookieStore = await cookies();
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const config = getSupabasePublicConfig();
 
-  if (!url || !anonKey) {
+  if (!config) {
     throw new Error('Supabase env variables are not configured');
   }
 
-  return createServerClient(url, anonKey, {
+  return createServerClient(config.url, config.anonKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

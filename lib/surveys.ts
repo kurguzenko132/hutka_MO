@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 
 export type SurveyStatus = 'draft' | 'active' | 'archived';
 
@@ -191,7 +192,7 @@ export async function getSurveys(): Promise<SurveyListItem[]> {
     .select('id,title,type,description,status,slug,created_at,survey_questions(id),survey_answers(id)')
     .order('created_at', { ascending: false });
 
-  if (error || !data) return demoSurveys;
+  if (error || !data) return [];
 
   return data.map((row) => {
     const record = row as Record<string, unknown>;
@@ -301,7 +302,9 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
     return { ...survey, status: 'active', questions: demoQuestions, responses: [] };
   }
 
-  const supabase = await createClient();
+  if (!isSupabaseServiceConfigured()) return null;
+
+  const supabase = createServiceClient();
   const { data: surveyRow, error } = await supabase
     .from('surveys')
     .select('id,title,type,description,status,slug,created_at')
@@ -311,5 +314,24 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
 
   if (error || !surveyRow) return null;
 
-  return getSurveyById(String(surveyRow.id));
+  const { data: questionRows, error: questionsError } = await supabase
+    .from('survey_questions')
+    .select('id,question_text,question_type,options,required,order_index')
+    .eq('survey_id', surveyRow.id)
+    .order('order_index', { ascending: true });
+
+  if (questionsError || !questionRows) return null;
+
+  const questions = questionRows.map((row) => mapQuestion(row as Record<string, unknown>));
+  const survey = mapSurvey({
+    ...(surveyRow as Record<string, unknown>),
+    questions_count: questions.length,
+    answers_count: 0
+  });
+
+  return {
+    ...survey,
+    questions,
+    responses: []
+  };
 }

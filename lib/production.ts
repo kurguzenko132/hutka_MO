@@ -1,5 +1,5 @@
 import packageJson from '@/package.json';
-import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { isSupabaseConfigured, isSupabaseServiceConfigured } from '@/lib/supabase/config';
 
 export type ProductionCheckStatus = 'ok' | 'warning' | 'error';
 
@@ -10,6 +10,8 @@ export type ProductionCheck = {
   status: ProductionCheckStatus;
   action?: string;
 };
+
+export const productionBlockingCheckIds = ['supabase-public-env', 'service-role', 'node-runtime'] as const;
 
 export type RouteCheckGroup = {
   title: string;
@@ -63,11 +65,13 @@ export const routeCheckGroups: RouteCheckGroup[] = [
 
 export function getProductionChecks(): ProductionCheck[] {
   const supabaseConfigured = isSupabaseConfigured();
-  const hasServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const serviceConfigured = isSupabaseServiceConfigured();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL;
   const isHttps = Boolean(appUrl?.startsWith('https://')) || appUrl?.includes('localhost');
   const vercelUrl = process.env.VERCEL_URL;
   const nodeEnv = process.env.NODE_ENV;
+  const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] ?? '0', 10);
+  const nodeIsSupported = Number.isFinite(nodeMajor) && nodeMajor >= 22;
 
   return [
     {
@@ -80,9 +84,9 @@ export function getProductionChecks(): ProductionCheck[] {
     {
       id: 'service-role',
       title: 'Service role key',
-      description: 'SUPABASE_SERVICE_ROLE_KEY нужен для некоторых админских операций и резервного экспорта.',
-      status: hasServiceRole ? 'ok' : 'warning',
-      action: hasServiceRole ? undefined : 'Добавь SUPABASE_SERVICE_ROLE_KEY только в серверные env Vercel. Не используй его на клиенте.'
+      description: 'SUPABASE_SERVICE_ROLE_KEY нужен для безопасных публичных форм, Telegram-уведомлений и резервного экспорта.',
+      status: serviceConfigured ? 'ok' : 'error',
+      action: serviceConfigured ? undefined : 'Добавь валидные NEXT_PUBLIC_SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY только в серверные env Vercel. Не используй service key на клиенте.'
     },
     {
       id: 'app-url',
@@ -97,6 +101,13 @@ export function getProductionChecks(): ProductionCheck[] {
       description: 'Проверяет, что приложение действительно собрано в окружении Vercel или локальной production-сборке.',
       status: vercelUrl || nodeEnv === 'production' ? 'ok' : 'warning',
       action: vercelUrl || nodeEnv === 'production' ? undefined : 'Для полной проверки запусти pnpm build или проверь deployed URL на Vercel.'
+    },
+    {
+      id: 'node-runtime',
+      title: 'Node.js runtime',
+      description: `Текущая версия Node.js: ${process.versions.node}. В package.json закреплено ${packageJson.engines?.node ?? 'не указано'}.`,
+      status: nodeIsSupported ? 'ok' : 'warning',
+      action: nodeIsSupported ? undefined : 'Переключи runtime на Node.js 22+, чтобы убрать предупреждения @supabase/supabase-js и совпасть с package.json engines.'
     },
     {
       id: 'next-version',
@@ -119,6 +130,7 @@ export function getProductionReadiness() {
   const ok = checks.filter((check) => check.status === 'ok').length;
   const warnings = checks.filter((check) => check.status === 'warning').length;
   const errors = checks.filter((check) => check.status === 'error').length;
+  const blockers = checks.filter((check) => productionBlockingCheckIds.includes(check.id as (typeof productionBlockingCheckIds)[number]) && check.status !== 'ok');
   const score = Math.round((ok / checks.length) * 100);
 
   return {
@@ -130,6 +142,7 @@ export function getProductionReadiness() {
     ok,
     warnings,
     errors,
+    blockers,
     checks,
     routeCheckGroups
   };

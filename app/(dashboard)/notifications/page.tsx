@@ -1,11 +1,13 @@
 import Link from 'next/link';
-import { AlertTriangle, ArrowRight, BellRing, CheckCircle2, ClipboardList, Flame, Megaphone, MessageSquareText, Timer, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, BellRing, CheckCircle2, ClipboardList, Megaphone, MessageSquareText, Timer, Users } from 'lucide-react';
 import { markAllNotificationsReadAction, markNotificationReadAction } from '@/actions/notifications.actions';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PageHeader } from '@/components/layout/page-header';
 import { getNotificationCenterData, type NotificationCategory, type NotificationTone, type WorkspaceNotification } from '@/lib/notifications';
+import { getCurrentUserContext } from '@/lib/permissions';
+import { can } from '@/lib/roles';
 
 const categoryLabel: Record<NotificationCategory, string> = {
   followup: 'Follow-up',
@@ -90,7 +92,7 @@ function NotificationItem({ item }: { item: WorkspaceNotification }) {
   );
 }
 
-function EmptyState() {
+function EmptyState({ canManageContacts, canManageTasks }: { canManageContacts: boolean; canManageTasks: boolean }) {
   return (
     <Card>
       <CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -103,10 +105,10 @@ function EmptyState() {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild>
-            <Link href="/people/new">Добавить контакт</Link>
+            <Link href={canManageContacts ? '/people/new' : '/people'}>{canManageContacts ? 'Добавить контакт' : 'Открыть контакты'}</Link>
           </Button>
           <Button asChild variant="secondary">
-            <Link href="/tasks/new">Создать задачу</Link>
+            <Link href={canManageTasks ? '/tasks/new' : '/tasks'}>{canManageTasks ? 'Создать задачу' : 'Открыть задачи'}</Link>
           </Button>
         </div>
       </CardContent>
@@ -114,8 +116,30 @@ function EmptyState() {
   );
 }
 
-export default async function NotificationsPage() {
-  const data = await getNotificationCenterData();
+function Notice({ error }: { error?: string }) {
+  if (!error) return null;
+
+  const message = error === 'notification-read-failed'
+    ? 'Не удалось отметить уведомления прочитанными. Проверь Supabase/RLS и попробуй еще раз.'
+    : 'Не удалось выполнить действие с уведомлениями.';
+
+  return (
+    <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+      <AlertTriangle className="mt-0.5 h-4 w-4" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+export default async function NotificationsPage({ searchParams }: { searchParams?: Promise<Record<string, string | string[] | undefined>> }) {
+  const [data, currentUser, params] = await Promise.all([
+    getNotificationCenterData(),
+    getCurrentUserContext(),
+    searchParams
+  ]);
+  const currentRole = currentUser?.role ?? 'viewer';
+  const canManageContacts = can(currentRole, 'manageContacts');
+  const canManageTasks = can(currentRole, 'manageTasks');
   const unreadItems = data.notifications.filter((item) => item.unread);
   const urgentItems = data.notifications.filter((item) => item.urgent);
   const otherItems = data.notifications.filter((item) => !item.urgent);
@@ -126,6 +150,8 @@ export default async function NotificationsPage() {
         title="Уведомления"
         subtitle="Центр событий: follow-up, ответы на опросы, горячие контакты и важные изменения в запуске."
       />
+
+      <Notice error={typeof params?.error === 'string' ? params.error : undefined} />
 
       {data.demoMode && (
         <div className="mb-6 rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
@@ -166,14 +192,14 @@ export default async function NotificationsPage() {
             ))}
             <Button variant="secondary">
               <CheckCircle2 className="h-4 w-4" />
-              Отметить все прочитанным
+              Прочитать все
             </Button>
           </form>
         )}
       </div>
 
       {data.notifications.length === 0 ? (
-        <EmptyState />
+        <EmptyState canManageContacts={canManageContacts} canManageTasks={canManageTasks} />
       ) : (
         <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
           <div className="space-y-4">

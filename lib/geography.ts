@@ -131,6 +131,19 @@ const demoRecommendation: LaunchRecommendation = {
   ]
 };
 
+const emptyRecommendation: LaunchRecommendation = {
+  city: '—',
+  niche: '—',
+  title: 'Недостаточно данных для локального фокуса',
+  reason: 'Добавь контакты с городами, нишами и стадиями, чтобы Hutka рассчитала лучший город и нишу для первой волны запуска.',
+  score: 0,
+  nextActions: [
+    'Добавить первые контакты с городом и нишей',
+    'Перевести заинтересованных людей в пилотные стадии',
+    'Вернуться к географии после появления реальных данных'
+  ]
+};
+
 function toNumber(value: unknown) {
   const number = Number(value ?? 0);
   return Number.isFinite(number) ? number : 0;
@@ -185,7 +198,7 @@ function buildRecommendation(cities: CitySummary[], nichesByCity: CityNicheSumma
   const bestNiche = nichesByCity[0];
   const bestCity = cities[0];
 
-  if (!bestCity) return demoRecommendation;
+  if (!bestCity) return emptyRecommendation;
 
   const city = bestNiche?.city ?? bestCity.city;
   const niche = bestNiche?.niche ?? bestCity.topNiches[0] ?? 'выбранная ниша';
@@ -231,10 +244,10 @@ export async function getGeographyData(): Promise<GeographyData> {
 
   if (citiesResult.error || !citiesResult.data) {
     return {
-      cities: demoCities,
-      nichesByCity: demoNichesByCity,
-      recommendation: demoRecommendation,
-      totals: calculateTotals(demoCities)
+      cities: [],
+      nichesByCity: [],
+      recommendation: emptyRecommendation,
+      totals: calculateTotals([])
     };
   }
 

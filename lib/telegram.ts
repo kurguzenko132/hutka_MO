@@ -1,5 +1,5 @@
 import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js';
-import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { getSupabaseServiceConfig, isSupabaseConfigured, isSupabaseServiceConfigured } from '@/lib/supabase/config';
 
 export type TelegramRecipient = {
   id: string;
@@ -12,8 +12,10 @@ export type TelegramRecipient = {
 
 export type TelegramIntegrationStatus = {
   supabaseConfigured: boolean;
+  serviceConfigured: boolean;
   botConfigured: boolean;
   appUrlConfigured: boolean;
+  appUrl: string;
   recipients: TelegramRecipient[];
 };
 
@@ -24,10 +26,19 @@ type TelegramMessagePayload = {
 };
 
 type WorkspaceTelegramPayload = {
+  eventType?: string;
   title: string;
   text: string;
   href?: string;
   extraLines?: string[];
+};
+
+export type WorkspaceTelegramResult = {
+  sent: number;
+  failed: number;
+  skipped: boolean;
+  reason?: 'bot-not-configured' | 'service-not-configured' | 'no-recipients';
+  errors: string[];
 };
 
 function getBotToken() {
@@ -35,22 +46,27 @@ function getBotToken() {
 }
 
 function getAppUrl() {
-  return process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '') ?? '';
+  const rawUrl = process.env.NEXT_PUBLIC_APP_URL
+    || process.env.VERCEL_PROJECT_PRODUCTION_URL
+    || process.env.VERCEL_URL
+    || '';
+  const trimmed = rawUrl.trim().replace(/\/$/, '');
+  if (!trimmed) return '';
+  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
 function canUseServiceClient() {
-  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  return isSupabaseServiceConfigured();
 }
 
 function createServiceClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const config = getSupabaseServiceConfig();
 
-  if (!url || !serviceRoleKey) {
+  if (!config) {
     throw new Error('Supabase service role env variables are not configured');
   }
 
-  return createSupabaseServiceClient(url, serviceRoleKey, {
+  return createSupabaseServiceClient(config.url, config.serviceRoleKey, {
     auth: {
       persistSession: false,
       autoRefreshToken: false
@@ -60,6 +76,29 @@ function createServiceClient() {
 
 function normalizeText(value: string) {
   return value.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+async function writeTelegramDeliveryLog(input: {
+  eventType: string;
+  status: 'sent' | 'skipped' | 'failed';
+  chatId?: string;
+  message?: string;
+  error?: string | null;
+}) {
+  if (!canUseServiceClient()) return;
+
+  try {
+    const supabase = createServiceClient();
+    await supabase.from('telegram_delivery_logs').insert({
+      event_type: input.eventType,
+      status: input.status,
+      chat_id: input.chatId || null,
+      message: input.message ? input.message.slice(0, 4000) : null,
+      error: input.error || null
+    });
+  } catch {
+    // Delivery logs are diagnostic only; notification delivery should not fail because logging failed.
+  }
 }
 
 export function isTelegramConfigured() {
@@ -78,13 +117,18 @@ export async function sendTelegramMessage({ chatId, text, disableWebPagePreview 
     return { ok: false, error: 'Telegram chat ID is empty' };
   }
 
+  const normalizedText = normalizeText(text);
+  if (!normalizedText) {
+    return { ok: false, error: 'Telegram message text is empty' };
+  }
+
   try {
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: targetChatId,
-        text: normalizeText(text),
+        text: normalizedText,
         disable_web_page_preview: disableWebPagePreview
       })
     });
@@ -109,10 +153,13 @@ export async function getTelegramRecipients(): Promise<TelegramRecipient[]> {
     .from('profiles')
     .select('id,email,full_name,job_title,telegram_chat_id,telegram_notifications_enabled')
     .not('telegram_chat_id', 'is', null)
+    .neq('telegram_chat_id', '')
     .eq('telegram_notifications_enabled', true)
     .order('full_name', { ascending: true });
 
   if (error || !data) return [];
+
+  const seenChatIds = new Set<string>();
 
   return data
     .map((item) => ({
@@ -120,17 +167,24 @@ export async function getTelegramRecipients(): Promise<TelegramRecipient[]> {
       email: typeof item.email === 'string' ? item.email : '',
       fullName: typeof item.full_name === 'string' && item.full_name.trim() ? item.full_name : 'Маркетолог',
       jobTitle: typeof item.job_title === 'string' && item.job_title.trim() ? item.job_title : 'Маркетолог',
-      chatId: typeof item.telegram_chat_id === 'string' ? item.telegram_chat_id : '',
+      chatId: typeof item.telegram_chat_id === 'string' ? item.telegram_chat_id.trim() : '',
       enabled: Boolean(item.telegram_notifications_enabled)
     }))
-    .filter((item) => item.chatId);
+    .filter((item) => {
+      if (!item.chatId || seenChatIds.has(item.chatId)) return false;
+      seenChatIds.add(item.chatId);
+      return true;
+    });
 }
 
 export async function getTelegramIntegrationStatus(): Promise<TelegramIntegrationStatus> {
+  const appUrl = getAppUrl();
   return {
     supabaseConfigured: isSupabaseConfigured(),
+    serviceConfigured: isSupabaseServiceConfigured(),
     botConfigured: isTelegramConfigured(),
-    appUrlConfigured: Boolean(getAppUrl()),
+    appUrlConfigured: Boolean(appUrl),
+    appUrl,
     recipients: await getTelegramRecipients()
   };
 }
@@ -152,24 +206,60 @@ export function buildWorkspaceTelegramText(payload: WorkspaceTelegramPayload) {
 }
 
 export async function sendWorkspaceTelegramNotification(payload: WorkspaceTelegramPayload) {
-  if (!isTelegramConfigured()) return { sent: 0, failed: 0, skipped: true };
+  const eventType = payload.eventType ?? 'workspace';
+
+  if (!isTelegramConfigured()) {
+    await writeTelegramDeliveryLog({
+      eventType,
+      status: 'skipped',
+      message: payload.text,
+      error: 'TELEGRAM_BOT_TOKEN is not configured'
+    });
+    return { sent: 0, failed: 0, skipped: true, reason: 'bot-not-configured', errors: ['TELEGRAM_BOT_TOKEN is not configured'] } satisfies WorkspaceTelegramResult;
+  }
 
   const recipients = await getTelegramRecipients();
-  if (recipients.length === 0) return { sent: 0, failed: 0, skipped: true };
+  if (!isSupabaseServiceConfigured()) {
+    await writeTelegramDeliveryLog({
+      eventType,
+      status: 'skipped',
+      message: payload.text,
+      error: 'SUPABASE_SERVICE_ROLE_KEY is not configured'
+    });
+    return { sent: 0, failed: 0, skipped: true, reason: 'service-not-configured', errors: ['SUPABASE_SERVICE_ROLE_KEY is not configured'] } satisfies WorkspaceTelegramResult;
+  }
+
+  if (recipients.length === 0) {
+    await writeTelegramDeliveryLog({
+      eventType,
+      status: 'skipped',
+      message: payload.text,
+      error: 'No Telegram recipients'
+    });
+    return { sent: 0, failed: 0, skipped: true, reason: 'no-recipients', errors: ['No Telegram recipients'] } satisfies WorkspaceTelegramResult;
+  }
 
   const text = buildWorkspaceTelegramText(payload);
-  let sent = 0;
-  let failed = 0;
-
-  await Promise.all(
+  const results = await Promise.all(
     recipients.map(async (recipient) => {
       const result = await sendTelegramMessage({ chatId: recipient.chatId, text });
-      if (result.ok) sent += 1;
-      else failed += 1;
+      await writeTelegramDeliveryLog({
+        eventType,
+        status: result.ok ? 'sent' : 'failed',
+        chatId: recipient.chatId,
+        message: text,
+        error: result.error
+      });
+      return result;
     })
   );
 
-  return { sent, failed, skipped: false };
+  return {
+    sent: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    skipped: false,
+    errors: results.map((result) => result.error).filter((error): error is string => Boolean(error))
+  } satisfies WorkspaceTelegramResult;
 }
 
 export async function maybeNotifyQuestionnaireResponse(input: {
@@ -180,6 +270,7 @@ export async function maybeNotifyQuestionnaireResponse(input: {
   respondentContact?: string | null;
 }) {
   return sendWorkspaceTelegramNotification({
+    eventType: 'questionnaire_response',
     title: 'новый ответ на анкету',
     text: [
       `Анкета: ${input.questionnaireTitle}`,

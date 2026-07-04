@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, CheckCircle2, ClipboardCheck, ExternalLink, ShieldCheck, Terminal } from 'lucide-react';
+import { AlertTriangle, ClipboardCheck, ExternalLink, ShieldCheck, Terminal } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -77,10 +77,14 @@ export default async function QaPage() {
           <CardHeader>
             <CardTitle>Сводка</CardTitle>
           </CardHeader>
-          <CardContent className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+          <CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
             <div className="rounded-2xl border border-app-line bg-emerald-50 p-4">
               <p className="text-2xl font-black text-emerald-700">{readiness.ok}</p>
               <p className="mt-1 text-sm font-bold text-emerald-900">Проверок OK</p>
+            </div>
+            <div className="rounded-2xl border border-app-line bg-red-50 p-4">
+              <p className="text-2xl font-black text-red-700">{readiness.blockers.length}</p>
+              <p className="mt-1 text-sm font-bold text-red-900">Блокеров деплоя</p>
             </div>
             <div className="rounded-2xl border border-app-line bg-amber-50 p-4">
               <p className="text-2xl font-black text-amber-700">{readiness.warnings}</p>
@@ -151,8 +155,9 @@ export default async function QaPage() {
           <CardContent className="space-y-3">
             {[
               'pnpm install',
-              'pnpm typecheck',
-              'pnpm build',
+              'pnpm check',
+              'pnpm smoke:local',
+              'BASE_URL=https://hutka-mo.vercel.app pnpm smoke:url',
               'git add .',
               'git commit -m "Prepare Hutka v1.0 MVP"',
               'git push'

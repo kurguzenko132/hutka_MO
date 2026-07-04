@@ -29,6 +29,11 @@ function demoRedirect() {
   redirect('/settings?demo=1');
 }
 
+async function rowExists(supabase: Awaited<ReturnType<typeof createClient>>, table: string, id: string) {
+  const { data, error } = await supabase.from(table).select('id').eq('id', id).maybeSingle();
+  return !error && Boolean(data?.id);
+}
+
 export async function updateAppSettingsAction(formData: FormData) {
   await requirePermission('manageSettings', '/dashboard?error=admin-only');
   if (!isSupabaseConfigured()) demoRedirect();
@@ -73,6 +78,8 @@ export async function updateSourceAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'sources', id))) redirect('/settings?error=source-not-found');
+
   const { error } = await supabase
     .from('sources')
     .update({ name, type: getText(formData, 'type') || 'manual' })
@@ -90,6 +97,8 @@ export async function deleteSourceAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'sources', id))) redirect('/settings?error=source-not-found');
+
   const { error } = await supabase.from('sources').delete().eq('id', id);
   if (error) redirect('/settings?error=source-in-use');
 
@@ -124,6 +133,8 @@ export async function updateStageAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'funnel_stages', id))) redirect('/settings?error=stage-not-found');
+
   const { error } = await supabase
     .from('funnel_stages')
     .update({
@@ -146,6 +157,8 @@ export async function deleteStageAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'funnel_stages', id))) redirect('/settings?error=stage-not-found');
+
   const { error } = await supabase.from('funnel_stages').delete().eq('id', id);
   if (error) redirect('/settings?error=stage-in-use');
 
@@ -178,6 +191,8 @@ export async function updateTagAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'tags', id))) redirect('/settings?error=tag-not-found');
+
   const { error } = await supabase
     .from('tags')
     .update({ name, color: getText(formData, 'color') || 'purple' })
@@ -195,6 +210,8 @@ export async function deleteTagAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'tags', id))) redirect('/settings?error=tag-not-found');
+
   const { error } = await supabase.from('tags').delete().eq('id', id);
   if (error) redirect('/settings?error=tag-in-use');
 
@@ -212,6 +229,8 @@ export async function updateProfileRoleAction(formData: FormData) {
   if (!isSupabaseConfigured()) demoRedirect();
 
   const supabase = await createClient();
+  if (!(await rowExists(supabase, 'profiles', profileId))) redirect('/settings?error=profile-not-found');
+
   const { error } = await supabase.from('profiles').update({ role }).eq('id', profileId);
 
   if (error) redirect('/settings?error=role-update-failed');

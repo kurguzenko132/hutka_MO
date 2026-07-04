@@ -15,7 +15,8 @@ function normalizeTaskFilters(params?: Record<string, string | undefined>): Task
     status: (params?.status as TaskFilters['status']) || 'active',
     priority: (params?.priority as TaskFilters['priority']) || undefined,
     due: (params?.due as TaskFilters['due']) || undefined,
-    leadId: params?.leadId || undefined
+    leadId: params?.leadId || undefined,
+    profileId: params?.profileId || undefined
   };
 }
 

@@ -283,17 +283,22 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     tone: survey.status === 'active' ? 'green' : survey.status === 'draft' ? 'yellow' : 'gray'
   }));
 
-  const insightHighlights: ReportHighlight[] = (insights.length > 0 ? insights : demoDashboardInsights.map((title, index) => ({
-    id: `demo-dashboard-${index}`,
-    title,
-    category: 'Маркетинговый вывод',
-    importance: 'medium',
-    status: 'new',
-    importanceLabel: 'Средняя',
-    statusLabel: 'Новый',
-    createdAt: formatDate(now),
-    relationsCount: 0
-  }))).slice(0, 4).map((insight) => ({
+  const insightHighlights: ReportHighlight[] = (insights.length > 0
+    ? insights
+    : demoMode
+      ? demoDashboardInsights.map((title, index) => ({
+        id: `demo-dashboard-${index}`,
+        title,
+        category: 'Маркетинговый вывод',
+        importance: 'medium',
+        status: 'new',
+        importanceLabel: 'Средняя',
+        statusLabel: 'Новый',
+        createdAt: formatDate(now),
+        relationsCount: 0
+      }))
+      : []
+  ).slice(0, 4).map((insight) => ({
     id: insight.id,
     title: insight.title,
     subtitle: `${insight.category} · ${insight.importanceLabel}`,

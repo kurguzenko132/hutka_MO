@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { AlertCircle, CheckCircle2, DatabaseZap, FileQuestion, MessageSquareText, Settings2, Trash2, UserRound, AlertTriangle, Send } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -353,7 +354,7 @@ function UsersSection({ users }: { users: UserDirectoryItem[] }) {
             <div key={user.id} className="grid gap-3 rounded-2xl border border-app-line bg-white p-4 lg:grid-cols-[1fr_180px_auto] lg:items-end">
               <div className="flex items-center gap-3">
                 {user.avatarUrl ? (
-                  <img src={user.avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" />
+                  <Image src={user.avatarUrl} alt="" width={44} height={44} unoptimized className="h-11 w-11 rounded-2xl object-cover" />
                 ) : (
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-black text-white">
                     {getInitials(user.fullName, 'U')}

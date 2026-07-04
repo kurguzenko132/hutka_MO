@@ -80,14 +80,80 @@ function normalizePriority(value: string): Priority {
   return 'Средний';
 }
 
-function splitCsvLine(line: string, separator: string) {
-  const cells: string[] = [];
+function countSeparatorsOutsideQuotes(value: string, separator: string) {
+  let count = 0;
+  let quoted = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if (char === separator && !quoted) count += 1;
+  }
+
+  return count;
+}
+
+function firstCsvRecord(value: string) {
+  let quoted = false;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
+
+    if (char === '"' && quoted && next === '"') {
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      quoted = !quoted;
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !quoted) {
+      return value.slice(0, index);
+    }
+  }
+
+  return value;
+}
+
+function detectSeparator(value: string) {
+  const header = firstCsvRecord(value);
+  return countSeparatorsOutsideQuotes(header, ';') > countSeparatorsOutsideQuotes(header, ',') ? ';' : ',';
+}
+
+function parseCsvRecords(value: string, separator: string) {
+  const records: string[][] = [];
+  let record: string[] = [];
   let current = '';
   let quoted = false;
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
+  function pushCell() {
+    record.push(current.trim());
+    current = '';
+  }
+
+  function pushRecord() {
+    pushCell();
+    if (record.some((cell) => cell.trim())) records.push(record);
+    record = [];
+  }
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    const next = value[index + 1];
 
     if (char === '"' && quoted && next === '"') {
       current += '"';
@@ -101,30 +167,33 @@ function splitCsvLine(line: string, separator: string) {
     }
 
     if (char === separator && !quoted) {
-      cells.push(current.trim());
-      current = '';
+      pushCell();
+      continue;
+    }
+
+    if ((char === '\n' || char === '\r') && !quoted) {
+      pushRecord();
+      if (char === '\r' && next === '\n') index += 1;
       continue;
     }
 
     current += char;
   }
 
-  cells.push(current.trim());
-  return cells;
+  if (current || record.length > 0) pushRecord();
+  return records;
 }
 
 function parseCsv(text: string): CsvRow[] {
-  const clean = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').trim();
+  const clean = text.replace(/^\ufeff/, '');
   if (!clean) return [];
 
-  const lines = clean.split('\n').filter((line) => line.trim());
-  const headerLine = lines[0] ?? '';
-  const separator = (headerLine.match(/;/g)?.length ?? 0) > (headerLine.match(/,/g)?.length ?? 0) ? ';' : ',';
-  const rawHeaders = splitCsvLine(headerLine, separator);
+  const separator = detectSeparator(clean);
+  const records = parseCsvRecords(clean, separator);
+  const rawHeaders = records[0] ?? [];
   const headers = rawHeaders.map((header) => headerAliases[normalizeHeader(header)] ?? normalizeHeader(header).replaceAll(' ', '_'));
 
-  return lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line, separator);
+  return records.slice(1).map((cells) => {
     return headers.reduce<CsvRow>((acc, header, index) => {
       acc[header] = cells[index]?.trim() ?? '';
       return acc;
@@ -272,7 +341,8 @@ export async function importContactsCsvAction(formData: FormData) {
       const tags = tagsFromRow(row);
       for (const tag of tags) {
         const tagId = await ensureTagId(supabase, tag);
-        await supabase.from('lead_tags').insert({ lead_id: lead.id, tag_id: tagId });
+        const { error: tagError } = await supabase.from('lead_tags').insert({ lead_id: lead.id, tag_id: tagId });
+        if (tagError) throw tagError;
       }
 
       await supabase.from('lead_interactions').insert({
@@ -291,7 +361,7 @@ export async function importContactsCsvAction(formData: FormData) {
     }
   }
 
-  await supabase.from('import_logs').insert({
+  const { error: logError } = await supabase.from('import_logs').insert({
     file_name: file.name,
     total_rows: stats.total,
     imported_rows: stats.imported,
@@ -301,6 +371,8 @@ export async function importContactsCsvAction(formData: FormData) {
     error_details: stats.errors.slice(0, 30),
     created_by: user.profileId
   });
+
+  if (logError) redirect('/people/import?error=import-log-failed');
 
   revalidatePath('/people');
   revalidatePath('/people/import');

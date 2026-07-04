@@ -8,12 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getSurveyBySlug, questionTypeLabel, type SurveyQuestion } from '@/lib/surveys';
+import { publicFormHoneypotName, publicFormLimits } from '@/lib/public-form-validation';
 
 function QuestionField({ question }: { question: SurveyQuestion }) {
   const name = `answer_${question.id}`;
 
   if (question.type === 'long_text') {
-    return <Textarea name={name} placeholder="Напишите ответ..." required={question.required} />;
+    return <Textarea name={name} placeholder="Напишите ответ..." required={question.required} maxLength={publicFormLimits.answerValue} />;
   }
 
   if (question.type === 'number') {
@@ -74,7 +75,7 @@ function QuestionField({ question }: { question: SurveyQuestion }) {
     );
   }
 
-  return <Input name={name} placeholder="Введите ответ" required={question.required} />;
+  return <Input name={name} placeholder="Введите ответ" required={question.required} maxLength={publicFormLimits.answerValue} />;
 }
 
 export default async function PublicSurveyPage({
@@ -82,7 +83,7 @@ export default async function PublicSurveyPage({
   searchParams
 }: {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<{ submitted?: string; error?: string; leadId?: string }>;
+  searchParams?: Promise<{ submitted?: string; error?: string }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
@@ -90,8 +91,15 @@ export default async function PublicSurveyPage({
   if (!survey) notFound();
 
   const submitted = Boolean(query?.submitted);
-  const saveError = query?.error === 'save-failed';
-  const leadId = query?.leadId ?? '';
+  const errorMessages: Record<string, string> = {
+    'save-failed': 'Не удалось сохранить ответ. Попробуйте еще раз.',
+    required: 'Ответьте на обязательные вопросы и отправьте форму еще раз.',
+    'not-active': 'Этот опрос сейчас недоступен для ответов.',
+    'questions-not-found': 'В этом опросе пока нет активных вопросов.',
+    config: 'Форма временно недоступна: не настроен серверный ключ Supabase.',
+    'too-long': 'Слишком длинный ответ. Сократите текст и попробуйте еще раз.'
+  };
+  const errorMessage = query?.error ? errorMessages[query.error] ?? 'Не удалось сохранить ответ. Попробуйте еще раз.' : '';
 
   return (
     <main className="min-h-screen bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
@@ -115,16 +123,21 @@ export default async function PublicSurveyPage({
               </div>
               <h2 className="mt-5 text-2xl font-black text-app-text">Спасибо, ответ сохранен</h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-app-muted">Мы изучим ответы и используем их для улучшения Hutka и будущей beauty-карты.</p>
-              <Button asChild className="mt-6" variant="secondary"><Link href={leadId ? `/s/${survey.slug}?leadId=${leadId}` : `/s/${survey.slug}`}>Отправить еще один ответ</Link></Button>
+              <Button asChild className="mt-6" variant="secondary"><Link href={`/s/${survey.slug}`}>Отправить еще один ответ</Link></Button>
             </CardContent>
           </Card>
         ) : (
           <form action={submitSurveyResponseAction} className="space-y-5">
             <input type="hidden" name="survey_id" value={survey.id} />
             <input type="hidden" name="slug" value={survey.slug} />
-            {leadId && <input type="hidden" name="lead_id" value={leadId} />}
+            <div className="hidden" aria-hidden="true">
+              <label>
+                Website
+                <input name={publicFormHoneypotName} tabIndex={-1} autoComplete="off" />
+              </label>
+            </div>
 
-            {saveError && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">Не удалось сохранить ответ. Попробуйте еще раз.</div>}
+            {errorMessage && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{errorMessage}</div>}
 
             <Card>
               <CardContent className="space-y-4">
@@ -132,11 +145,11 @@ export default async function PublicSurveyPage({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-2 block text-sm font-bold text-app-text">Имя</span>
-                    <Input name="respondent_name" placeholder="Ваше имя" />
+                    <Input name="respondent_name" placeholder="Ваше имя" maxLength={publicFormLimits.respondentName} />
                   </label>
                   <label className="block">
                     <span className="mb-2 block text-sm font-bold text-app-text">Контакт</span>
-                    <Input name="respondent_contact" placeholder="Telegram, Instagram или телефон" />
+                    <Input name="respondent_contact" placeholder="Telegram, Instagram или телефон" maxLength={publicFormLimits.respondentContact} />
                   </label>
                 </div>
               </CardContent>
@@ -145,7 +158,6 @@ export default async function PublicSurveyPage({
             {survey.questions.map((question, index) => (
               <Card key={question.id}>
                 <CardContent className="space-y-4">
-                  <input type="hidden" name="question_id" value={question.id} />
                   <div>
                     <p className="text-xs font-black uppercase tracking-[0.2em] text-app-muted">Вопрос {index + 1} · {questionTypeLabel(question.type)}</p>
                     <h2 className="mt-2 text-lg font-black text-app-text">{question.text}{question.required && <span className="text-app-red"> *</span>}</h2>

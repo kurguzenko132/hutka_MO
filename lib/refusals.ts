@@ -104,7 +104,7 @@ export async function getRefusalReasons(includeInactive = false): Promise<Refusa
     if (!includeInactive) query = query.eq('is_active', true);
 
     const { data, error } = await query;
-    if (error || !data) return defaultReasons.filter((reason) => includeInactive || reason.isActive);
+    if (error || !data) return [];
 
     return data.map((row) => ({
       id: String(row.id),
@@ -116,7 +116,7 @@ export async function getRefusalReasons(includeInactive = false): Promise<Refusa
       usageCount: Array.isArray(row.leads) ? asNumber(row.leads[0]?.count, 0) : 0
     }));
   } catch {
-    return defaultReasons.filter((reason) => includeInactive || reason.isActive);
+    return [];
   }
 }
 

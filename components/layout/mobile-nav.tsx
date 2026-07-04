@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Menu, Plus, Settings, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -84,7 +85,7 @@ export function MobileNav({
                 )}
               >
                 {userAvatarUrl ? (
-                  <img src={userAvatarUrl} alt="" className="h-12 w-12 rounded-2xl object-cover" />
+                  <Image src={userAvatarUrl} alt="" width={48} height={48} unoptimized className="h-12 w-12 rounded-2xl object-cover" />
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-black text-white">
                     {initials}

@@ -49,7 +49,7 @@ export default async function MessageTemplatesPage({ searchParams }: { searchPar
     <div className="space-y-6">
       <PageHeader
         title="Шаблоны сообщений"
-        subtitle="Создавай готовые тексты для первого касания, отправки анкеты, follow-up, пилота и отказов. Потом их можно копировать прямо из карточки контакта."
+        subtitle="Создавай готовые тексты для первого касания, отправки анкеты, follow-up, тестирования и отказов. Потом их можно копировать прямо из карточки контакта."
         actions={<Button asChild variant="secondary"><Link href="/settings">Назад в настройки</Link></Button>}
       />
 

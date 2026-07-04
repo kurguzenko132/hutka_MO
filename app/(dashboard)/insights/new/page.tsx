@@ -12,8 +12,8 @@ import { getCampaignOptions, getSurveyOptions, insightCategories } from '@/lib/i
 import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
-  'missing-title': 'Укажи название инсайта.',
-  'save-failed': 'Не удалось сохранить инсайт. Проверь Supabase и попробуй снова.'
+  'missing-title': 'Укажи название вывода.',
+  'save-failed': 'Не удалось сохранить вывод. Проверь Supabase и попробуй снова.'
 };
 
 export default async function NewInsightPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
@@ -25,7 +25,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Button asChild variant="secondary"><Link href="/insights"><ArrowLeft className="h-4 w-4" />Назад</Link></Button>
-      <PageHeader title="Добавить инсайт" subtitle="Зафиксируй вывод с доказательствами и привяжи его к контактам, кампаниям или опросам" />
+      <PageHeader title="Добавить вывод" subtitle="Зафиксируй вывод с доказательствами и привяжи его к контактам, кампаниям или опросам" />
 
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
@@ -33,7 +33,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
         <form action={createInsightAction} className="space-y-6">
           <FormSection title="Основной вывод">
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Название инсайта">
+              <Field label="Название вывода">
                 <Input name="title" placeholder="Мастерам важнее клиенты, чем CRM" required />
               </Field>
               <Field label="Категория">
@@ -89,27 +89,27 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
                 </Select>
               </Field>
             </div>
-            <p className="mt-3 text-xs leading-5 text-app-muted">Чтобы выбрать несколько пунктов, удерживай Cmd/Ctrl. Если связей пока нет — просто сохрани инсайт без них.</p>
+            <p className="mt-3 text-xs leading-5 text-app-muted">Чтобы выбрать несколько пунктов, удерживай Cmd/Ctrl. Если связей пока нет — просто сохрани вывод без них.</p>
           </FormSection>
 
           <div className="flex justify-end gap-3">
             <Button asChild variant="secondary"><Link href="/insights">Отмена</Link></Button>
-            <Button type="submit"><Save className="h-4 w-4" />Сохранить инсайт</Button>
+            <Button type="submit"><Save className="h-4 w-4" />Сохранить вывод</Button>
           </div>
         </form>
 
         <aside className="space-y-6">
           <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-5">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-app-purple shadow-sm"><Sparkles className="h-5 w-5" /></div>
-            <h3 className="mt-4 text-lg font-black text-app-text">Инсайт = вывод</h3>
-            <p className="mt-2 text-sm leading-6 text-app-muted">Хороший инсайт отвечает на вопрос: что мы поняли и что теперь нужно изменить в маркетинге или продукте.</p>
+            <h3 className="mt-4 text-lg font-black text-app-text">Вывод = решение на данных</h3>
+            <p className="mt-2 text-sm leading-6 text-app-muted">Хороший вывод отвечает на вопрос: что мы поняли и что теперь нужно изменить в маркетинге или продукте.</p>
             <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 text-app-muted">Плохо: “мастерам нужна карта”. Хорошо: “мастерам интересна карта только если они верят, что она даст заявки”.</div>
           </div>
 
           <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Brain className="h-5 w-5" /></div>
             <h3 className="mt-4 text-lg font-black text-app-text">Дальше</h3>
-            <p className="mt-2 text-sm leading-6 text-app-muted">После инсайтов следующим этапом мы свяжем их с гипотезами: гипотеза → проверка → инсайт → решение.</p>
+            <p className="mt-2 text-sm leading-6 text-app-muted">После выводов следующим этапом мы свяжем их с идеями: идея → проверка → вывод → решение.</p>
           </div>
         </aside>
       </div>

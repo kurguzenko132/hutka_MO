@@ -11,6 +11,7 @@ import { Select } from '@/components/ui/select';
 import type { Lead, Priority } from '@/lib/data';
 import type { CampaignOption } from '@/lib/campaigns';
 import { can, type UserRole } from '@/lib/roles';
+import { stageTone as getStageTone } from '@/lib/stages';
 import { cn } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
@@ -29,11 +30,7 @@ function priorityTone(priority: Priority): BadgeTone {
 }
 
 function stageTone(stage: string): BadgeTone {
-  if (stage === 'Тест' || stage === 'Активен') return 'green';
-  if (stage === 'Опрос' || stage === 'Заинтересован') return 'yellow';
-  if (stage === 'Ответил') return 'blue';
-  if (stage === 'Отказ') return 'red';
-  return 'purple';
+  return getStageTone(stage);
 }
 
 function initials(name: string) {

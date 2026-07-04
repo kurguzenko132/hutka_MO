@@ -54,7 +54,7 @@ const demoSurveys: SurveyListItem[] = [
     id: 'demo-masters',
     title: 'Опрос для мастеров',
     type: 'Мастера',
-    description: 'Проверяем боли, текущую запись и готовность к пилоту.',
+    description: 'Проверяем боли, текущую запись и готовность к тестированию.',
     status: 'active',
     slug: 'masters-research',
     answersCount: 84,

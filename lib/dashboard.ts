@@ -5,6 +5,7 @@ import { getTasks, type TaskListItem } from '@/lib/tasks';
 import { getDashboardInsights } from '@/lib/insights';
 import { getDashboardHypotheses, type HypothesisListItem } from '@/lib/hypotheses';
 import { getRefusalAnalytics, type RefusalAnalytics } from '@/lib/refusals';
+import { isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
 export type DashboardKpi = {
   label: string;
@@ -63,6 +64,9 @@ type OverviewRow = {
   new_contacts_week?: number | null;
   ready_to_pilot?: number | null;
   active_participants?: number | null;
+  interested_contacts?: number | null;
+  testing_contacts?: number | null;
+  need_action_contacts?: number | null;
   overdue_tasks?: number | null;
   hot_contacts?: number | null;
 };
@@ -172,11 +176,11 @@ function typeLabel(value?: string | null) {
   return map[value ?? ''] ?? 'Контакт';
 }
 
-function buildFocus({ overdue, ready, active, hot }: { overdue: number; ready: number; active: number; hot: number }) {
-  if (overdue > 0) return `Закрой ${overdue} просроченных действий: это самый быстрый способ не потерять теплые контакты.`;
-  if (ready > active) return `Дожми ${ready - active} контактов из пилота до активного участия: помоги им заполнить профиль и дать обратную связь.`;
-  if (hot > 0) return `Возьми ${hot} горячих контактов в ручную работу и назначь следующий конкретный шаг.`;
-  return 'Добавь первые контакты, запусти опрос и собери первые инсайты по beauty-рынку.';
+function buildFocus({ needAction, interested, testing }: { needAction: number; interested: number; testing: number }) {
+  if (needAction > 0) return `Закрой ${needAction} действий без внимания: это самый быстрый способ не потерять теплые контакты.`;
+  if (interested > testing) return `Переведи ${interested - testing} заинтересованных контактов к конкретному тестированию или следующему шагу.`;
+  if (testing > 0) return `Собери обратную связь у ${testing} контактов в тестировании и зафиксируй выводы для команды.`;
+  return 'Добавь первые контакты, запусти опрос и собери первые выводы по beauty-рынку.';
 }
 
 function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
@@ -210,7 +214,7 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[],
       href: `/people/${lead.id}`
     })),
     recentActivities: [
-      { id: 'demo-a1', title: 'Опрос пройден', text: 'Анна Смирнова оставила ответы по пилоту карты', date: 'Сегодня, 10:30', href: '/people/anna-smirnova' },
+      { id: 'demo-a1', title: 'Опрос пройден', text: 'Анна Смирнова оставила ответы по тестированию карты', date: 'Сегодня, 10:30', href: '/people/anna-smirnova' },
       { id: 'demo-a2', title: 'Смена стадии', text: 'Ольга Кузнецова переведена в “Ответил”', date: 'Сегодня, 09:15', href: '/people/olga-kuznetsova' },
       { id: 'demo-a3', title: 'Новый контакт', text: 'Добавлен салон Beauty Line из офлайн-канала', date: 'Вчера, 18:10', href: '/people/beauty-line' }
     ],
@@ -227,10 +231,9 @@ function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[]
     periodLabel: new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
     kpis: [
       { label: 'Всего контактов', value: '0', delta: '+0 за неделю', tone: 'purple' },
-      { label: 'Готовы к пилоту', value: '0', delta: '0% от базы', tone: 'blue' },
-      { label: 'Активные участники', value: '0', delta: '0% от базы', tone: 'green' },
-      { label: 'Горячие контакты', value: '0', delta: 'приоритет 75+', tone: 'pink' },
-      { label: 'Просроченные действия', value: '0', delta: 'всё закрыто', tone: 'green' }
+      { label: 'Заинтересованы', value: '0', delta: '0% от базы', tone: 'pink' },
+      { label: 'Тестируют', value: '0', delta: '0% от базы', tone: 'green' },
+      { label: 'Нужно действие', value: '0', delta: 'всё закрыто', tone: 'green' }
     ],
     funnel: [],
     channels: [],
@@ -241,7 +244,7 @@ function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[]
     insights,
     hypotheses,
     refusals,
-    focus: 'Добавь первые контакты, запусти опрос и собери первые инсайты по beauty-рынку.'
+    focus: 'Добавь первые контакты, запусти опрос и собери первые выводы по beauty-рынку.'
   };
 }
 
@@ -276,22 +279,29 @@ export async function getDashboardData(): Promise<DashboardData> {
 
     const overview = (overviewRes.data ?? {}) as OverviewRow;
     const total = overview.total_contacts ?? 0;
-    const ready = overview.ready_to_pilot ?? 0;
-    const active = overview.active_participants ?? 0;
     const overdue = overview.overdue_tasks ?? 0;
 
-    const stageRows = ((stagesRes.data ?? []) as StageRow[]).filter((row) => (row.contacts ?? 0) > 0);
-    const funnel = stageRows.map((row) => ({ label: row.name ?? row.stage ?? 'Без стадии', count: row.contacts ?? 0, percent: percent(row.contacts ?? 0, total) }));
+    const stageMap = new Map<string, number>();
+    for (const row of ((stagesRes.data ?? []) as StageRow[]).filter((item) => (item.contacts ?? 0) > 0)) {
+      const name = normalizeStageName(row.name ?? row.stage);
+      stageMap.set(name, (stageMap.get(name) ?? 0) + (row.contacts ?? 0));
+    }
+    const stageRows = Array.from(stageMap.entries()).map(([name, contacts]) => ({ name, contacts }));
+    const funnel = stageRows.map((row) => ({ label: row.name, count: row.contacts, percent: percent(row.contacts, total) }));
+    const interestedByStage = stageRows.reduce((sum, row) => sum + (isInterestedStage(row.name) ? row.contacts : 0), 0);
+    const testingByStage = stageRows.reduce((sum, row) => sum + (isTestingStage(row.name) ? row.contacts : 0), 0);
+    const interested = overview.interested_contacts ?? (interestedByStage > 0 ? interestedByStage : overview.ready_to_pilot ?? 0);
+    const testing = overview.testing_contacts ?? (testingByStage > 0 ? testingByStage : overview.active_participants ?? 0);
+    const needAction = overview.need_action_contacts ?? overdue;
 
     const hotContacts = ((hotRes.data ?? []) as LeadRow[]).map((lead) => ({
       id: lead.id,
       name: lead.name ?? 'Без имени',
       meta: `${typeLabel(lead.type)} · ${lead.niche || 'Ниша не указана'} · ${lead.city || 'Город не указан'}`,
-      stage: relatedName(lead.funnel_stages) ?? 'Найден',
+      stage: normalizeStageName(relatedName(lead.funnel_stages)),
       score: lead.priority_score ?? 0,
       href: `/people/${lead.id}`
     }));
-    const hotCount = overview.hot_contacts ?? hotContacts.length;
 
     const recentActivities = ((activitiesRes.data ?? []) as InteractionRow[]).map((item) => {
       const lead = relatedLead(item.leads);
@@ -309,10 +319,9 @@ export async function getDashboardData(): Promise<DashboardData> {
       periodLabel: new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
       kpis: [
         { label: 'Всего контактов', value: formatNumber(total), delta: `+${formatNumber(overview.new_contacts_week)} за неделю`, tone: 'purple' },
-        { label: 'Готовы к пилоту', value: formatNumber(ready), delta: `${percent(ready, total)} от базы`, tone: 'blue' },
-        { label: 'Активные участники', value: formatNumber(active), delta: `${percent(active, total)} от базы`, tone: 'green' },
-        { label: 'Горячие контакты', value: formatNumber(hotCount), delta: 'приоритет 75+', tone: 'pink' },
-        { label: 'Просроченные действия', value: formatNumber(overdue), delta: overdue > 0 ? 'требуют внимания' : 'всё закрыто', tone: overdue > 0 ? 'red' : 'green' }
+        { label: 'Заинтересованы', value: formatNumber(interested), delta: `${percent(interested, total)} от базы`, tone: 'pink' },
+        { label: 'Тестируют', value: formatNumber(testing), delta: `${percent(testing, total)} от базы`, tone: 'green' },
+        { label: 'Нужно действие', value: formatNumber(needAction), delta: needAction > 0 ? 'требуют внимания' : 'всё закрыто', tone: needAction > 0 ? 'red' : 'green' }
       ],
       funnel,
       channels: widthItems(((sourcesRes.data ?? []) as DistributionRow[]).map((row) => ({ name: row.source ?? 'Не указан', value: row.contacts ?? 0 }))),
@@ -323,7 +332,7 @@ export async function getDashboardData(): Promise<DashboardData> {
       insights,
       hypotheses,
       refusals,
-      focus: buildFocus({ overdue, ready, active, hot: hotCount })
+      focus: buildFocus({ needAction, interested, testing })
     };
   } catch {
     return emptyDashboardData(insights, hypotheses, refusals);

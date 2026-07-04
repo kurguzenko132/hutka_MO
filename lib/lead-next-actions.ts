@@ -1,6 +1,7 @@
 import type { Lead } from '@/lib/data';
 import type { LeadTask } from '@/lib/leads';
 import type { BadgeTone } from '@/components/ui/badge';
+import { normalizeStageName } from '@/lib/stages';
 
 export type LeadNextActionStatus = 'refused' | 'overdue' | 'today' | 'no_date' | 'ready' | 'scheduled';
 
@@ -58,18 +59,17 @@ function taskIsOverdue(task: LeadTask) {
 }
 
 function defaultStepByStage(lead: Lead) {
-  const stage = lead.stage.toLowerCase();
+  const stage = normalizeStageName(lead.stage).toLowerCase();
 
-  if (stage.includes('найден')) return 'Отправить первое сообщение и зафиксировать реакцию';
+  if (stage.includes('новый')) return 'Отправить первое сообщение и зафиксировать реакцию';
   if (stage.includes('напис')) return 'Сделать follow-up и уточнить интерес';
   if (stage.includes('ответ')) return 'Отправить диагностическую анкету из готового пака';
-  if (stage.includes('опрос')) return 'Проверить ответы и предложить следующий шаг';
-  if (stage.includes('заинтерес')) return 'Назначить короткий созвон или пилот';
-  if (stage.includes('тест')) return 'Помочь пройти пилот и собрать фидбек';
-  if (stage.includes('актив')) return 'Собрать отзыв, кейс или рекомендацию';
+  if (stage.includes('заинтерес')) return 'Назначить короткий созвон или следующий шаг';
+  if (stage.includes('тест')) return 'Помочь пройти тестирование и собрать фидбек';
+  if (stage.includes('пауза')) return 'Назначить дату возврата к контакту';
   if (stage.includes('отказ')) return 'Зафиксировать причину и дату возврата';
 
-  if (lead.score >= 75) return 'Дожать до пилота: отправить персональную ссылку или назначить созвон';
+  if (lead.score >= 75) return 'Закрепить следующий шаг: отправить персональную ссылку или назначить созвон';
   return 'Уточнить статус и следующий шаг';
 }
 
@@ -104,7 +104,7 @@ export function buildLeadNextAction(lead: Lead, tasks: LeadTask[]): LeadNextActi
   if (!nextDate) reasons.push('Не указана дата следующего контакта.');
   if (overdueTasks > 0) reasons.push(`Есть просроченные задачи: ${overdueTasks}.`);
   if (lead.score >= 75) reasons.push('Высокий приоритет — лучше обработать раньше остальных.');
-  if (lead.stage === 'Ответил' || lead.stage === 'Опрос') reasons.push('Контакт уже проявил интерес — важно не затянуть follow-up.');
+  if (['Ответил', 'Заинтересован'].includes(normalizeStageName(lead.stage))) reasons.push('Контакт уже проявил интерес — важно не затянуть follow-up.');
 
   if (typeof diff === 'number' && diff < 0) {
     return {
@@ -161,11 +161,11 @@ export function buildLeadNextAction(lead: Lead, tasks: LeadTask[]): LeadNextActi
     return {
       status: 'ready',
       tone: 'purple',
-      title: 'Горячий контакт без закрепленного действия',
+      title: 'Заинтересованный контакт без закрепленного действия',
       subtitle: 'Лучше сразу создать задачу или отправить анкету',
       recommendedStep,
       recommendedDate,
-      riskLabel: 'Горячий',
+      riskLabel: 'Высокий интерес',
       riskTone: 'red',
       reasons,
       openTasks,

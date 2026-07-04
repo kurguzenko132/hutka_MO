@@ -52,7 +52,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams?: Pro
       <Button asChild variant="secondary">
         <Link href="/tasks"><ArrowLeft className="h-4 w-4" />Назад</Link>
       </Button>
-      <PageHeader title="Создать задачу" subtitle="Follow-up, созвон, отправка опроса или проверка пилота" />
+      <PageHeader title="Создать задачу" subtitle="Follow-up, созвон, отправка опроса или проверка тестирования" />
 
       {error && (
         <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
@@ -67,7 +67,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams?: Pro
             <Field label="Название">
               <Input name="title" placeholder="Написать Анне повторно" required />
             </Field>
-            <Field label="Связанный контакт">
+            <Field label="Контакт из базы">
               <Select name="lead_id" defaultValue={selectedLeadId}>
                 <option value="">Без контакта</option>
                 {leads.map((lead) => (

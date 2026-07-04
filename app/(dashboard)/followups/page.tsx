@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Flame, RefreshCcw, Sparkles, Timer } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Heart, RefreshCcw, Sparkles, Timer } from 'lucide-react';
 import { createAllFollowUpTasksAction, createFollowUpTaskAction } from '@/actions/followups.actions';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ const reasonLabels = {
   overdue_followup: 'Просрочено',
   today_followup: 'Сегодня',
   missing_next_action: 'Нет шага',
-  hot_without_task: 'Горячий',
+  hot_without_task: 'Высокий интерес',
   unanswered_questionnaire: 'Анкета',
   stale_stage: 'Завис'
 } as const;
@@ -23,7 +23,7 @@ const reasonIcons = {
   overdue_followup: AlertTriangle,
   today_followup: CalendarClock,
   missing_next_action: Timer,
-  hot_without_task: Flame,
+  hot_without_task: Heart,
   unanswered_questionnaire: ClipboardList,
   stale_stage: RefreshCcw
 } as const;
@@ -56,7 +56,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
     { label: 'Все', href: '/followups', active: !reason, count: data.summary.total },
     { label: 'Просрочено', href: '/followups?reason=overdue_followup', active: reason === 'overdue_followup', count: data.summary.overdue },
     { label: 'Сегодня', href: '/followups?reason=today_followup', active: reason === 'today_followup', count: data.summary.today },
-    { label: 'Горячие', href: '/followups?reason=hot_without_task', active: reason === 'hot_without_task', count: data.summary.hot },
+    { label: 'Высокий интерес', href: '/followups?reason=hot_without_task', active: reason === 'hot_without_task', count: data.summary.hot },
     { label: 'Анкеты', href: '/followups?reason=unanswered_questionnaire', active: reason === 'unanswered_questionnaire', count: data.summary.questionnaires }
   ];
 
@@ -64,7 +64,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
     <div className="space-y-6">
       <PageHeader
         title="Follow-up центр"
-        subtitle="Hutka сама находит контакты, которые могут выпасть из работы, и предлагает задачи для дожима."
+        subtitle="Hutka сама находит контакты, которые могут выпасть из работы, и предлагает задачи на следующий шаг."
         actionLabel="Открыть задачи"
         actionHref="/tasks"
       />
@@ -139,7 +139,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
       {filtered.length === 0 ? (
         <EmptyState
           title="Follow-up-рекомендаций нет"
-          text="Сейчас все контакты под контролем: нет просроченных follow-up, горячих контактов без задачи и анкет без ответа."
+          text="Сейчас все контакты под контролем: нет просроченных follow-up, заинтересованных контактов без задачи и анкет без ответа."
           action={
             <Button asChild variant="secondary">
               <Link href="/people">Открыть контакты</Link>

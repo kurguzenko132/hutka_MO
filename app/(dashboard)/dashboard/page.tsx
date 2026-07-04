@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { AlarmClockCheck, AlertTriangle, BellRing, Heart, Send, Timer, Users, Zap, Flame, Sparkles } from 'lucide-react';
+import { AlarmClockCheck, AlertTriangle, BellRing, Heart, Send, Timer, Users, Sparkles } from 'lucide-react';
 import { ActionGrid } from '@/components/dashboard/action-grid';
 import { BarList } from '@/components/dashboard/bar-list';
 import { FunnelOverview } from '@/components/dashboard/funnel-overview';
@@ -17,7 +17,7 @@ import { can } from '@/lib/roles';
 import { hypothesisStatusTone } from '@/lib/hypotheses';
 import { getFollowUpRecommendations } from '@/lib/followups';
 
-const kpiIcons = [Users, Send, Heart, Flame, Timer, Zap];
+const kpiIcons = [Users, Send, Heart, Timer];
 
 export default async function DashboardPage() {
   const [dashboard, followups] = await Promise.all([getDashboardData(), getFollowUpRecommendations()]);
@@ -78,17 +78,17 @@ export default async function DashboardPage() {
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-lg font-black text-app-text">Follow-up требует внимания</h2>
+                  <h2 className="text-lg font-black text-app-text">Что нужно сделать</h2>
                   <Badge tone="yellow">{followups.summary.total} рекомендаций</Badge>
                   {followups.summary.urgent > 0 ? <Badge tone="red">{followups.summary.urgent} срочно</Badge> : null}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-app-muted">
-                  Hutka нашла контакты с просроченными датами, анкетами без ответа или горячие контакты без закрепленной задачи.
+                  Hutka нашла контакты с просроченными датами, анкетами без ответа или высоким интересом без закрепленной задачи.
                 </p>
               </div>
             </div>
             <Link href="/followups" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
-              Открыть follow-up центр
+              Открыть список
             </Link>
           </CardContent>
         </Card>
@@ -99,7 +99,7 @@ export default async function DashboardPage() {
       {dashboard.refusals.total > 0 && (
         <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/50">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
-            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Аналитика отказов</CardTitle>
+            <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Причины отказов</CardTitle>
             <Link href="/reports" className="text-xs font-bold text-app-purple">В отчет →</Link>
           </CardHeader>
           <CardContent className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
@@ -150,13 +150,13 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Главные инсайты недели</CardTitle>
+            <CardTitle>Главные выводы недели</CardTitle>
             <Link href="/insights" className="text-xs font-bold text-app-purple">Все →</Link>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboard.insights.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-app-line p-4 text-sm text-app-muted">
-                Пока нет инсайтов. Создай первый вывод после опроса, кампании или интервью.
+                Пока нет выводов. Создай первый вывод после опроса, кампании или интервью.
               </div>
             ) : (
               dashboard.insights.slice(0, 3).map((insight) => (
@@ -179,13 +179,13 @@ export default async function DashboardPage() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Гипотезы в проверке</CardTitle>
-          <Link href="/hypotheses" className="text-xs font-bold text-app-purple">Все гипотезы →</Link>
+          <CardTitle>Идеи для проверки</CardTitle>
+          <Link href="/hypotheses" className="text-xs font-bold text-app-purple">Все идеи →</Link>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-3">
           {dashboard.hypotheses.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-app-line p-4 text-sm text-app-muted lg:col-span-3">
-              Пока нет гипотез в проверке. Добавь предположение, метрику успеха и следующий эксперимент.
+              Пока нет идей в проверке. Добавь предположение, метрику успеха и следующий эксперимент.
             </div>
           ) : (
             dashboard.hypotheses.slice(0, 3).map((hypothesis) => (

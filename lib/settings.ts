@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { canonicalFunnelStages, normalizeContactTagName, normalizeStageName, orderStageNames } from '@/lib/stages';
 
 export type DirectoryItem = {
   id: string;
@@ -53,20 +54,20 @@ const demoSettings: SettingsData = {
     { id: 'school', name: 'Beauty-школа', type: 'partner', usageCount: 2 }
   ],
   stages: [
-    { id: 'found', name: 'Найден', type: 'master', orderIndex: 1, color: 'gray', usageCount: 5 },
-    { id: 'message', name: 'Написал', type: 'master', orderIndex: 2, color: 'purple', usageCount: 4 },
+    { id: 'found', name: 'Новый', type: 'master', orderIndex: 1, color: 'gray', usageCount: 5 },
+    { id: 'message', name: 'Написали', type: 'master', orderIndex: 2, color: 'purple', usageCount: 4 },
     { id: 'reply', name: 'Ответил', type: 'master', orderIndex: 3, color: 'blue', usageCount: 3 },
-    { id: 'survey', name: 'Опрос', type: 'master', orderIndex: 4, color: 'yellow', usageCount: 2 },
-    { id: 'pilot', name: 'Тест', type: 'master', orderIndex: 5, color: 'green', usageCount: 2 },
-    { id: 'active', name: 'Активен', type: 'master', orderIndex: 6, color: 'green', usageCount: 1 },
+    { id: 'survey', name: 'Заинтересован', type: 'master', orderIndex: 4, color: 'yellow', usageCount: 2 },
+    { id: 'pilot', name: 'Тестирует', type: 'master', orderIndex: 5, color: 'green', usageCount: 2 },
+    { id: 'pause', name: 'Пауза', type: 'master', orderIndex: 6, color: 'gray', usageCount: 1 },
     { id: 'lost', name: 'Отказ', type: 'master', orderIndex: 7, color: 'red', usageCount: 1 }
   ],
   tags: [
     { id: 'clients', name: 'Нужны клиенты', color: 'pink', usageCount: 9 },
     { id: 'no-crm', name: 'Нет CRM', color: 'purple', usageCount: 6 },
     { id: 'windows', name: 'Пустые окна', color: 'yellow', usageCount: 5 },
-    { id: 'pilot', name: 'Готов тестировать', color: 'green', usageCount: 4 },
-    { id: 'hot', name: 'Горячий контакт', color: 'red', usageCount: 3 }
+    { id: 'testing', name: 'Тестирует', color: 'green', usageCount: 4 },
+    { id: 'interested', name: 'Заинтересован', color: 'yellow', usageCount: 3 }
   ],
   users: [
     { id: 'demo-admin', email: 'admin@hutka.local', fullName: 'Администратор', jobTitle: 'Владелец пространства', role: 'admin' },
@@ -90,6 +91,59 @@ function asString(value: unknown, fallback = '') {
 
 function asNumber(value: unknown, fallback = 0) {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function normalizeStageDirectory(items: DirectoryItem[]) {
+  const byName = new Map<string, DirectoryItem>();
+  const metaByName = new Map(canonicalFunnelStages.map((stage) => [stage.name, stage]));
+
+  for (const item of items) {
+    const name = normalizeStageName(item.name);
+    const meta = metaByName.get(name);
+    const current = byName.get(name);
+
+    byName.set(name, {
+      id: current?.id ?? item.id,
+      name,
+      type: item.type ?? current?.type ?? 'master',
+      color: meta?.color ?? item.color ?? current?.color ?? 'purple',
+      orderIndex: meta?.orderIndex ?? item.orderIndex ?? current?.orderIndex ?? 99,
+      usageCount: (current?.usageCount ?? 0) + (item.usageCount ?? 0)
+    });
+  }
+
+  for (const stage of canonicalFunnelStages) {
+    if (!byName.has(stage.name)) {
+      byName.set(stage.name, {
+        id: `canonical-${stage.id}`,
+        name: stage.name,
+        type: 'master',
+        color: stage.color,
+        orderIndex: stage.orderIndex,
+        usageCount: 0
+      });
+    }
+  }
+
+  return orderStageNames(Array.from(byName.keys())).map((name) => byName.get(name) as DirectoryItem);
+}
+
+function normalizeTagDirectory(items: DirectoryItem[]) {
+  const byName = new Map<string, DirectoryItem>();
+
+  for (const item of items) {
+    const name = normalizeContactTagName(item.name);
+    if (!name) continue;
+    const current = byName.get(name);
+    byName.set(name, {
+      ...item,
+      id: current?.id ?? item.id,
+      name,
+      usageCount: (current?.usageCount ?? 0) + (item.usageCount ?? 0)
+    });
+  }
+
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 }
 
 function normalizeSettings(rows: Array<{ key?: string | null; value?: string | null }>): AppSettings {
@@ -167,8 +221,8 @@ export async function getSettingsData(): Promise<SettingsData> {
       isDemo: false,
       app: settingsResult.error ? defaultAppSettings : normalizeSettings(settingsResult.data ?? []),
       sources: sourcesResult.error ? [] : sources,
-      stages: stagesResult.error ? [] : stages,
-      tags: tagsResult.error ? [] : tags,
+      stages: stagesResult.error ? normalizeStageDirectory([]) : normalizeStageDirectory(stages),
+      tags: tagsResult.error ? [] : normalizeTagDirectory(tags),
       users: usersResult.error ? [] : users
     };
   } catch {

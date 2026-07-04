@@ -39,7 +39,7 @@ export const messageTemplateCategoryOptions: Array<{ value: MessageTemplateCateg
   { value: 'first_touch', label: 'Первое касание' },
   { value: 'questionnaire', label: 'Анкета' },
   { value: 'follow_up', label: 'Follow-up' },
-  { value: 'pilot', label: 'Пилот' },
+  { value: 'pilot', label: 'Тестирование' },
   { value: 'refusal', label: 'Отказ / пауза' },
   { value: 'feedback', label: 'Фидбек' },
   { value: 'custom', label: 'Другое' }
@@ -77,7 +77,7 @@ export const defaultMessageTemplates: MessageTemplate[] = [
     status: 'active',
     description: 'Сообщение для отправки персональной ссылки на вопросы из карточки контакта.',
     orderIndex: 2,
-    body: '{{first_name}}, спасибо! Вот короткая анкета — она поможет понять, как вам может быть полезна Hutka и что нужно учесть в пилоте:\n\n{{questionnaire_link}}\n\nОтветы займут 2–4 минуты.'
+    body: '{{first_name}}, спасибо! Вот короткая анкета — она поможет понять, как вам может быть полезна Hutka и что нужно учесть в тестировании:\n\n{{questionnaire_link}}\n\nОтветы займут 2–4 минуты.'
   },
   {
     id: 'questionnaire-reminder',
@@ -93,15 +93,15 @@ export const defaultMessageTemplates: MessageTemplate[] = [
   },
   {
     id: 'pilot-invite',
-    title: 'Приглашение в пилот',
-    shortTitle: 'Пригласить в пилот',
+    title: 'Приглашение в тестирование',
+    shortTitle: 'Пригласить в тест',
     audience: 'any',
     category: 'pilot',
     channel: 'any',
     status: 'active',
     description: 'Сообщение, когда контакт подходит для раннего тестирования.',
     orderIndex: 4,
-    body: '{{first_name}}, по вашим ответам вижу, что вы хорошо подходите для первой пилотной группы Hutka. Предлагаю подключить вас к раннему тесту: поможем оформить профиль, посмотрим, как работает карта и какие заявки можно получать. Вам удобно обсудить детали?'
+    body: '{{first_name}}, по вашим ответам вижу, что вы хорошо подходите для первой группы тестирования Hutka. Предлагаю подключить вас к раннему тесту: поможем оформить профиль, посмотрим, как работает карта и какие заявки можно получать. Вам удобно обсудить детали?'
   },
   {
     id: 'refusal-clarify',
@@ -118,12 +118,12 @@ export const defaultMessageTemplates: MessageTemplate[] = [
   {
     id: 'feedback-after-pilot',
     title: 'Фидбек после теста',
-    shortTitle: 'Фидбек после пилота',
+    shortTitle: 'Фидбек после теста',
     audience: 'any',
     category: 'feedback',
     channel: 'any',
     status: 'active',
-    description: 'Сообщение для сбора обратной связи после пилота.',
+    description: 'Сообщение для сбора обратной связи после тестирования.',
     orderIndex: 6,
     body: '{{first_name}}, спасибо, что протестировали Hutka. Очень важно понять, что было полезно, что неудобно и чего не хватило. Можете коротко написать 2–3 мысли или пройти мини-анкету: {{questionnaire_link}}'
   }

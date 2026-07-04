@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
+import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -24,7 +25,8 @@ async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>,
     if (!stageName) throw new Error('Stage not found');
   }
 
-  const name = stageName || 'Найден';
+  const stage = getCanonicalStage(stageName || stageId);
+  const name = stage.name;
   const existing = await supabase
     .from('funnel_stages')
     .select('id')
@@ -37,7 +39,7 @@ async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>,
 
   const created = await supabase
     .from('funnel_stages')
-    .insert({ name, type: 'master', order_index: 99, color: 'purple' })
+    .insert({ name, type: 'master', order_index: stage.orderIndex, color: stage.color })
     .select('id')
     .single();
 
@@ -52,7 +54,7 @@ export async function moveLeadToStageAction(formData: FormData) {
   await requirePermission('manageFunnels', '/funnels?error=forbidden');
   const leadId = getText(formData, 'lead_id');
   const stageId = getText(formData, 'stage_id');
-  const stageName = getText(formData, 'stage_name');
+  const rawStageName = getText(formData, 'stage_name');
 
   if (!leadId) redirect('/funnels?error=missing-lead');
 
@@ -64,20 +66,24 @@ export async function moveLeadToStageAction(formData: FormData) {
   const { data: lead, error: leadError } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
   if (leadError || !lead?.id) redirect('/funnels?error=lead-not-found');
 
+  let stageName = rawStageName;
+  if (!stageName && stageId && !looksLikeUuid(stageId)) {
+    stageName = stageId;
+  } else if (!stageName && stageId) {
+    const selectedStage = await supabase.from('funnel_stages').select('name').eq('id', stageId).maybeSingle();
+    stageName = selectedStage.data?.name ? String(selectedStage.data.name) : '';
+  }
+  stageName = normalizeStageName(stageName);
+
   let nextStageId: string;
 
   try {
-    nextStageId = await ensureStageId(supabase, stageId, stageName);
+    nextStageId = await ensureStageId(supabase, stageName ? '' : stageId, stageName);
   } catch {
     redirect('/funnels?error=stage-not-found');
   }
 
   let nextStageName = stageName;
-
-  if (!nextStageName) {
-    const selectedStage = await supabase.from('funnel_stages').select('name').eq('id', nextStageId).maybeSingle();
-    nextStageName = selectedStage.data?.name ? String(selectedStage.data.name) : 'не указана';
-  }
 
   const { error } = await supabase
     .from('leads')

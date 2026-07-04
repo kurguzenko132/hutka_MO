@@ -40,14 +40,14 @@ export default async function ReportsPage() {
             <Badge tone="purple">Сформировано: {report.generatedAt}</Badge>
             <h2 className="mt-4 text-2xl font-black tracking-tight text-app-text">Еженедельный маркетинг-отчет Hutka</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-app-muted">
-              Здесь собирается единая картина запуска: контакты, пилоты, задачи, кампании, опросы, инсайты и гипотезы.
+              Здесь собирается единая картина запуска: контакты, тестирование, задачи, кампании, опросы, выводы и идеи.
               Этот блок можно использовать на командной встрече или отправить в чат.
             </p>
           </div>
           <div className="rounded-3xl border border-purple-100 bg-white/80 p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-wide text-app-faint">Фокус недели</p>
             <p className="mt-3 text-sm font-semibold leading-6 text-app-text">
-              Проверить, какие каналы и ниши дают самых готовых участников пилота, и перенести принятые инсайты в офферы и продуктовые задачи.
+              Проверить, какие каналы и ниши дают самых заинтересованных участников, и перенести принятые выводы в офферы и продуктовые задачи.
             </p>
           </div>
         </CardContent>
@@ -123,8 +123,8 @@ export default async function ReportsPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <HighlightCard icon={<Target className="h-4 w-4 text-app-purple" />} title="Кампании" items={report.campaignHighlights} empty="Кампаний пока нет." />
         <HighlightCard icon={<ClipboardList className="h-4 w-4 text-app-purple" />} title="Опросники" items={report.surveyHighlights} empty="Опросников пока нет." />
-        <HighlightCard icon={<Lightbulb className="h-4 w-4 text-app-purple" />} title="Главные инсайты" items={report.insightHighlights} empty="Инсайтов пока нет." />
-        <HighlightCard icon={<Target className="h-4 w-4 text-app-purple" />} title="Гипотезы и проверки" items={report.hypothesisHighlights} empty="Гипотез пока нет." />
+        <HighlightCard icon={<Lightbulb className="h-4 w-4 text-app-purple" />} title="Главные выводы" items={report.insightHighlights} empty="Выводов пока нет." />
+        <HighlightCard icon={<Target className="h-4 w-4 text-app-purple" />} title="Идеи и проверки" items={report.hypothesisHighlights} empty="Идей пока нет." />
       </div>
 
       <Card>
@@ -153,7 +153,7 @@ export default async function ReportsPage() {
               Открыть кампании
             </Link>
             <Link href="/hypotheses" className="inline-flex h-10 items-center justify-center rounded-xl border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
-              Открыть гипотезы
+              Открыть идеи
             </Link>
           </div>
         </CardContent>

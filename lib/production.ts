@@ -44,8 +44,8 @@ export const routeCheckGroups: RouteCheckGroup[] = [
       { href: '/tasks', label: 'Задачи', access: 'auth' },
       { href: '/surveys', label: 'Опросники', access: 'auth' },
       { href: '/campaigns', label: 'Кампании', access: 'auth' },
-      { href: '/insights', label: 'Инсайты', access: 'auth' },
-      { href: '/hypotheses', label: 'Гипотезы', access: 'auth' },
+      { href: '/insights', label: 'Выводы', access: 'auth' },
+      { href: '/hypotheses', label: 'Идеи', access: 'auth' },
       { href: '/reports', label: 'Отчеты', access: 'auth' },
       { href: '/notifications', label: 'Уведомления', access: 'auth' }
     ]

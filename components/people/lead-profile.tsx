@@ -132,7 +132,7 @@ function RelationList({ title, empty, items, icon }: { title: string; empty: str
               <ExternalLink className="h-4 w-4 shrink-0 text-app-faint" />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={relationTone[item.type]}>{item.type === 'campaign' ? 'Кампания' : item.type === 'insight' ? 'Инсайт' : 'Гипотеза'}</Badge>
+              <Badge tone={relationTone[item.type]}>{item.type === 'campaign' ? 'Кампания' : item.type === 'insight' ? 'Вывод' : 'Идея'}</Badge>
               {item.label && <Badge tone={toneFromLabel(item.label)}>{normalizeLabel(item.label)}</Badge>}
             </div>
           </Link>
@@ -354,7 +354,7 @@ function PersonalQuestionnaireBuilder({ leadId, leadName }: { leadId: string; le
             </label>
             <label className="block">
               <span className="mb-2 block text-sm font-bold text-app-text">Описание для человека</span>
-              <Input name="description" placeholder="Например: ответьте, чтобы мы подготовили пилот" />
+              <Input name="description" placeholder="Например: ответьте, чтобы мы подготовили тестирование" />
             </label>
           </div>
 
@@ -424,7 +424,7 @@ function ContactRelationsHub({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm leading-6 text-app-muted">
-          Добавляй контакт в кампании, связывай его с инсайтами и гипотезами, а также фиксируй отправку общей ссылки на опрос прямо из карточки.
+          Добавляй контакт в кампании, связывай его с выводами и идеями для проверки, а также фиксируй отправку общей ссылки на опрос прямо из карточки.
         </p>
 
         {canManageCampaigns && (
@@ -464,14 +464,14 @@ function ContactRelationsHub({
         {canManageInsights && (
           <form action={attachLeadToInsightFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
             <input type="hidden" name="lead_id" value={leadId} />
-            <p className="text-sm font-bold text-app-text">Связать с инсайтом</p>
+            <p className="text-sm font-bold text-app-text">Связать с выводом</p>
             <Select name="insight_id" defaultValue="" required disabled={insights.length === 0}>
-              <EmptyOption label={insights.length ? 'Выбери инсайт' : 'Инсайтов пока нет'} />
+              <EmptyOption label={insights.length ? 'Выбери вывод' : 'Выводов пока нет'} />
               {insights.map((insight) => <option key={insight.id} value={insight.id}>{insight.name}</option>)}
             </Select>
             <Button type="submit" variant="secondary" className="w-full" disabled={insights.length === 0}>
               <Lightbulb className="h-4 w-4" />
-              Привязать инсайт
+              Привязать вывод
             </Button>
           </form>
         )}
@@ -479,14 +479,14 @@ function ContactRelationsHub({
         {canManageHypotheses && (
           <form action={attachLeadToHypothesisFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
             <input type="hidden" name="lead_id" value={leadId} />
-            <p className="text-sm font-bold text-app-text">Связать с гипотезой</p>
+            <p className="text-sm font-bold text-app-text">Связать с идеей</p>
             <Select name="hypothesis_id" defaultValue="" required disabled={hypotheses.length === 0}>
-              <EmptyOption label={hypotheses.length ? 'Выбери гипотезу' : 'Гипотез пока нет'} />
+              <EmptyOption label={hypotheses.length ? 'Выбери идею' : 'Идей пока нет'} />
               {hypotheses.map((hypothesis) => <option key={hypothesis.id} value={hypothesis.id}>{hypothesis.name}</option>)}
             </Select>
             <Button type="submit" variant="secondary" className="w-full" disabled={hypotheses.length === 0}>
               <Target className="h-4 w-4" />
-              Привязать гипотезу
+              Привязать идею
             </Button>
           </form>
         )}
@@ -572,8 +572,8 @@ export async function LeadProfile({ id }: { id: string }) {
             <>
               <form action={updateLeadStageFromProfileAction}>
                 <input type="hidden" name="lead_id" value={lead.id} />
-                <input type="hidden" name="stage_name" value="Тест" />
-                <Button type="submit"><TestTube2 className="h-4 w-4" /> В пилот</Button>
+                <input type="hidden" name="stage_name" value="Тестирует" />
+                <Button type="submit"><TestTube2 className="h-4 w-4" /> В тестирование</Button>
               </form>
               <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
             </>
@@ -670,12 +670,12 @@ export async function LeadProfile({ id }: { id: string }) {
                   )}
                   {canManageInsights && (
                     <Button asChild variant="ghost" className="justify-start">
-                      <Link href={`/insights/new?leadId=${lead.id}`}><Sparkles className="h-4 w-4" />Создать новый инсайт</Link>
+                      <Link href={`/insights/new?leadId=${lead.id}`}><Sparkles className="h-4 w-4" />Создать новый вывод</Link>
                     </Button>
                   )}
                   {canManageHypotheses && (
                     <Button asChild variant="ghost" className="justify-start">
-                      <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую гипотезу</Link>
+                      <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую идею</Link>
                     </Button>
                   )}
                 </div>
@@ -782,7 +782,7 @@ export async function LeadProfile({ id }: { id: string }) {
                     <Input name="channel" placeholder="Канал: Instagram, Telegram..." />
                   </div>
                   <Textarea name="text" placeholder="Что произошло, что ответил контакт, что важно не забыть..." required />
-                  <Input name="result" placeholder="Результат: ответил, ждём, отказ, готов к пилоту..." />
+                  <Input name="result" placeholder="Результат: ответил, ждём, отказ, заинтересован..." />
                   <Button type="submit"><Save className="h-4 w-4" />Сохранить касание</Button>
                 </form>
               </CardContent>
@@ -854,8 +854,8 @@ export async function LeadProfile({ id }: { id: string }) {
       <div className="grid gap-6 lg:grid-cols-2 2xl:grid-cols-4">
         <RelationList title="Кампании" empty="Контакт пока не привязан к кампаниям." items={related.campaigns} icon={<Link2 className="h-4 w-4 text-app-purple" />} />
         <SurveyRelations items={related.surveys} />
-        <RelationList title="Инсайты" empty="По контакту пока нет инсайтов." items={related.insights} icon={<Lightbulb className="h-4 w-4 text-app-pink" />} />
-        <RelationList title="Гипотезы" empty="Контакт пока не связан с гипотезами." items={related.hypotheses} icon={<Target className="h-4 w-4 text-amber-500" />} />
+        <RelationList title="Выводы" empty="По контакту пока нет выводов." items={related.insights} icon={<Lightbulb className="h-4 w-4 text-app-pink" />} />
+        <RelationList title="Идеи" empty="Контакт пока не связан с идеями." items={related.hypotheses} icon={<Target className="h-4 w-4 text-amber-500" />} />
       </div>
 
       <Card>

@@ -20,7 +20,7 @@ const steps = [
     permission: 'manageSurveys' as const
   },
   {
-    title: 'Зафиксировать инсайт',
+    title: 'Зафиксировать вывод',
     text: 'Сохрани повторяющуюся боль, возражение или вывод по рынку.',
     href: '/insights/new',
     icon: Sparkles,

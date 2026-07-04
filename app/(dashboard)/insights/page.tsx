@@ -15,7 +15,7 @@ export default async function InsightsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Инсайты" subtitle="Боли рынка, возражения, цитаты и выводы" actionLabel={can(role, 'manageInsights') ? 'Добавить инсайт' : undefined} actionHref={can(role, 'manageInsights') ? '/insights/new' : undefined} />
+      <PageHeader title="Выводы" subtitle="Боли рынка, возражения, цитаты и решения" actionLabel={can(role, 'manageInsights') ? 'Добавить вывод' : undefined} actionHref={can(role, 'manageInsights') ? '/insights/new' : undefined} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         {items.map((item) => (
@@ -42,9 +42,9 @@ export default async function InsightsPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-purple-50 text-app-purple"><Sparkles className="h-6 w-6" /></div>
-            <h3 className="mt-4 text-xl font-black text-app-text">Инсайтов пока нет</h3>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">Создай первый инсайт из опросов, кампаний или общения с мастерами. Он поможет команде принимать решения по продукту и маркетингу.</p>
-            {can(role, 'manageInsights') && <Button asChild className="mt-5"><Link href="/insights/new"><Plus className="h-4 w-4" />Добавить инсайт</Link></Button>}
+            <h3 className="mt-4 text-xl font-black text-app-text">Выводов пока нет</h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">Создай первый вывод из опросов, кампаний или общения с мастерами. Он поможет команде принимать решения по продукту и маркетингу.</p>
+            {can(role, 'manageInsights') && <Button asChild className="mt-5"><Link href="/insights/new"><Plus className="h-4 w-4" />Добавить вывод</Link></Button>}
           </CardContent>
         </Card>
       )}
@@ -54,8 +54,8 @@ export default async function InsightsPage() {
           <div className="flex items-start gap-4">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Lightbulb className="h-5 w-5" /></div>
             <div>
-              <h3 className="font-black text-app-text">Как правильно фиксировать инсайт</h3>
-              <p className="mt-1 text-sm leading-6 text-app-muted">Инсайт должен быть не просто мнением, а выводом с доказательством: ответы опроса, повторяющееся возражение, результат кампании или цитата из общения.</p>
+              <h3 className="font-black text-app-text">Как правильно фиксировать вывод</h3>
+              <p className="mt-1 text-sm leading-6 text-app-muted">Вывод должен быть не просто мнением, а наблюдением с доказательством: ответы опроса, повторяющееся возражение, результат кампании или цитата из общения.</p>
             </div>
           </div>
           {can(role, 'manageInsights') && <Button asChild variant="secondary"><Link href="/insights/new">Создать вывод</Link></Button>}

@@ -62,7 +62,7 @@ function categoryLabel(value: string) {
     first_touch: 'Первое касание',
     questionnaire: 'Анкета',
     follow_up: 'Follow-up',
-    pilot: 'Пилот',
+    pilot: 'Тестирование',
     refusal: 'Отказ / пауза',
     feedback: 'Фидбек',
     custom: 'Другое'

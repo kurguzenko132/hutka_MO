@@ -448,7 +448,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <h2 className="text-lg font-black text-app-text">Шаблоны сообщений</h2>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
-              Управляй готовыми текстами для первого касания, отправки анкеты, follow-up, приглашения в пилот и сбора фидбека.
+              Управляй готовыми текстами для первого касания, отправки анкеты, follow-up, приглашения в тестирование и сбора фидбека.
             </p>
           </div>
           <Button asChild>
@@ -504,7 +504,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <h2 className="text-lg font-black text-app-text">Очистка базы</h2>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
-              Удали демо-контакты, задачи, анкеты, кампании, инсайты и другие тестовые данные перед реальным запуском. Профили пользователей не удаляются.
+              Удали демо-контакты, задачи, анкеты, кампании, выводы и другие тестовые данные перед реальным запуском. Профили пользователей не удаляются.
             </p>
           </div>
           <Button asChild variant="secondary">
@@ -542,7 +542,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
       <DirectorySection
         title="Теги"
-        description="Теги помогают быстро выделять боли, сегменты, возражения и готовность к пилоту."
+        description="Теги помогают быстро выделять боли, сегменты, возражения и интерес к тестированию."
       >
         <div className="mb-2 flex flex-wrap gap-2">
           {settings.tags.map((tag) => <Badge key={`tag-badge-${tag.id}`} tone={colorTone(tag.color)}>{tag.name}</Badge>)}

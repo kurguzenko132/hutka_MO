@@ -42,9 +42,9 @@ export default async function GeographyPage() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Городов в базе" value={data.totals.cities} helper="с контактами в системе" icon={MapPinned} />
         <MetricCard label="Контактов" value={data.totals.contacts} helper="мастера, салоны, клиенты" icon={Users} />
-        <MetricCard label="Готовы к пилоту" value={data.totals.readyToPilot} helper="стадия теста или высокий score" icon={Target} />
-        <MetricCard label="Активные участники" value={data.totals.activeParticipants} helper="уже в активной стадии" icon={Sparkles} />
-        <MetricCard label="Горячие контакты" value={data.totals.hotContacts} helper="score 75+" icon={Building2} />
+        <MetricCard label="Заинтересованы" value={data.totals.readyToPilot} helper="интерес или высокий score" icon={Target} />
+        <MetricCard label="Тестируют" value={data.totals.activeParticipants} helper="стадия тестирования" icon={Sparkles} />
+        <MetricCard label="Высокий score" value={data.totals.hotContacts} helper="score 75+" icon={Building2} />
       </div>
 
       <Card className="overflow-hidden">
@@ -100,15 +100,15 @@ export default async function GeographyPage() {
                 <div className="mt-4 grid grid-cols-3 gap-3 text-center">
                   <div className="rounded-xl bg-purple-50 p-3">
                     <p className="text-lg font-black text-app-purple">{city.readyToPilot}</p>
-                    <p className="text-[11px] text-app-muted">к пилоту</p>
+                    <p className="text-[11px] text-app-muted">интерес</p>
                   </div>
                   <div className="rounded-xl bg-emerald-50 p-3">
                     <p className="text-lg font-black text-emerald-600">{city.activeParticipants}</p>
-                    <p className="text-[11px] text-app-muted">активных</p>
+                    <p className="text-[11px] text-app-muted">тестируют</p>
                   </div>
                   <div className="rounded-xl bg-pink-50 p-3">
                     <p className="text-lg font-black text-app-pink">{city.hotContacts}</p>
-                    <p className="text-[11px] text-app-muted">горячих</p>
+                    <p className="text-[11px] text-app-muted">score 75+</p>
                   </div>
                 </div>
               </div>
@@ -127,7 +127,7 @@ export default async function GeographyPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-black text-app-text">#{index + 1} {item.city} · {item.niche}</p>
-                    <p className="mt-1 text-xs text-app-muted">{item.contacts} контактов · {item.readyToPilot} готовы к пилоту · {item.activeParticipants} активных</p>
+                    <p className="mt-1 text-xs text-app-muted">{item.contacts} контактов · {item.readyToPilot} заинтересованы · {item.activeParticipants} тестируют</p>
                   </div>
                   <Badge tone={readinessTone(item.readiness)}>{item.readiness}%</Badge>
                 </div>
@@ -153,8 +153,8 @@ export default async function GeographyPage() {
                   <th className="px-4 py-3">Контакты</th>
                   <th className="px-4 py-3">Мастера</th>
                   <th className="px-4 py-3">Салоны</th>
-                  <th className="px-4 py-3">Готовы к пилоту</th>
-                  <th className="px-4 py-3">Активные</th>
+                  <th className="px-4 py-3">Заинтересованы</th>
+                  <th className="px-4 py-3">Тестируют</th>
                   <th className="px-4 py-3">Топ-ниши</th>
                   <th className="px-4 py-3">Действие</th>
                 </tr>

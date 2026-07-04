@@ -4,7 +4,6 @@ import {
   CalendarCheck,
   CheckCircle2,
   ClipboardList,
-  FlaskConical,
   Heart,
   MapPinned,
   MessageSquareText,
@@ -66,10 +65,10 @@ export const navItems: NavItem[] = [
   { title: 'Задачи', href: '/tasks', icon: CalendarCheck },
   { title: 'Follow-up', href: '/followups', icon: AlarmClockCheck },
   { title: 'Уведомления', href: '/notifications', icon: BellRing },
-  { title: 'Инсайты', href: '/insights', icon: Sparkles },
+  { title: 'Выводы', href: '/insights', icon: Sparkles },
   { title: 'География', href: '/geography', icon: MapPinned },
   { title: 'Отчеты', href: '/reports', icon: BarChart3 },
-  { title: 'Гипотезы', href: '/hypotheses', icon: Brain },
+  { title: 'Идеи', href: '/hypotheses', icon: Brain },
   { title: 'Запуск', href: '/launch', icon: Rocket },
   { title: 'Качество', href: '/quality', icon: ShieldCheck },
   { title: 'Проверка', href: '/qa', icon: ClipboardCheck },
@@ -78,25 +77,25 @@ export const navItems: NavItem[] = [
 
 export const kpis = [
   { label: 'Всего контактов', value: '2 842', delta: '+142 за неделю', icon: Users, tone: 'purple' },
-  { label: 'Новых за неделю', value: '312', delta: '+18% к прошлой неделе', icon: Zap, tone: 'blue' },
-  { label: 'Готовы к пилоту', value: '128', delta: '+9% к прошлой неделе', icon: Send, tone: 'purple' },
-  { label: 'Активные участники', value: '63', delta: '+6% к прошлой неделе', icon: Heart, tone: 'green' },
-  { label: 'Просроченные действия', value: '17', delta: '-5 к вчера', icon: Timer, tone: 'red' }
+  { label: 'Заинтересованы', value: '128', delta: '4,5% от базы', icon: Send, tone: 'pink' },
+  { label: 'Тестируют', value: '63', delta: '2,2% от базы', icon: Heart, tone: 'green' },
+  { label: 'Нужно действие', value: '17', delta: 'просрочено или без шага', icon: Timer, tone: 'red' }
 ] as const;
 
 export const funnel = [
-  { label: 'Найдено', count: 2842, percent: '100%', icon: Search },
-  { label: 'Написал', count: 1126, percent: '39,6%', icon: MessageSquareText },
+  { label: 'Новый', count: 2842, percent: '100%', icon: Search },
+  { label: 'Написали', count: 1126, percent: '39,6%', icon: MessageSquareText },
   { label: 'Ответил', count: 612, percent: '21,5%', icon: Send },
-  { label: 'Опрос', count: 310, percent: '10,9%', icon: ClipboardList },
-  { label: 'Тест', count: 128, percent: '4,5%', icon: FlaskConical },
-  { label: 'Активен', count: 63, percent: '2,2%', icon: Star }
+  { label: 'Заинтересован', count: 310, percent: '10,9%', icon: ClipboardList },
+  { label: 'Тестирует', count: 128, percent: '4,5%', icon: Star },
+  { label: 'Пауза', count: 42, percent: '1,5%', icon: Timer },
+  { label: 'Отказ', count: 31, percent: '1,1%', icon: CheckCircle2 }
 ];
 
 export const todayTasks = [
   { title: 'Написать новым контактам', count: 18 },
   { title: 'Провести опросы', count: 7 },
-  { title: 'Назначить пилот', count: 5 },
+  { title: 'Запустить тестирование', count: 5 },
   { title: 'Позвонить контактам', count: 4 },
   { title: 'Проверить обратную связь', count: 3 }
 ];
@@ -130,12 +129,12 @@ export const leads: Lead[] = [
     type: 'Мастер',
     niche: 'Брови и ресницы',
     city: 'Москва',
-    stage: 'Тест',
+    stage: 'Тестирует',
     source: 'Instagram',
     priority: 'Высокий',
     nextStep: 'Назначить тест',
     nextDate: '22.05.2025',
-    tags: ['Горячий контакт', 'Нужны клиенты', 'Нет CRM', 'Готова тестировать'],
+    tags: ['Заинтересован', 'Нужны клиенты', 'Нет CRM', 'Тестирует'],
     score: 86,
     instagram: '@anna.brows.msk',
     phone: '+7 (916) 123-45-67',
@@ -147,7 +146,7 @@ export const leads: Lead[] = [
     type: 'Салон',
     niche: 'Маникюр',
     city: 'Санкт-Петербург',
-    stage: 'Опрос',
+    stage: 'Заинтересован',
     source: 'Telegram',
     priority: 'Средний',
     nextStep: 'Отправить опрос',
@@ -175,7 +174,7 @@ export const leads: Lead[] = [
     type: 'Салон',
     niche: 'Парикмахерские',
     city: 'Новосибирск',
-    stage: 'Написал',
+    stage: 'Написали',
     source: 'Офлайн',
     priority: 'Низкий',
     nextStep: 'Написать',
@@ -189,7 +188,7 @@ export const leads: Lead[] = [
     type: 'Мастер',
     niche: 'Маникюр',
     city: 'Екатеринбург',
-    stage: 'Найдено',
+    stage: 'Новый',
     source: 'TikTok',
     priority: 'Низкий',
     nextStep: 'Написать',

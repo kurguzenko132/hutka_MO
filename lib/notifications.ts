@@ -3,6 +3,7 @@ import { ru } from 'date-fns/locale';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { getCurrentUserContext } from '@/lib/permissions';
+import { normalizeStageName } from '@/lib/stages';
 
 export type NotificationTone = 'red' | 'yellow' | 'blue' | 'purple' | 'green' | 'pink' | 'gray';
 export type NotificationCategory = 'followup' | 'survey' | 'activity' | 'contact' | 'campaign';
@@ -185,7 +186,7 @@ function demoNotifications(): NotificationCenterData {
       category: 'followup',
       tone: 'red',
       title: 'Просрочен follow-up',
-      description: 'Анна Смирнова ждёт повторного сообщения по пилоту карты.',
+      description: 'Анна Смирнова ждёт повторного сообщения по тестированию карты.',
       date: 'Сегодня, 10:30',
       dateRaw: now.toISOString(),
       href: '/people/anna-smirnova',
@@ -208,7 +209,7 @@ function demoNotifications(): NotificationCenterData {
       key: 'demo:hot:1',
       category: 'contact',
       tone: 'pink',
-      title: 'Горячий контакт',
+      title: 'Заинтересованный контакт',
       description: 'Ольга Кузнецова набрала 86/100 и готова к ручной работе.',
       date: 'Вчера, 18:10',
       dateRaw: addDays(now, -1).toISOString(),
@@ -347,12 +348,12 @@ export async function getNotificationCenterData(): Promise<NotificationCenterDat
 
     ((hotLeadsRes.data ?? []) as LeadRow[]).forEach((lead) => {
       const key = `hot:${lead.id}`;
-      const stage = relatedStageName(lead.funnel_stages) ?? 'Без стадии';
+      const stage = normalizeStageName(relatedStageName(lead.funnel_stages));
       notifications.push({
         key,
         category: 'contact',
         tone: 'pink',
-        title: 'Горячий контакт',
+        title: 'Заинтересованный контакт',
         description: `${lead.name ?? 'Контакт'} · ${typeLabel(lead.type)} · ${lead.niche || 'ниша не указана'} · стадия ${stage} · ${lead.priority_score ?? 0}/100`,
         date: formatDate(lead.updated_at),
         dateRaw: normalizeDate(lead.updated_at),
@@ -370,7 +371,7 @@ export async function getNotificationCenterData(): Promise<NotificationCenterDat
         category: 'campaign',
         tone: 'green',
         title: 'Активная кампания с результатом',
-        description: `${campaign.name ?? 'Кампания'}: ${campaign.contacts ?? 0} контактов, ${campaign.participants ?? 0} готовы к пилоту.`,
+        description: `${campaign.name ?? 'Кампания'}: ${campaign.contacts ?? 0} контактов, ${campaign.participants ?? 0} заинтересованы.`,
         date: formatDate(new Date().toISOString()),
         dateRaw: new Date().toISOString(),
         href: `/campaigns/${campaign.id}`,

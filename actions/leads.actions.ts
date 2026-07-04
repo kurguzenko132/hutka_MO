@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { leadTypeToDb, priorityToScore } from '@/lib/leads';
 import type { LeadType, Priority } from '@/lib/data';
 import { requirePermission } from '@/lib/permissions';
+import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -23,13 +24,14 @@ async function ensureSourceId(supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>, name: string) {
-  const stageName = name || 'Найден';
+  const stage = getCanonicalStage(name);
+  const stageName = stage.name;
   const existing = await supabase.from('funnel_stages').select('id').eq('name', stageName).maybeSingle();
   if (existing.data?.id) return existing.data.id as string;
 
   const created = await supabase
     .from('funnel_stages')
-    .insert({ name: stageName, type: 'master', order_index: 99, color: 'purple' })
+    .insert({ name: stageName, type: 'master', order_index: stage.orderIndex, color: stage.color })
     .select('id')
     .single();
   if (created.error) throw created.error;
@@ -136,7 +138,7 @@ export async function createLeadAction(formData: FormData) {
   const type = (getText(formData, 'type') || 'Мастер') as LeadType;
   const priority = (getText(formData, 'priority') || 'Средний') as Priority;
   const source = getText(formData, 'source');
-  const stage = getText(formData, 'stage');
+  const stage = normalizeStageName(getText(formData, 'stage'));
   const tags = getTags(formData);
 
   const supabase = await createClient();
@@ -212,7 +214,7 @@ export async function updateLeadAction(formData: FormData) {
   const type = (getText(formData, 'type') || 'Мастер') as LeadType;
   const priority = (getText(formData, 'priority') || 'Средний') as Priority;
   const source = getText(formData, 'source');
-  const stage = getText(formData, 'stage');
+  const stage = normalizeStageName(getText(formData, 'stage'));
   const tags = getTags(formData);
 
   const supabase = await createClient();
@@ -343,7 +345,7 @@ function revalidateLeadCollection() {
 export async function bulkChangeStageAction(formData: FormData) {
   await requirePermission('manageContacts', '/people?error=forbidden');
   const leadIds = getLeadIds(formData);
-  const stage = getText(formData, 'stage');
+  const stage = normalizeStageName(getText(formData, 'stage'));
 
   if (leadIds.length === 0) redirect('/people?error=bulk-empty');
   if (!stage) redirect('/people?error=missing-stage');
@@ -474,23 +476,20 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
   const existingLeadId = await getExistingLeadId(supabase, leadId);
   if (!existingLeadId) redirect('/people?error=contact-not-found');
 
-  let nextStageId = stageId;
-  let nextStageName = stageName;
+  let nextStageName = normalizeStageName(stageName);
 
-  if (stageId) {
+  if (stageId && !looksLikeUuid(stageId)) {
+    nextStageName = normalizeStageName(stageId);
+  } else if (stageId) {
     const stage = await supabase.from('funnel_stages').select('id,name').eq('id', stageId).maybeSingle();
     if (stage.data?.id) {
-      nextStageId = String(stage.data.id);
-      nextStageName = nextStageName || String(stage.data.name ?? 'не указана');
-    } else if (stageName) {
-      nextStageId = await ensureStageId(supabase, stageName);
-    } else {
+      nextStageName = normalizeStageName(stageName || String(stage.data.name ?? ''));
+    } else if (!stageName) {
       redirect(`/people/${leadId}?error=stage-not-found`);
     }
-  } else {
-    nextStageId = await ensureStageId(supabase, stageName);
   }
 
+  const nextStageId = await ensureStageId(supabase, nextStageName);
   const shouldClearRefusal = nextStageName !== 'Отказ';
   const updatePayload: Record<string, string | null> = {
     stage_id: nextStageId,

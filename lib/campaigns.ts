@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'finished';
 
@@ -54,7 +55,7 @@ const demoCampaigns: CampaignDetail[] = [
   {
     id: 'demo-campaign-1',
     name: 'Мастера маникюра Минск — Instagram',
-    goal: 'Найти 30 мастеров, получить 15 ответов и 5 участников пилота.',
+    goal: 'Найти 30 мастеров, получить 15 ответов и 5 участников тестирования.',
     channel: 'Instagram',
     city: 'Минск',
     niche: 'Маникюр',
@@ -68,8 +69,8 @@ const demoCampaigns: CampaignDetail[] = [
     createdAt: '20.05.2025',
     metrics: { contacts: 60, responses: 22, surveys: 10, participants: 4, conversion: '6,7%' },
     contacts: [
-      { id: 'anna-smirnova', name: 'Анна Смирнова', type: 'Мастер', niche: 'Брови и ресницы', city: 'Москва', stage: 'Тест', source: 'Instagram', score: 86 },
-      { id: 'darya-volkova', name: 'Дарья Волкова', type: 'Мастер', niche: 'Маникюр', city: 'Екатеринбург', stage: 'Найден', source: 'TikTok', score: 38 }
+      { id: 'anna-smirnova', name: 'Анна Смирнова', type: 'Мастер', niche: 'Брови и ресницы', city: 'Москва', stage: 'Тестирует', source: 'Instagram', score: 86 },
+      { id: 'darya-volkova', name: 'Дарья Волкова', type: 'Мастер', niche: 'Маникюр', city: 'Екатеринбург', stage: 'Новый', source: 'TikTok', score: 38 }
     ]
   },
   {
@@ -80,7 +81,7 @@ const demoCampaigns: CampaignDetail[] = [
     city: 'Брест',
     niche: 'Брови и ресницы',
     budget: 0,
-    offerText: 'Ищем первых мастеров для пилота карты и онлайн-записи.',
+    offerText: 'Ищем первых мастеров для тестирования карты и онлайн-записи.',
     status: 'active',
     statusLabel: 'Активна',
     resultNotes: 'Меньше контактов, но выше готовность к диалогу.',
@@ -110,9 +111,7 @@ const demoCampaigns: CampaignDetail[] = [
   }
 ];
 
-const stageResponseNames = new Set(['Ответил', 'Опрос', 'Заинтересован', 'Тест', 'Активен']);
-const stageSurveyNames = new Set(['Опрос', 'Тест', 'Активен']);
-const stageParticipantNames = new Set(['Тест', 'Активен']);
+const stageResponseNames = new Set(['Ответил', 'Заинтересован', 'Тестирует']);
 
 const statusToLabel: Record<CampaignStatus, string> = {
   draft: 'Планируется',
@@ -176,7 +175,7 @@ function getLeadFromCampaignLead(value: unknown): Record<string, unknown> | null
 }
 
 function mapCampaignContact(row: Record<string, unknown>): CampaignContact {
-  const stage = relatedName(row.funnel_stages) ?? 'Найден';
+  const stage = normalizeStageName(relatedName(row.funnel_stages));
   const score = typeof row.priority_score === 'number' ? row.priority_score : Number(row.priority_score ?? 0);
   return {
     id: String(row.id),
@@ -193,8 +192,8 @@ function mapCampaignContact(row: Record<string, unknown>): CampaignContact {
 function calculateMetrics(contacts: CampaignContact[]): CampaignMetrics {
   const total = contacts.length;
   const responses = contacts.filter((contact) => stageResponseNames.has(contact.stage)).length;
-  const surveys = contacts.filter((contact) => stageSurveyNames.has(contact.stage)).length;
-  const participants = contacts.filter((contact) => stageParticipantNames.has(contact.stage) || contact.score >= 75).length;
+  const surveys = contacts.filter((contact) => isInterestedStage(contact.stage) || isTestingStage(contact.stage)).length;
+  const participants = contacts.filter((contact) => isTestingStage(contact.stage) || contact.score >= 75).length;
   const base = total || 1;
 
   return {

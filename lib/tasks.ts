@@ -273,7 +273,7 @@ const demoTasks: TaskListItem[] = [
   {
     id: '1',
     title: 'Написать Анне повторно',
-    description: 'Уточнить готовность к пилоту и отправить ссылку на опрос.',
+    description: 'Уточнить интерес к тестированию и отправить ссылку на опрос.',
     dueDate: 'Сегодня',
     dueDateRaw: new Date().toISOString().slice(0, 10),
     priority: 'Высокий',

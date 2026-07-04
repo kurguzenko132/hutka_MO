@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { leads as demoLeads } from '@/lib/data';
+import { isRefusedStage, normalizeStageName } from '@/lib/stages';
 
 export type FollowUpReason =
   | 'overdue_followup'
@@ -78,9 +79,9 @@ type DbQuestionnaire = {
 };
 
 function relatedStage(value: DbLead['funnel_stages']) {
-  if (!value) return 'Найден';
-  if (Array.isArray(value)) return value[0]?.name ? String(value[0].name) : 'Найден';
-  return value.name ? String(value.name) : 'Найден';
+  if (!value) return normalizeStageName();
+  if (Array.isArray(value)) return normalizeStageName(value[0]?.name);
+  return normalizeStageName(value.name);
 }
 
 function todayStart() {
@@ -126,11 +127,11 @@ function priorityLabel(priority: FollowUpRecommendation['priority']) {
 
 function stageNeedsMovement(stage: string) {
   const value = stage.toLowerCase();
-  return ['найден', 'напис', 'ответ', 'опрос', 'заинтерес'].some((part) => value.includes(part));
+  return ['новый', 'напис', 'ответ', 'заинтерес'].some((part) => value.includes(part));
 }
 
 function isRefused(stage: string) {
-  return stage.toLowerCase().includes('отказ');
+  return isRefusedStage(stage);
 }
 
 function titleForReason(reason: FollowUpReason) {
@@ -138,7 +139,7 @@ function titleForReason(reason: FollowUpReason) {
     overdue_followup: 'Просроченный follow-up',
     today_followup: 'Follow-up сегодня',
     missing_next_action: 'Нет следующего шага',
-    hot_without_task: 'Горячий контакт без задачи',
+    hot_without_task: 'Высокий интерес без задачи',
     unanswered_questionnaire: 'Анкета без ответа',
     stale_stage: 'Контакт завис на стадии'
   };
@@ -150,7 +151,7 @@ function taskTitleForReason(reason: FollowUpReason, leadName: string) {
     overdue_followup: `Вернуться к контакту: ${leadName}`,
     today_followup: `Связаться сегодня: ${leadName}`,
     missing_next_action: `Назначить следующий шаг: ${leadName}`,
-    hot_without_task: `Дожать горячий контакт: ${leadName}`,
+    hot_without_task: `Закрепить действие для контакта: ${leadName}`,
     unanswered_questionnaire: `Напомнить пройти анкету: ${leadName}`,
     stale_stage: `Разобрать зависший контакт: ${leadName}`
   };
@@ -227,7 +228,7 @@ function buildDemoRecommendations(): FollowUpRecommendation[] {
     buildRecommendation({
       lead: { id: demoLeads[0].id, name: demoLeads[0].name, meta: `${demoLeads[0].type} · ${demoLeads[0].niche} · ${demoLeads[0].city}`, stage: demoLeads[0].stage, score: demoLeads[0].score, lastActivity: new Date(Date.now() - 86400000).toISOString() },
       reason: 'hot_without_task',
-      description: 'Высокий приоритет и готовность к пилоту, но нет закрепленной задачи на дожим.',
+      description: 'Высокий приоритет и интерес, но нет закрепленной задачи на следующий шаг.',
       priority: 'high',
       dueDate: addDays(0),
       hasOpenTask: false
@@ -356,7 +357,7 @@ export async function getFollowUpRecommendations(): Promise<FollowUpData> {
       recommendations.push(buildRecommendation({
         lead,
         reason: 'hot_without_task',
-        description: 'Контакт с высоким приоритетом, но без открытой задачи. Есть риск потерять сильного кандидата на пилот.',
+        description: 'Контакт с высоким приоритетом, но без открытой задачи. Есть риск потерять сильного кандидата на тестирование.',
         priority: 'high',
         dueDate: addDays(0),
         hasOpenTask

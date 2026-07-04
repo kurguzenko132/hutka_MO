@@ -21,7 +21,7 @@ export default async function SurveysPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности к пилоту" actionLabel={can(role, 'manageSurveys') ? 'Создать опрос' : undefined} actionHref={can(role, 'manageSurveys') ? '/surveys/new' : undefined} />
+      <PageHeader title="Опросники" subtitle="Формы для проверки болей, интереса и готовности к тестированию" actionLabel={can(role, 'manageSurveys') ? 'Создать опрос' : undefined} actionHref={can(role, 'manageSurveys') ? '/surveys/new' : undefined} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         {surveys.map((survey) => (

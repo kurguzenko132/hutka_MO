@@ -184,12 +184,12 @@ insert into public.sources (name, type) values
 on conflict do nothing;
 
 insert into public.funnel_stages (name, type, order_index, color) values
-  ('Найден', 'master', 1, 'gray'),
-  ('Написал', 'master', 2, 'purple'),
+  ('Новый', 'master', 1, 'gray'),
+  ('Написали', 'master', 2, 'purple'),
   ('Ответил', 'master', 3, 'blue'),
-  ('Опрос', 'master', 4, 'yellow'),
-  ('Тест', 'master', 5, 'green'),
-  ('Активен', 'master', 6, 'green'),
+  ('Заинтересован', 'master', 4, 'yellow'),
+  ('Тестирует', 'master', 5, 'green'),
+  ('Пауза', 'master', 6, 'gray'),
   ('Отказ', 'master', 7, 'red')
 on conflict do nothing;
 
@@ -197,10 +197,10 @@ insert into public.tags (name, color) values
   ('Нужны клиенты', 'pink'),
   ('Нет CRM', 'purple'),
   ('Пустые окна', 'yellow'),
-  ('Готов тестировать', 'green'),
+  ('Тестирует', 'green'),
   ('Салон', 'blue'),
   ('Вернуться позже', 'gray'),
-  ('Горячий лид', 'red')
+  ('Заинтересован', 'yellow')
 on conflict do nothing;
 
 -- Simple dashboard views
@@ -276,9 +276,9 @@ select
   c.niche,
   c.status,
   count(cl.lead_id)::int as contacts,
-  count(cl.lead_id) filter (where fs.name in ('Ответил', 'Опрос', 'Заинтересован', 'Тест', 'Активен'))::int as responses,
-  count(cl.lead_id) filter (where fs.name in ('Опрос', 'Тест', 'Активен'))::int as surveys,
-  count(cl.lead_id) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)::int as participants
+  count(cl.lead_id) filter (where fs.name in ('Ответил', 'Заинтересован', 'Опрос', 'Тестирует', 'Тест', 'Активен'))::int as responses,
+  count(cl.lead_id) filter (where fs.name in ('Заинтересован', 'Опрос', 'Тестирует', 'Тест', 'Активен'))::int as surveys,
+  count(cl.lead_id) filter (where fs.name in ('Тестирует', 'Тест', 'Активен') or l.priority_score >= 75)::int as participants
 from public.campaigns c
 left join public.campaign_leads cl on cl.campaign_id = c.id
 left join public.leads l on l.id = cl.lead_id
@@ -357,7 +357,8 @@ order by
   i.created_at desc;
 
 -- Step 10 hypotheses workflow
-alter table public.hypotheses add column if not exists category text default 'Гипотеза';
+alter table public.hypotheses add column if not exists category text default 'Идея';
+alter table public.hypotheses alter column category set default 'Идея';
 alter table public.hypotheses add column if not exists test_method text;
 alter table public.hypotheses add column if not exists success_metric text;
 alter table public.hypotheses add column if not exists confidence text default 'medium';
@@ -453,8 +454,11 @@ select
   count(*)::int as total_contacts,
   count(*) filter (where l.created_at >= now() - interval '7 days')::int as new_contacts_week,
   count(*) filter (where l.priority_score >= 75)::int as hot_contacts,
-  count(*) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)::int as ready_to_pilot,
-  count(*) filter (where fs.name = 'Активен')::int as active_participants,
+  count(*) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as interested_contacts,
+  count(*) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as testing_contacts,
+  count(*) filter (where l.next_contact_date < now())::int as need_action_contacts,
+  count(*) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as ready_to_pilot,
+  count(*) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as active_participants,
   (select count(*) from public.survey_answers)::int as survey_answers,
   (select count(*) from public.tasks where status != 'done' and due_date < now())::int as overdue_tasks,
   (select count(*) from public.campaigns where status = 'active')::int as active_campaigns,
@@ -465,11 +469,11 @@ left join public.funnel_stages fs on fs.id = l.stage_id;
 
 create or replace view public.view_report_stage_distribution as
 select
-  coalesce(fs.name, 'Найден') as stage,
+  coalesce(fs.name, 'Новый') as stage,
   count(l.id)::int as contacts
 from public.leads l
 left join public.funnel_stages fs on fs.id = l.stage_id
-group by coalesce(fs.name, 'Найден')
+group by coalesce(fs.name, 'Новый')
 order by contacts desc;
 
 create or replace view public.view_report_source_distribution as
@@ -501,8 +505,8 @@ with city_base as (
     count(l.id) filter (where l.type = 'salon')::int as salons,
     count(l.id) filter (where l.type = 'client')::int as clients,
     count(l.id) filter (where l.type = 'partner')::int as partners,
-    count(l.id) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)::int as ready_to_pilot,
-    count(l.id) filter (where fs.name = 'Активен')::int as active_participants,
+    count(l.id) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as ready_to_pilot,
+    count(l.id) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as active_participants,
     count(l.id) filter (where l.priority_score >= 75)::int as hot_contacts
   from public.leads l
   left join public.funnel_stages fs on fs.id = l.stage_id
@@ -569,8 +573,8 @@ select
   coalesce(l.city, 'Не указан') as city,
   coalesce(l.niche, 'Не указана') as niche,
   count(l.id)::int as contacts,
-  count(l.id) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)::int as ready_to_pilot,
-  count(l.id) filter (where fs.name = 'Активен')::int as active_participants,
+  count(l.id) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as ready_to_pilot,
+  count(l.id) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as active_participants,
   count(l.id) filter (where l.priority_score >= 75)::int as hot_contacts,
   least(
     100,
@@ -578,8 +582,8 @@ select
       0,
       round(
         (case when count(l.id) >= 25 then 35 else count(l.id) * 1.4 end) +
-        (count(l.id) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)) * 4 +
-        (count(l.id) filter (where fs.name = 'Активен')) * 6 +
+        (count(l.id) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)) * 4 +
+        (count(l.id) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))) * 6 +
         (count(l.id) filter (where l.priority_score >= 75)) * 2
       )
     )
@@ -614,17 +618,37 @@ create index if not exists leads_stage_id_idx on public.leads(stage_id);
 create index if not exists leads_updated_at_idx on public.leads(updated_at desc);
 
 insert into public.funnel_stages (name, type, order_index, color) values
-  ('Найден', 'master', 1, 'gray'),
-  ('Написал', 'master', 2, 'purple'),
+  ('Новый', 'master', 1, 'gray'),
+  ('Написали', 'master', 2, 'purple'),
   ('Ответил', 'master', 3, 'blue'),
-  ('Опрос', 'master', 4, 'yellow'),
-  ('Заинтересован', 'master', 5, 'pink'),
-  ('Тест', 'master', 6, 'green'),
-  ('Активен', 'master', 7, 'green'),
-  ('Отказ', 'master', 8, 'red')
+  ('Заинтересован', 'master', 4, 'yellow'),
+  ('Тестирует', 'master', 5, 'green'),
+  ('Пауза', 'master', 6, 'gray'),
+  ('Отказ', 'master', 7, 'red')
 on conflict (name, type) do update set
   order_index = excluded.order_index,
   color = excluded.color;
+
+do $$
+declare
+  target_stage uuid;
+begin
+  select id into target_stage from public.funnel_stages where name = 'Новый' and type = 'master' order by order_index limit 1;
+  update public.leads set stage_id = target_stage where stage_id in (select id from public.funnel_stages where name in ('Найден', 'Найдено') and type = 'master') and target_stage is not null;
+  delete from public.funnel_stages where name in ('Найден', 'Найдено') and type = 'master';
+
+  select id into target_stage from public.funnel_stages where name = 'Написали' and type = 'master' order by order_index limit 1;
+  update public.leads set stage_id = target_stage where stage_id in (select id from public.funnel_stages where name = 'Написал' and type = 'master') and target_stage is not null;
+  delete from public.funnel_stages where name = 'Написал' and type = 'master';
+
+  select id into target_stage from public.funnel_stages where name = 'Заинтересован' and type = 'master' order by order_index limit 1;
+  update public.leads set stage_id = target_stage where stage_id in (select id from public.funnel_stages where name in ('Опрос', 'Готов к пилоту', 'Горячий контакт') and type = 'master') and target_stage is not null;
+  delete from public.funnel_stages where name in ('Опрос', 'Готов к пилоту', 'Горячий контакт') and type = 'master';
+
+  select id into target_stage from public.funnel_stages where name = 'Тестирует' and type = 'master' order by order_index limit 1;
+  update public.leads set stage_id = target_stage where stage_id in (select id from public.funnel_stages where name in ('Тест', 'Активен', 'Тестер', 'Активный участник', 'Пилот') and type = 'master') and target_stage is not null;
+  delete from public.funnel_stages where name in ('Тест', 'Активен', 'Тестер', 'Активный участник', 'Пилот') and type = 'master';
+end $$;
 
 create or replace view public.view_funnel_stage_summary as
 select
@@ -635,8 +659,8 @@ select
   fs.order_index,
   count(l.id)::int as contacts,
   count(l.id) filter (where l.priority_score >= 75)::int as hot_contacts,
-  count(l.id) filter (where fs.name in ('Тест', 'Активен') or l.priority_score >= 75)::int as ready_to_pilot,
-  count(l.id) filter (where fs.name = 'Активен')::int as active_participants
+  count(l.id) filter (where fs.name in ('Заинтересован') or l.priority_score >= 75)::int as ready_to_pilot,
+  count(l.id) filter (where fs.name in ('Тестирует'))::int as active_participants
 from public.funnel_stages fs
 left join public.leads l on l.stage_id = fs.id
 group by fs.id, fs.name, fs.type, fs.color, fs.order_index
@@ -1221,10 +1245,10 @@ end $$;
 -- Seed default packs once, but keep them editable afterwards.
 insert into public.question_packs (slug, title, short_title, description, audience, badge, status)
 values
-  ('master-discovery', 'Диагностика индивидуального мастера', 'Мастер: диагностика', 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к пилоту.', 'master', 'старт', 'active'),
+  ('master-discovery', 'Диагностика индивидуального мастера', 'Мастер: диагностика', 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к тестированию.', 'master', 'старт', 'active'),
   ('master-map-profile', 'Профиль мастера для карты', 'Мастер: профиль на карте', 'Пак для сбора данных, которые нужны для карточки мастера на карте: услуги, цены, фото, адрес, расписание.', 'master', 'карта', 'active'),
   ('salon-discovery', 'Диагностика салона', 'Салон: диагностика', 'Пак для салона: команда, запись, администраторы, текущая CRM, проблемы и интерес к карте.', 'salon', 'b2b', 'active'),
-  ('pilot-feedback', 'Обратная связь после пилота', 'Фидбек после теста', 'Пак после тестирования: что понятно, что мешает, чего не хватило, готовность пользоваться дальше.', 'any', 'фидбек', 'active'),
+  ('pilot-feedback', 'Обратная связь после тестирования', 'Фидбек после теста', 'Пак после тестирования: что понятно, что мешает, чего не хватило, готовность пользоваться дальше.', 'any', 'фидбек', 'active'),
   ('refusal-reason', 'Причина отказа / паузы', 'Причина отказа', 'Короткий пак, чтобы понять, почему человек не идет дальше, и можно ли вернуться позже.', 'any', 'отказ', 'active'),
   ('client-map-research', 'Исследование клиента карты', 'Клиент: карта', 'Пак для клиентов, чтобы понять, как они ищут мастеров и что должно быть в карточке на карте.', 'client', 'b2c', 'active')
 on conflict (slug) do update
@@ -1369,7 +1393,7 @@ values
     'questionnaire',
     'any',
     'active',
-    '{{first_name}}, спасибо! Вот короткая анкета — она поможет понять, как вам может быть полезна Hutka и что нужно учесть в пилоте:\n\n{{questionnaire_link}}\n\nОтветы займут 2–4 минуты.',
+    '{{first_name}}, спасибо! Вот короткая анкета — она поможет понять, как вам может быть полезна Hutka и что нужно учесть в тестировании:\n\n{{questionnaire_link}}\n\nОтветы займут 2–4 минуты.',
     2
   ),
   (
@@ -1386,14 +1410,14 @@ values
   ),
   (
     'pilot-invite',
-    'Приглашение в пилот',
-    'Пригласить в пилот',
+    'Приглашение в тестирование',
+    'Пригласить в тест',
     'Сообщение, когда контакт подходит для раннего тестирования.',
     'any',
     'pilot',
     'any',
     'active',
-    '{{first_name}}, по вашим ответам вижу, что вы хорошо подходите для первой пилотной группы Hutka. Предлагаю подключить вас к раннему тесту: поможем оформить профиль, посмотрим, как работает карта и какие заявки можно получать. Вам удобно обсудить детали?',
+    '{{first_name}}, по вашим ответам вижу, что вы хорошо подходите для первой группы тестирования Hutka. Предлагаю подключить вас к раннему тесту: поможем оформить профиль, посмотрим, как работает карта и какие заявки можно получать. Вам удобно обсудить детали?',
     4
   ),
   (
@@ -1411,8 +1435,8 @@ values
   (
     'feedback-after-pilot',
     'Фидбек после теста',
-    'Фидбек после пилота',
-    'Сообщение для сбора обратной связи после пилота.',
+    'Фидбек после теста',
+    'Сообщение для сбора обратной связи после тестирования.',
     'any',
     'feedback',
     'any',

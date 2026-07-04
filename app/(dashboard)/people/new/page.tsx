@@ -71,8 +71,8 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
                 </Select>
               </Field>
               <Field label="Стадия">
-                <Select name="stage" defaultValue={stages[0] ?? 'Найден'}>
-                  {(stages.length ? stages : ['Найден']).map((stage) => <option key={stage}>{stage}</option>)}
+                <Select name="stage" defaultValue={stages[0] ?? 'Новый'}>
+                  {(stages.length ? stages : ['Новый']).map((stage) => <option key={stage}>{stage}</option>)}
                 </Select>
               </Field>
             </div>
@@ -111,7 +111,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
                 <Input name="tags" placeholder={(tags.length ? tags.slice(0, 3).join(', ') : 'Нужны клиенты, Нет CRM, Пустые окна')} />
               </Field>
               <Field label="Следующий шаг">
-                <Input name="next_step" placeholder="Написать повторно, отправить опрос, назначить пилот..." />
+                <Input name="next_step" placeholder="Написать повторно, отправить опрос, назначить тестирование..." />
               </Field>
               <Field label="Заметка">
                 <Textarea name="notes" placeholder="Что известно о контакте, какую боль озвучил, что обещали сделать дальше..." />
@@ -143,7 +143,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
           <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
             <p className="text-sm font-black text-app-text">Рекомендуемые теги</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {(tags.length ? tags.slice(0, 8) : ['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Готов к пилоту', 'Вернуться позже']).map((tag) => (
+              {(tags.length ? tags.slice(0, 8) : ['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Заинтересован', 'Вернуться позже']).map((tag) => (
                 <Badge key={tag} tone="purple">{tag}</Badge>
               ))}
             </div>

@@ -73,7 +73,7 @@ export default async function NewCampaignPage({ searchParams }: { searchParams?:
           <FormSection title="Цель, оффер и ожидаемый вывод">
             <div className="space-y-4">
               <Field label="Цель">
-                <Textarea name="goal" placeholder="Например: найти 30 мастеров, получить 15 ответов и 5 участников пилота." />
+                <Textarea name="goal" placeholder="Например: найти 30 мастеров, получить 15 ответов и 5 участников тестирования." />
               </Field>
               <Field label="Оффер / сообщение">
                 <Textarea name="offer_text" placeholder="Клиенты смогут находить вас на карте и записываться онлайн..." />

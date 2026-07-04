@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, CheckCircle2, Flame, MoveRight, Users, Zap } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Heart, MoveRight, Users, Zap } from 'lucide-react';
 import { moveLeadToStageAction } from '@/actions/funnels.actions';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -35,9 +35,9 @@ function MoveForm({ lead, columns, currentStage }: { lead: FunnelLead; columns: 
   return (
     <form action={moveLeadToStageAction} className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
       <input type="hidden" name="lead_id" value={lead.id} />
-      <Select name="stage_id" defaultValue={columns.find((column) => column.name === currentStage)?.id} className="h-9 text-xs">
+      <Select name="stage_id" defaultValue={currentStage} className="h-9 text-xs">
         {columns.map((stage) => (
-          <option key={stage.id} value={stage.id}>
+          <option key={stage.id} value={stage.name}>
             {stage.name}
           </option>
         ))}
@@ -162,10 +162,10 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
         <Card>
           <CardContent className="flex items-center gap-4 p-5">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50 text-app-red">
-              <Flame className="h-5 w-5" />
+              <Heart className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-app-muted">Горячие контакты</p>
+              <p className="text-sm font-semibold text-app-muted">Заинтересованы</p>
               <p className="text-2xl font-black text-app-text">{board.hotContacts}</p>
             </div>
           </CardContent>
@@ -176,7 +176,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
               <Zap className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-app-muted">Готовы к пилоту</p>
+              <p className="text-sm font-semibold text-app-muted">Тестируют</p>
               <p className="text-2xl font-black text-app-text">{board.readyContacts}</p>
             </div>
           </CardContent>
@@ -187,7 +187,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
               <CheckCircle2 className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-app-muted">Активные участники</p>
+              <p className="text-sm font-semibold text-app-muted">Нужно действие</p>
               <p className="text-2xl font-black text-app-text">{board.activeParticipants}</p>
             </div>
           </CardContent>
@@ -223,7 +223,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
                 <div>
                   <CardTitle>{column.name}</CardTitle>
                   <p className="mt-1 text-xs font-semibold text-app-muted">
-                    {column.hotContacts} горячих · {column.readyContacts} к пилоту
+                    {column.hotContacts} заинтересованы · {column.readyContacts} тестируют
                   </p>
                 </div>
                 <Badge tone={column.color}>{column.contacts}</Badge>

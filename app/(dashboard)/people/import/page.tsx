@@ -106,8 +106,8 @@ export default async function ImportContactsPage({ searchParams }: ImportPagePro
                 </Select>
               </Field>
               <Field label="Стадия по умолчанию">
-                <Select name="default_stage" defaultValue={stages[0] ?? 'Найден'}>
-                  {(stages.length ? stages : ['Найден']).map((stage) => (
+                <Select name="default_stage" defaultValue={stages[0] ?? 'Новый'}>
+                  {(stages.length ? stages : ['Новый']).map((stage) => (
                     <option key={stage}>{stage}</option>
                   ))}
                 </Select>

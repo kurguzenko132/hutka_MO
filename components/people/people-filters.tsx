@@ -123,7 +123,7 @@ export function PeopleFilters({
             <p className="text-sm font-black text-app-text">Сохранить текущий вид</p>
             <p className="mt-1 text-xs leading-5 text-app-muted">Сохрани набор фильтров, чтобы быстро возвращаться к нему позже.</p>
             <div className="mt-3 flex flex-col gap-2 sm:flex-row lg:flex-col xl:flex-row">
-              <Input name="name" placeholder="Например: Минск · маникюр · пилот" disabled={active === 0} />
+              <Input name="name" placeholder="Например: Минск · маникюр · тестирует" disabled={active === 0} />
               <Button type="submit" variant="secondary" disabled={active === 0}>
                 <BookmarkPlus className="h-4 w-4" />
                 Сохранить

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { activity, leads as mockLeads, type Lead, type LeadType, type Priority } from '@/lib/data';
 import { matchesSmartView } from '@/lib/lead-views';
+import { canonicalFunnelStageNames, normalizeStageName, orderStageNames, uniqueNormalizedTags } from '@/lib/stages';
 
 const typeToDb: Record<LeadType, string> = {
   'Мастер': 'master',
@@ -199,14 +200,14 @@ function statusLabel(status?: string | null) {
 function mapDbLead(row: Record<string, unknown>): Lead {
   const score = typeof row.priority_score === 'number' ? row.priority_score : 0;
   const source = relatedName(row.sources) ?? 'Не указан';
-  const stage = relatedName(row.funnel_stages) ?? 'Найден';
+  const stage = normalizeStageName(relatedName(row.funnel_stages));
   const rawTags = Array.isArray(row.lead_tags) ? row.lead_tags : [];
-  const tags = rawTags
+  const tags = uniqueNormalizedTags(rawTags
     .map((item) => {
       if (!item || typeof item !== 'object') return undefined;
       return relatedName((item as { tags?: unknown }).tags);
     })
-    .filter((tag): tag is string => Boolean(tag));
+    .filter((tag): tag is string => Boolean(tag)));
 
   return {
     id: String(row.id),
@@ -264,7 +265,7 @@ export async function getLeadFilterOptions(): Promise<LeadFilterOptions> {
     types: unique(items.map((lead) => lead.type)),
     cities: unique(items.map((lead) => lead.city)),
     niches: unique(items.map((lead) => lead.niche)),
-    stages: unique(items.map((lead) => lead.stage)),
+    stages: orderStageNames(items.map((lead) => lead.stage)),
     sources: unique(items.map((lead) => lead.source)),
     priorities: unique(items.map((lead) => lead.priority)),
     tags: unique(items.flatMap((lead) => lead.tags))
@@ -327,7 +328,7 @@ export async function getLeadInteractions(leadId: string): Promise<LeadInteracti
 export async function getLeadTasks(leadId: string): Promise<LeadTask[]> {
   if (!isSupabaseConfigured()) {
     return [
-      { id: 'demo-task-1', title: 'Написать повторно', description: 'Уточнить готовность к пилоту', dueDate: 'Сегодня', priority: 'Высокий', status: 'К выполнению' },
+      { id: 'demo-task-1', title: 'Написать повторно', description: 'Уточнить интерес к тестированию', dueDate: 'Сегодня', priority: 'Высокий', status: 'К выполнению' },
       { id: 'demo-task-2', title: 'Отправить опрос', description: 'Короткий опрос по текущей записи', dueDate: 'Завтра', priority: 'Средний', status: 'К выполнению' }
     ];
   }
@@ -405,7 +406,7 @@ function uniqueById<T extends { id: string }>(items: T[]) {
 
 export async function getLeadStageOptions(): Promise<LeadStageOption[]> {
   if (!isSupabaseConfigured()) {
-    return unique(mockLeads.map((lead) => lead.stage)).map((stage, index) => ({ id: `demo-stage-${index}`, name: stage }));
+    return canonicalFunnelStageNames.map((stage, index) => ({ id: `demo-stage-${index}`, name: stage }));
   }
 
   const supabase = await createClient();
@@ -418,7 +419,17 @@ export async function getLeadStageOptions(): Promise<LeadStageOption[]> {
     return [];
   }
 
-  return uniqueById(data.map((stage) => ({ id: String(stage.id), name: String(stage.name) })));
+  const normalized = new Map<string, LeadStageOption>();
+  for (const stage of data) {
+    const name = normalizeStageName(String(stage.name));
+    if (!normalized.has(name)) normalized.set(name, { id: String(stage.id), name });
+  }
+
+  canonicalFunnelStageNames.forEach((name, index) => {
+    if (!normalized.has(name)) normalized.set(name, { id: name, name });
+  });
+
+  return orderStageNames(Array.from(normalized.keys())).map((name) => normalized.get(name) as LeadStageOption);
 }
 
 function buildFallbackRelatedItems(leadId: string): LeadRelatedItems {
@@ -545,7 +556,7 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
         href: `/insights/${insight.id}`,
         type: 'insight' as const,
         label: String(insight.importance ?? 'medium'),
-        meta: String(insight.category ?? 'Инсайт')
+        meta: String(insight.category ?? 'Вывод')
       }));
 
   const hypotheses = hypothesesResult.error || !hypothesesResult.data
@@ -559,7 +570,7 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
         href: `/hypotheses/${hypothesis.id}`,
         type: 'hypothesis' as const,
         label: String(hypothesis.status ?? 'new'),
-        meta: String(hypothesis.category ?? 'Гипотеза')
+        meta: String(hypothesis.category ?? 'Идея')
       }));
 
   return {

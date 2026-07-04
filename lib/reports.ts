@@ -7,6 +7,7 @@ import { getTasks } from '@/lib/tasks';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { channels as demoChannels, funnel as demoFunnel, insights as demoDashboardInsights, niches as demoNiches } from '@/lib/data';
+import { canonicalFunnelStageNames, isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
 export type ReportMetricTone = 'purple' | 'pink' | 'green' | 'yellow' | 'red' | 'blue' | 'gray';
 
@@ -91,7 +92,7 @@ function isDateWithin(value: string | null | undefined, start: Date) {
 }
 
 function normalizeStage(value: unknown) {
-  return relatedName(value) ?? 'Найден';
+  return normalizeStageName(relatedName(value));
 }
 
 function normalizeSource(value: unknown) {
@@ -126,11 +127,11 @@ function groupCount(items: string[]) {
 async function getRawLeads(): Promise<RawLead[]> {
   if (!isSupabaseConfigured()) {
     return [
-      { id: 'demo-1', name: 'Анна Смирнова', type: 'master', niche: 'Брови и ресницы', city: 'Москва', priority_score: 86, created_at: new Date().toISOString(), sources: { name: 'Instagram' }, funnel_stages: { name: 'Тест' } },
-      { id: 'demo-2', name: 'Екатерина Лебедева', type: 'salon', niche: 'Маникюр', city: 'Санкт-Петербург', priority_score: 62, created_at: new Date().toISOString(), sources: { name: 'Telegram' }, funnel_stages: { name: 'Опрос' } },
+      { id: 'demo-1', name: 'Анна Смирнова', type: 'master', niche: 'Брови и ресницы', city: 'Москва', priority_score: 86, created_at: new Date().toISOString(), sources: { name: 'Instagram' }, funnel_stages: { name: 'Тестирует' } },
+      { id: 'demo-2', name: 'Екатерина Лебедева', type: 'salon', niche: 'Маникюр', city: 'Санкт-Петербург', priority_score: 62, created_at: new Date().toISOString(), sources: { name: 'Telegram' }, funnel_stages: { name: 'Заинтересован' } },
       { id: 'demo-3', name: 'Ольга Кузнецова', type: 'master', niche: 'Косметология', city: 'Казань', priority_score: 67, created_at: new Date().toISOString(), sources: { name: 'Рекомендация' }, funnel_stages: { name: 'Ответил' } },
-      { id: 'demo-4', name: 'Салон Beauty Line', type: 'salon', niche: 'Парикмахерские', city: 'Новосибирск', priority_score: 41, created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(), sources: { name: 'Офлайн' }, funnel_stages: { name: 'Написал' } },
-      { id: 'demo-5', name: 'Дарья Волкова', type: 'master', niche: 'Маникюр', city: 'Екатеринбург', priority_score: 38, created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), sources: { name: 'TikTok' }, funnel_stages: { name: 'Найден' } }
+      { id: 'demo-4', name: 'Салон Beauty Line', type: 'salon', niche: 'Парикмахерские', city: 'Новосибирск', priority_score: 41, created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(), sources: { name: 'Офлайн' }, funnel_stages: { name: 'Написали' } },
+      { id: 'demo-5', name: 'Дарья Волкова', type: 'master', niche: 'Маникюр', city: 'Екатеринбург', priority_score: 38, created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(), sources: { name: 'TikTok' }, funnel_stages: { name: 'Новый' } }
     ];
   }
 
@@ -166,7 +167,7 @@ function buildRecommendations({
   }
 
   if (topNiche) {
-    recommendations.push(`Сфокусировать ближайшую выборку на нише «${topNiche}», чтобы быстрее набрать плотность для пилота.`);
+    recommendations.push(`Сфокусировать ближайшую выборку на нише «${topNiche}», чтобы быстрее набрать плотность для тестирования.`);
   }
 
   if (overdueTasks > 0) {
@@ -178,11 +179,11 @@ function buildRecommendations({
   }
 
   if (testingHypotheses > 0) {
-    recommendations.push(`Для ${testingHypotheses} гипотез в проверке назначить конкретный следующий замер или интервью.`);
+    recommendations.push(`Для ${testingHypotheses} идей в проверке назначить конкретный следующий замер или интервью.`);
   }
 
   if (acceptedInsights > 0) {
-    recommendations.push('Принятые инсайты сразу переносить в продуктовые задачи и тексты первого сообщения.');
+    recommendations.push('Принятые выводы сразу переносить в продуктовые задачи и тексты первого сообщения.');
   }
 
   return recommendations.slice(0, 5);
@@ -191,11 +192,11 @@ function buildRecommendations({
 function buildTeamText(report: Omit<WeeklyReport, 'teamText'>) {
   const metricsText = report.metrics.map((metric) => `— ${metric.label}: ${metric.value}`).join('\n');
   const recommendationsText = report.recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n');
-  const insightsText = report.insightHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет новых инсайтов.';
-  const hypothesesText = report.hypothesisHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет гипотез в проверке.';
+  const insightsText = report.insightHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет новых выводов.';
+  const hypothesesText = report.hypothesisHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет идей в проверке.';
   const refusalsText = report.refusalSummary.topReasons.slice(0, 5).map((item, index) => `${index + 1}. ${item.reason}: ${item.count}`).join('\n') || 'Причины отказов пока не зафиксированы.';
 
-  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные инсайты:\n${insightsText}\n\nГипотезы / проверки:\n${hypothesesText}\n\nПричины отказов:\n${refusalsText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
+  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные выводы:\n${insightsText}\n\nИдеи / проверки:\n${hypothesesText}\n\nПричины отказов:\n${refusalsText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
 }
 
 export async function getWeeklyReport(): Promise<WeeklyReport> {
@@ -216,12 +217,11 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
 
   const totalContacts = rawLeads.length;
   const newContacts = rawLeads.filter((lead) => isDateWithin(lead.created_at, weekStart)).length;
-  const hotContacts = rawLeads.filter((lead) => (lead.priority_score ?? 0) >= 75).length;
-  const readyToPilot = rawLeads.filter((lead) => ['Тест', 'Активен'].includes(normalizeStage(lead.funnel_stages)) || (lead.priority_score ?? 0) >= 75).length;
-  const activeParticipants = rawLeads.filter((lead) => normalizeStage(lead.funnel_stages) === 'Активен').length;
+  const interestedContacts = rawLeads.filter((lead) => isInterestedStage(normalizeStage(lead.funnel_stages)) || (lead.priority_score ?? 0) >= 75).length;
+  const testingContacts = rawLeads.filter((lead) => isTestingStage(normalizeStage(lead.funnel_stages))).length;
   const surveyResponses = surveys.reduce((sum, survey) => sum + survey.answersCount, 0);
 
-  const stageOrder = ['Найден', 'Написал', 'Ответил', 'Опрос', 'Тест', 'Активен', 'Отказ'];
+  const stageOrder = canonicalFunnelStageNames;
   const stages = new Map(stageOrder.map((stage) => [stage, 0]));
   rawLeads.forEach((lead) => {
     const stage = normalizeStage(lead.funnel_stages);
@@ -260,8 +260,8 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
 
   const metrics: ReportMetric[] = [
     { label: 'Всего контактов', value: String(demoMode ? totalContacts || 2842 : totalContacts), helper: `${demoMode ? newContacts || 312 : newContacts} новых за 7 дней`, tone: 'purple' },
-    { label: 'Готовы к пилоту', value: String(demoMode ? readyToPilot || 128 : readyToPilot), helper: `${demoMode ? hotContacts || 27 : hotContacts} горячих контактов`, tone: 'pink' },
-    { label: 'Активные участники', value: String(demoMode ? activeParticipants || 63 : activeParticipants), helper: 'стадия “Активен”', tone: 'green' },
+    { label: 'Заинтересованы', value: String(demoMode ? interestedContacts || 128 : interestedContacts), helper: 'стадия “Заинтересован” или высокий score', tone: 'pink' },
+    { label: 'Тестируют', value: String(demoMode ? testingContacts || 63 : testingContacts), helper: 'стадия “Тестирует”', tone: 'green' },
     { label: 'Ответов на опросы', value: String(demoMode ? surveyResponses || 145 : surveyResponses), helper: `${surveys.length} опросников`, tone: 'blue' },
     { label: 'Просроченные действия', value: String(overdueTasks), helper: `${todayTasks} задач на сегодня`, tone: overdueTasks > 0 ? 'red' : 'green' },
     { label: 'Отказы', value: String(refusalSummary.total), helper: refusalSummary.topReasons[0] ? `топ: ${refusalSummary.topReasons[0].reason}` : 'причины не зафиксированы', tone: refusalSummary.total > 0 ? 'red' : 'gray' }

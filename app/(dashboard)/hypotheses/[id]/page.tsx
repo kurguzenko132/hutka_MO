@@ -24,7 +24,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Button asChild variant="secondary"><Link href="/hypotheses"><ArrowLeft className="h-4 w-4" />Назад</Link></Button>
-      <PageHeader title={hypothesis.title} subtitle={hypothesis.description || 'Гипотеза без описания'} />
+      <PageHeader title={hypothesis.title} subtitle={hypothesis.description || 'Идея без описания'} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <main className="space-y-6">
@@ -54,7 +54,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
 
           <div className="grid gap-6 lg:grid-cols-4">
             <RelationCard icon={<Users className="h-5 w-5" />} title="Контакты" empty="Контакты не привязаны" items={hypothesis.leads} />
-            <RelationCard icon={<Lightbulb className="h-5 w-5" />} title="Инсайты" empty="Инсайты не привязаны" items={hypothesis.insights} />
+            <RelationCard icon={<Lightbulb className="h-5 w-5" />} title="Выводы" empty="Выводы не привязаны" items={hypothesis.insights} />
             <RelationCard icon={<Send className="h-5 w-5" />} title="Кампании" empty="Кампании не привязаны" items={hypothesis.campaigns} />
             <RelationCard icon={<ClipboardList className="h-5 w-5" />} title="Опросники" empty="Опросники не привязаны" items={hypothesis.surveys} />
           </div>
@@ -65,7 +65,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-app-purple"><Target className="h-5 w-5" /></div>
                 <div>
                   <h3 className="font-black text-app-text">Как принимать решение</h3>
-                  <p className="mt-2 text-sm leading-6 text-app-muted">Когда данных достаточно, переведи гипотезу в статус “Подтверждается” или “Не подтверждается”, зафиксируй результат и создай инсайт с выводом для команды.</p>
+                  <p className="mt-2 text-sm leading-6 text-app-muted">Когда данных достаточно, переведи идею в статус “Подтверждается” или “Не подтверждается”, зафиксируй результат и создай вывод для команды.</p>
                 </div>
               </div>
             </CardContent>
@@ -121,7 +121,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
                 <li>1. Формулируем предположение.</li>
                 <li>2. Запускаем кампанию или опрос.</li>
                 <li>3. Фиксируем данные за/против.</li>
-                <li>4. Переводим результат в инсайт.</li>
+                <li>4. Переводим результат в вывод.</li>
               </ol>
             </CardContent>
           </Card>
@@ -129,8 +129,8 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
           {canManageHypotheses && (
             <form action={deleteHypothesisAction}>
               <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
-              <FormSection title="Удалить гипотезу" subtitle="Удалится гипотеза и ее связи. Контакты, кампании, инсайты и опросы останутся.">
-                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить гипотезу</Button>
+              <FormSection title="Удалить идею" subtitle="Удалится идея и ее связи. Контакты, кампании, выводы и опросы останутся.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить идею</Button>
               </FormSection>
             </form>
           )}

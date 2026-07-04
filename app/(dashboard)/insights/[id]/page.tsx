@@ -24,7 +24,7 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Button asChild variant="secondary"><Link href="/insights"><ArrowLeft className="h-4 w-4" />Назад</Link></Button>
-      <PageHeader title={insight.title} subtitle={insight.description || 'Инсайт без описания'} />
+      <PageHeader title={insight.title} subtitle={insight.description || 'Вывод без описания'} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <main className="space-y-6">
@@ -54,8 +54,8 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-app-purple"><Sparkles className="h-5 w-5" /></div>
                 <div>
-                  <h3 className="font-black text-app-text">Как использовать этот инсайт</h3>
-                  <p className="mt-2 text-sm leading-6 text-app-muted">Обсуди его на командной встрече и преврати в действие: изменить оффер, упростить онбординг, выбрать другой канал, изменить MVP или создать новую гипотезу.</p>
+                  <h3 className="font-black text-app-text">Как использовать этот вывод</h3>
+                  <p className="mt-2 text-sm leading-6 text-app-muted">Обсуди его на командной встрече и преврати в действие: изменить оффер, упростить онбординг, выбрать другой канал, изменить MVP или создать новую идею для проверки.</p>
                 </div>
               </div>
             </CardContent>
@@ -66,7 +66,7 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
           {canManageInsights && (
             <form action={updateInsightAction}>
               <input type="hidden" name="insight_id" value={insight.id} />
-              <FormSection title="Обновить инсайт" subtitle="Поменяй статус, важность и следующий шаг после обсуждения с командой.">
+              <FormSection title="Обновить вывод" subtitle="Поменяй статус, важность и следующий шаг после обсуждения с командой.">
                 <div className="space-y-4">
                   <Field label="Статус">
                     <Select name="status" defaultValue={insight.statusLabel}>
@@ -100,15 +100,15 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
             <CardContent>
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Brain className="h-5 w-5" /></div>
               <h3 className="mt-4 text-lg font-black text-app-text">Следующий этап</h3>
-              <p className="mt-2 text-sm leading-6 text-app-muted">После этого мы сделаем гипотезы реальными и сможем связывать их с такими инсайтами.</p>
+              <p className="mt-2 text-sm leading-6 text-app-muted">После этого мы сделаем идеи реальными и сможем связывать их с такими выводами.</p>
             </CardContent>
           </Card>
 
           {canManageInsights && (
             <form action={deleteInsightAction}>
               <input type="hidden" name="insight_id" value={insight.id} />
-              <FormSection title="Удалить инсайт" subtitle="Удалится инсайт и его связи. Контакты, кампании и опросы останутся.">
-                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить инсайт</Button>
+              <FormSection title="Удалить вывод" subtitle="Удалится вывод и его связи. Контакты, кампании и опросы останутся.">
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить вывод</Button>
               </FormSection>
             </form>
           )}

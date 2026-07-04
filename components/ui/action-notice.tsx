@@ -51,11 +51,11 @@ function successNotice(params: SearchParams): Notice | null {
   if (attached) {
     const relation: Record<string, string> = {
       campaign: 'кампанией',
-      insight: 'инсайтом',
-      hypothesis: 'гипотезой',
+      insight: 'выводом',
+      hypothesis: 'идеей',
       'demo-campaign': 'демо-кампанией',
-      'demo-insight': 'демо-инсайтом',
-      'demo-hypothesis': 'демо-гипотезой'
+      'demo-insight': 'демо-выводом',
+      'demo-hypothesis': 'демо-идеей'
     };
 
     return { tone: 'success', title: 'Связь сохранена', text: `Контакт связан с ${relation[attached] ?? 'выбранным объектом'}.` };

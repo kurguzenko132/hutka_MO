@@ -2,6 +2,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { leads as mockLeads, type Priority } from '@/lib/data';
 import type { BadgeTone } from '@/components/ui/badge';
+import { canonicalFunnelStages, isInterestedStage, isTestingStage, normalizeStageName, stageTone } from '@/lib/stages';
 
 export type FunnelLead = {
   id: string;
@@ -35,17 +36,12 @@ export type FunnelBoard = {
   activeParticipants: number;
 };
 
-const fallbackStages = [
-  { id: 'stage-found', name: 'Найдено', color: 'gray' as BadgeTone, orderIndex: 1 },
-  { id: 'stage-message', name: 'Написал', color: 'purple' as BadgeTone, orderIndex: 2 },
-  { id: 'stage-replied', name: 'Ответил', color: 'blue' as BadgeTone, orderIndex: 3 },
-  { id: 'stage-survey', name: 'Опрос', color: 'yellow' as BadgeTone, orderIndex: 4 },
-  { id: 'stage-test', name: 'Тест', color: 'green' as BadgeTone, orderIndex: 5 },
-  { id: 'stage-active', name: 'Активен', color: 'green' as BadgeTone, orderIndex: 6 },
-  { id: 'stage-rejected', name: 'Отказ', color: 'red' as BadgeTone, orderIndex: 7 }
-];
-
-const readyStages = new Set(['Тест', 'Активен']);
+const fallbackStages = canonicalFunnelStages.map((stage) => ({
+  id: `stage-${stage.id}`,
+  name: stage.name,
+  color: stage.color,
+  orderIndex: stage.orderIndex
+}));
 
 function scoreToPriority(score: number): Priority {
   if (score >= 75) return 'Высокий';
@@ -98,7 +94,7 @@ function toFunnelLead(row: Record<string, unknown>): FunnelLead {
 function buildFallbackBoard(): FunnelBoard {
   const columns = fallbackStages.map((stage) => {
     const stageLeads = mockLeads
-      .filter((lead) => lead.stage === stage.name || (stage.name === 'Найдено' && lead.stage === 'Найден'))
+      .filter((lead) => normalizeStageName(lead.stage) === stage.name)
       .map((lead) => ({
         id: lead.id,
         name: lead.name,
@@ -115,8 +111,8 @@ function buildFallbackBoard(): FunnelBoard {
     return {
       ...stage,
       contacts: stageLeads.length,
-      hotContacts: stageLeads.filter((lead) => lead.score >= 75).length,
-      readyContacts: stageLeads.filter((lead) => lead.score >= 75 || readyStages.has(stage.name)).length,
+      hotContacts: stageLeads.filter((lead) => lead.score >= 75 || isInterestedStage(stage.name)).length,
+      readyContacts: stageLeads.filter(() => isTestingStage(stage.name)).length,
       leads: stageLeads
     };
   });
@@ -124,9 +120,9 @@ function buildFallbackBoard(): FunnelBoard {
   return {
     columns,
     totalContacts: mockLeads.length,
-    hotContacts: mockLeads.filter((lead) => lead.score >= 75).length,
-    readyContacts: mockLeads.filter((lead) => lead.score >= 75 || readyStages.has(lead.stage)).length,
-    activeParticipants: mockLeads.filter((lead) => lead.stage === 'Активен').length
+    hotContacts: mockLeads.filter((lead) => lead.score >= 75 || isInterestedStage(lead.stage)).length,
+    readyContacts: mockLeads.filter((lead) => isTestingStage(lead.stage)).length,
+    activeParticipants: mockLeads.filter((lead) => !lead.nextStep || lead.nextStep === 'Связаться').length
   };
 }
 
@@ -155,18 +151,34 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
 
   const uniqueStages = new Map<string, FunnelColumn>();
   for (const row of stageRows) {
-    const name = String(row.name ?? 'Без стадии');
+    const name = normalizeStageName(String(row.name ?? ''));
     if (uniqueStages.has(name)) continue;
+    const canonical = canonicalFunnelStages.find((stage) => stage.name === name);
     uniqueStages.set(name, {
       id: String(row.id),
       name,
-      color: toneFromColor(row.color ? String(row.color) : null),
-      orderIndex: Number(row.order_index ?? 99),
+      color: canonical?.color ?? toneFromColor(row.color ? String(row.color) : null),
+      orderIndex: canonical?.orderIndex ?? Number(row.order_index ?? 99),
       contacts: 0,
       hotContacts: 0,
       readyContacts: 0,
       leads: []
     });
+  }
+
+  for (const stage of canonicalFunnelStages) {
+    if (!uniqueStages.has(stage.name)) {
+      uniqueStages.set(stage.name, {
+        id: stage.name,
+        name: stage.name,
+        color: stage.color,
+        orderIndex: stage.orderIndex,
+        contacts: 0,
+        hotContacts: 0,
+        readyContacts: 0,
+        leads: []
+      });
+    }
   }
 
   const { data: leadRows, error: leadsError } = await supabase
@@ -179,12 +191,12 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
   }
 
   for (const row of leadRows) {
-    const stageName = relatedName((row as Record<string, unknown>).funnel_stages) ?? 'Найден';
+    const stageName = normalizeStageName(relatedName((row as Record<string, unknown>).funnel_stages));
     if (!uniqueStages.has(stageName)) {
       uniqueStages.set(stageName, {
         id: `missing-${stageName}`,
         name: stageName,
-        color: 'gray',
+        color: stageTone(stageName),
         orderIndex: 999,
         contacts: 0,
         hotContacts: 0,
@@ -198,8 +210,8 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
     if (!column) continue;
     column.leads.push(lead);
     column.contacts += 1;
-    if (lead.score >= 75) column.hotContacts += 1;
-    if (lead.score >= 75 || readyStages.has(stageName)) column.readyContacts += 1;
+    if (lead.score >= 75 || isInterestedStage(stageName)) column.hotContacts += 1;
+    if (isTestingStage(stageName)) column.readyContacts += 1;
   }
 
   const columns = Array.from(uniqueStages.values()).sort((a, b) => a.orderIndex - b.orderIndex);
@@ -208,8 +220,8 @@ export async function getFunnelBoard(): Promise<FunnelBoard> {
   return {
     columns,
     totalContacts: allLeads.length,
-    hotContacts: allLeads.filter((lead) => lead.score >= 75).length,
+    hotContacts: columns.reduce((sum, column) => sum + column.hotContacts, 0),
     readyContacts: columns.reduce((sum, column) => sum + column.readyContacts, 0),
-    activeParticipants: columns.find((column) => column.name === 'Активен')?.contacts ?? 0
+    activeParticipants: allLeads.filter((lead) => !lead.nextStep || lead.nextStep === 'Связаться').length
   };
 }

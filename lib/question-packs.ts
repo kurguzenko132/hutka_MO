@@ -63,7 +63,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'master',
     badge: 'старт',
     status: 'active',
-    description: 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к пилоту.',
+    description: 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к тестированию.',
     questions: [
       { text: 'Какое у вас beauty-направление и какие основные услуги вы оказываете?', type: 'long_text', required: true },
       { text: 'В каком городе и районе вы принимаете клиентов?', type: 'short_text', required: true },
@@ -115,7 +115,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
   },
   {
     id: 'pilot-feedback',
-    title: 'Обратная связь после пилота',
+    title: 'Обратная связь после тестирования',
     shortTitle: 'Фидбек после теста',
     audience: 'any',
     badge: 'фидбек',

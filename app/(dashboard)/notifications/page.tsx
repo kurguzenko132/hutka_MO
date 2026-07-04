@@ -101,7 +101,7 @@ function EmptyState({ canManageContacts, canManageTasks }: { canManageContacts: 
         </div>
         <h2 className="mt-5 text-xl font-black text-app-text">Пока нет событий</h2>
         <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">
-          Здесь появятся новые ответы на опросы, просроченные follow-up, горячие контакты, действия по карточкам и результаты кампаний.
+          Здесь появятся новые ответы на опросы, просроченные follow-up, заинтересованные контакты, действия по карточкам и результаты кампаний.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild>
@@ -148,7 +148,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     <div>
       <PageHeader
         title="Уведомления"
-        subtitle="Центр событий: follow-up, ответы на опросы, горячие контакты и важные изменения в запуске."
+        subtitle="Центр событий: follow-up, ответы на опросы, заинтересованные контакты и важные изменения в запуске."
       />
 
       <Notice error={typeof params?.error === 'string' ? params.error : undefined} />
@@ -164,7 +164,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <StatCard label="Новые" value={data.stats.unread} tone="pink" />
         <StatCard label="Срочные" value={data.stats.urgent} tone="red" />
         <StatCard label="Ответы на опросы" value={data.stats.surveyResponses} tone="blue" />
-        <StatCard label="Горячие контакты" value={data.stats.hotContacts} tone="green" />
+        <StatCard label="Заинтересованные" value={data.stats.hotContacts} tone="green" />
       </div>
 
       <div className="mb-6 flex flex-col justify-between gap-3 rounded-2xl border border-app-line bg-white p-4 sm:flex-row sm:items-center">
@@ -233,7 +233,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                 <p>• просроченные и ближайшие задачи;</p>
                 <p>• новые ответы на публичные опросы;</p>
                 <p>• последние действия в карточках контактов;</p>
-                <p>• горячие контакты с высоким приоритетом;</p>
+                <p>• заинтересованные контакты с высоким приоритетом;</p>
                 <p>• активные кампании с набранными контактами.</p>
               </CardContent>
             </Card>
@@ -250,7 +250,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                   <Link href="/surveys">Открыть опросы</Link>
                 </Button>
                 <Button asChild variant="secondary">
-                  <Link href="/people?priority=Высокий">Горячие контакты</Link>
+                  <Link href="/people?view=interested">Заинтересованные контакты</Link>
                 </Button>
                 <Button asChild variant="secondary">
                   <Link href="/campaigns">Кампании</Link>

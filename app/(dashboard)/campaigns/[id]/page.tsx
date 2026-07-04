@@ -151,7 +151,7 @@ export default async function CampaignDetailPage({
                     <Input name="end_date" type="date" />
                   </Field>
                   <Field label="Вывод / заметки">
-                    <Textarea name="result_notes" defaultValue={campaign.resultNotes ?? ''} placeholder="Например: Telegram дал меньше контактов, но выше качество и готовность к пилоту." />
+                    <Textarea name="result_notes" defaultValue={campaign.resultNotes ?? ''} placeholder="Например: Telegram дал меньше контактов, но выше качество и готовность к тестированию." />
                   </Field>
                   <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить вывод</Button>
                 </div>
@@ -163,7 +163,7 @@ export default async function CampaignDetailPage({
             <CardContent>
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-50 text-app-purple"><BarChart3 className="h-5 w-5" /></div>
               <h3 className="mt-4 text-lg font-black text-app-text">Как читать кампанию</h3>
-              <p className="mt-2 text-sm leading-6 text-app-muted">Контакты — все привязанные люди. Ответы считаются по стадиям Ответил/Опрос/Тест/Активен. Участники — контакты на стадии Тест/Активен или с высоким score.</p>
+              <p className="mt-2 text-sm leading-6 text-app-muted">Контакты — все привязанные люди. Ответы считаются по стадиям Ответил/Заинтересован/Тестирует. Участники — контакты на стадии Тестирует или с высоким score.</p>
             </CardContent>
           </Card>
 
@@ -171,7 +171,7 @@ export default async function CampaignDetailPage({
             <CardContent>
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Users className="h-5 w-5" /></div>
               <h3 className="mt-4 text-lg font-black text-app-text">Следующий шаг</h3>
-              <p className="mt-2 text-sm leading-6 text-app-muted">После кампаний можно будет связывать выводы с гипотезами и автоматически создавать инсайты.</p>
+              <p className="mt-2 text-sm leading-6 text-app-muted">После кампаний можно будет связывать выводы с идеями и автоматически создавать новые выводы.</p>
             </CardContent>
           </Card>
 

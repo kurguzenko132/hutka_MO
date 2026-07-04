@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import type { Lead } from '@/lib/data';
 import type { LeadFilters } from '@/lib/leads';
+import { isInterestedStage, isPausedStage, isRefusedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
 export type LeadSmartView = {
   id: string;
@@ -29,30 +30,35 @@ function isTodayOrPast(raw?: string) {
   return date.getTime() <= today.getTime();
 }
 
-function isPilotLead(lead: Lead) {
-  const text = `${lead.stage} ${lead.tags.join(' ')}`.toLowerCase();
-  return text.includes('тест') || text.includes('пилот') || text.includes('активен') || text.includes('готов');
-}
-
 function isFollowUpLead(lead: Lead) {
-  if (lead.stage === 'Отказ' || lead.stage === 'Активен') return false;
+  if (isRefusedStage(lead.stage) || isTestingStage(lead.stage)) return false;
   return isTodayOrPast(lead.nextDateRaw) || lead.tags.some((tag) => tag.toLowerCase().includes('вернуться'));
 }
 
 function isNoNextStepLead(lead: Lead) {
-  if (lead.stage === 'Отказ' || lead.stage === 'Активен') return false;
+  if (isRefusedStage(lead.stage) || isTestingStage(lead.stage)) return false;
   const nextStep = String(lead.nextStep ?? '').trim().toLowerCase();
   return !nextStep || nextStep === 'связаться' || nextStep === '—' || !lead.nextDateRaw;
+}
+
+function isInterestedLead(lead: Lead) {
+  return isInterestedStage(lead.stage) || lead.score >= 75 || lead.priority === 'Высокий' || lead.tags.includes('Заинтересован');
+}
+
+function isPausedLead(lead: Lead) {
+  return isPausedStage(lead.stage) || lead.tags.some((tag) => tag.toLowerCase().includes('вернуться') || tag.toLowerCase().includes('пауза'));
 }
 
 export function matchesSmartView(lead: Lead, view?: string) {
   if (!view) return true;
 
-  if (view === 'hot') return lead.priority === 'Высокий' || lead.score >= 75 || lead.tags.includes('Горячий лид');
-  if (view === 'pilot') return isPilotLead(lead);
-  if (view === 'followup') return isFollowUpLead(lead);
-  if (view === 'unanswered') return lead.stage === 'Написал' || lead.stage === 'Найден';
-  if (view === 'refusals') return lead.stage === 'Отказ' || Boolean(lead.refusalReason);
+  if (view === 'all') return true;
+  if (view === 'interested' || view === 'hot') return isInterestedLead(lead);
+  if (view === 'testing' || view === 'pilot') return isTestingStage(lead.stage) || lead.tags.includes('Тестирует');
+  if (view === 'need-write' || view === 'followup') return isFollowUpLead(lead);
+  if (view === 'unanswered') return ['Новый', 'Написали'].includes(normalizeStageName(lead.stage));
+  if (view === 'paused') return isPausedLead(lead);
+  if (view === 'refusals') return isRefusedStage(lead.stage) || Boolean(lead.refusalReason);
   if (view === 'no-next-step') return isNoNextStepLead(lead);
 
   return true;
@@ -72,27 +78,35 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
 
   return [
     {
-      id: 'hot',
-      title: 'Горячие контакты',
-      description: 'Высокий приоритет, сильная боль или готовность двигаться дальше.',
-      href: '/people?view=hot',
-      count: count('hot'),
-      tone: 'red'
+      id: 'all',
+      title: 'Все',
+      description: 'Вся база контактов без дополнительных условий.',
+      href: '/people?view=all',
+      count: leads.length,
+      tone: 'purple'
     },
     {
-      id: 'pilot',
-      title: 'Готовы к пилоту',
-      description: 'Контакты на стадии теста, пилота или с тегом готовности.',
-      href: '/people?view=pilot',
-      count: count('pilot'),
+      id: 'interested',
+      title: 'Заинтересованные',
+      description: 'Ответили положительно, имеют высокий приоритет или отмечены как заинтересованные.',
+      href: '/people?view=interested',
+      count: count('interested'),
+      tone: 'pink'
+    },
+    {
+      id: 'testing',
+      title: 'Тестируют',
+      description: 'Контакты, которые уже перешли к тестированию.',
+      href: '/people?view=testing',
+      count: count('testing'),
       tone: 'green'
     },
     {
-      id: 'followup',
-      title: 'Нужен follow-up',
+      id: 'need-write',
+      title: 'Нужно написать',
       description: 'Просроченная дата следующего касания или тег «вернуться позже».',
-      href: '/people?view=followup',
-      count: count('followup'),
+      href: '/people?view=need-write',
+      count: count('need-write'),
       tone: 'yellow'
     },
     {
@@ -102,6 +116,14 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       href: '/people?view=unanswered',
       count: count('unanswered'),
       tone: 'blue'
+    },
+    {
+      id: 'paused',
+      title: 'Пауза',
+      description: 'Контакты, к которым нужно вернуться позже.',
+      href: '/people?view=paused',
+      count: count('paused'),
+      tone: 'gray'
     },
     {
       id: 'refusals',

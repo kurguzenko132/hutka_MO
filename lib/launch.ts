@@ -87,8 +87,8 @@ export async function getLaunchReadiness() {
     { label: 'Задачи', value: getCount('tasks'), hint: 'рабочих follow-up и действий' },
     { label: 'Опросы', value: getCount('surveys'), hint: 'исследовательских форм' },
     { label: 'Кампании', value: getCount('campaigns'), hint: 'маркетинговых экспериментов' },
-    { label: 'Инсайты', value: getCount('insights'), hint: 'выводов по рынку' },
-    { label: 'Гипотезы', value: getCount('hypotheses'), hint: 'проверяемых предположений' }
+    { label: 'Выводы', value: getCount('insights'), hint: 'выводов по рынку' },
+    { label: 'Идеи', value: getCount('hypotheses'), hint: 'проверяемых предположений' }
   );
 
   const okTables = tableStatus.filter((item) => item.ok).length;

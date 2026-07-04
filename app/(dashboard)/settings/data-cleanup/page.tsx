@@ -58,7 +58,7 @@ export default async function DataCleanupPage({ searchParams }: { searchParams?:
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><DatabaseZap className="h-5 w-5 text-app-red" />Очистить данные Hutka</CardTitle>
           <p className="text-sm leading-6 text-app-muted">
-            Это действие удаляет контакты, задачи, анкеты, ответы, персональные анкеты, кампании, инсайты, гипотезы, связи, уведомления, импорт-логи, сохраненные виды и Telegram-логи. Используй перед тем, как начинать заполнять настоящую базу.
+            Это действие удаляет контакты, задачи, анкеты, ответы, персональные анкеты, кампании, выводы, идеи, связи, уведомления, импорт-логи, сохраненные виды и Telegram-логи. Используй перед тем, как начинать заполнять настоящую базу.
           </p>
         </CardHeader>
         <CardContent>

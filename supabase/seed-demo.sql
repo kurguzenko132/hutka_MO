@@ -8,16 +8,16 @@ insert into public.sources (name, type) values
 on conflict do nothing;
 
 insert into public.tags (name, color) values
-  ('Горячий контакт', 'red'),
+  ('Заинтересован', 'yellow'),
   ('Нужны клиенты', 'pink'),
   ('Нет CRM', 'purple'),
-  ('Готов к пилоту', 'green'),
+  ('Тестирует', 'green'),
   ('Вернуться позже', 'yellow')
 on conflict (name) do nothing;
 
 insert into public.funnel_stages (name, type, order_index, color) values
-  ('Готов к пилоту', 'master', 8, 'green'),
-  ('Кейс', 'master', 9, 'purple')
+  ('Тестирует', 'master', 5, 'green'),
+  ('Пауза', 'master', 6, 'gray')
 on conflict do nothing;
 
 do $$
@@ -35,8 +35,8 @@ declare
 begin
   select id into instagram_source from public.sources where name in ('Instagram Reels', 'Instagram') order by case when name = 'Instagram Reels' then 0 else 1 end limit 1;
   select id into telegram_source from public.sources where name in ('Telegram beauty чат', 'Telegram') order by case when name = 'Telegram beauty чат' then 0 else 1 end limit 1;
-  select id into found_stage from public.funnel_stages where name in ('Найден', 'Найдено') order by order_index limit 1;
-  select id into test_stage from public.funnel_stages where name in ('Тест', 'Готов к пилоту') order by order_index limit 1;
+  select id into found_stage from public.funnel_stages where name = 'Новый' order by order_index limit 1;
+  select id into test_stage from public.funnel_stages where name = 'Тестирует' order by order_index limit 1;
 
   if not exists (select 1 from public.leads where instagram = '@anna.demo.nails') then
     insert into public.leads (name, type, niche, city, instagram, phone, source_id, stage_id, interest_level, priority_score, notes, next_step, next_contact_date)
@@ -68,7 +68,7 @@ begin
 
   if not exists (select 1 from public.surveys where slug = 'demo-master-survey') then
     insert into public.surveys (title, type, description, status, slug)
-    values ('Демо-опрос для мастера', 'master', 'Короткая форма для проверки боли, записи и интереса к пилоту.', 'active', 'demo-master-survey')
+    values ('Демо-опрос для мастера', 'master', 'Короткая форма для проверки боли, записи и интереса к тестированию.', 'active', 'demo-master-survey')
     returning id into survey_id;
 
     insert into public.survey_questions (survey_id, question_text, question_type, options, order_index, required)
@@ -92,7 +92,7 @@ begin
 
   if not exists (select 1 from public.insights where title = 'Demo: мастерам важнее заявки, чем CRM') then
     insert into public.insights (title, description, category, evidence, importance)
-    values ('Demo: мастерам важнее заявки, чем CRM', 'В коммуникации стоит начинать с ценности карты и новых клиентов, а CRM показывать как инструмент внутри.', 'Маркетинговый вывод', 'Демо-данные: контакт Анна заинтересовалась пилотом из-за нехватки клиентов.', 'high')
+    values ('Demo: мастерам важнее заявки, чем CRM', 'В коммуникации стоит начинать с ценности карты и новых клиентов, а CRM показывать как инструмент внутри.', 'Маркетинговый вывод', 'Демо-данные: контакт Анна заинтересовалась тестированием из-за нехватки клиентов.', 'high')
     returning id into insight_id;
   else
     select id into insight_id from public.insights where title = 'Demo: мастерам важнее заявки, чем CRM' limit 1;

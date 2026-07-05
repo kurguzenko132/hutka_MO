@@ -35,7 +35,7 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
         <Link href="/surveys"><ArrowLeft className="h-4 w-4" />Назад</Link>
       </Button>
 
-      <PageHeader title={survey.title} subtitle={survey.description || 'Опрос без описания'} />
+      <PageHeader title={survey.title} subtitle={survey.description || 'Анкета без описания'} />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
@@ -57,7 +57,7 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
             </CardContent>
           </Card>
 
-          <FormSection title="Вопросы опроса">
+          <FormSection title="Вопросы анкеты">
             <div className="space-y-3">
               {survey.questions.length === 0 && (
                 <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">
@@ -166,8 +166,9 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
           {canManageSurveys && (
             <form action={deleteSurveyAction}>
               <input type="hidden" name="survey_id" value={survey.id} />
-              <FormSection title="Удалить опросник" subtitle="Удалится опросник, вопросы и ответы. Публичная ссылка перестанет работать.">
-                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить опросник</Button>
+              <FormSection title="Удалить анкету" subtitle="Удалится анкета, вопросы и ответы. Публичная ссылка перестанет работать.">
+                <Input name="confirmation" placeholder="Напиши: УДАЛИТЬ" required />
+                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить анкету</Button>
               </FormSection>
             </form>
           )}

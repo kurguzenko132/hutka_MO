@@ -20,7 +20,7 @@ export function TodayWorkCard({ tasks }: { tasks: TaskListItem[] }) {
       <CardContent className="space-y-3">
         {tasks.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-app-line p-4 text-sm text-app-muted">
-            Нет активных задач. Создай follow-up для контакта или запланируй новый опрос.
+            Нет активных задач. Запланируй действие для контакта или создай новую анкету.
           </div>
         ) : (
           tasks.map((task) => (

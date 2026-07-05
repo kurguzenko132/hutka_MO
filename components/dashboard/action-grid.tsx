@@ -5,12 +5,11 @@ import { can, type Permission, type UserRole } from '@/lib/roles';
 
 const actions: Array<{ title: string; text: string; href: string; icon: typeof Users; permission: Permission }> = [
   { title: 'Добавить контакт', text: 'Мастер, салон, клиент или партнер', href: '/people/new', icon: Users, permission: 'manageContacts' },
-  { title: 'Создать задачу', text: 'Follow-up, созвон или проверка', href: '/tasks/new', icon: Plus, permission: 'manageTasks' },
-  { title: 'Проверить follow-up', text: 'Авто-рекомендации по действиям', href: '/followups', icon: AlarmClockCheck, permission: 'manageTasks' },
-  { title: 'Создать опрос', text: 'Собрать ответы рынка', href: '/surveys/new', icon: ClipboardList, permission: 'manageSurveys' },
+  { title: 'Создать задачу', text: 'Действие, созвон или проверка', href: '/tasks/new', icon: Plus, permission: 'manageTasks' },
+  { title: 'Что сделать', text: 'Авто-рекомендации по действиям', href: '/followups', icon: AlarmClockCheck, permission: 'manageTasks' },
+  { title: 'Создать анкету', text: 'Собрать ответы рынка', href: '/surveys/new', icon: ClipboardList, permission: 'manageSurveys' },
   { title: 'Запустить кампанию', text: 'Проверить канал или оффер', href: '/campaigns/new', icon: Send, permission: 'manageCampaigns' },
   { title: 'Добавить вывод', text: 'Зафиксировать решение', href: '/insights/new', icon: Sparkles, permission: 'manageInsights' },
-  { title: 'Создать идею', text: 'Поставить идею на проверку', href: '/hypotheses/new', icon: Target, permission: 'manageHypotheses' },
   { title: 'Telegram', text: 'Уведомления и дайджест', href: '/settings/telegram', icon: BellRing, permission: 'manageSettings' }
 ];
 

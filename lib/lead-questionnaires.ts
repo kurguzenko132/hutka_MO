@@ -120,7 +120,7 @@ function mapListItem(row: Record<string, unknown>): LeadQuestionnaireListItem {
     id: String(row.id),
     leadId: String(row.lead_id ?? ''),
     leadName: relatedLeadName(row.leads),
-    title: String(row.title ?? 'Персональная анкета'),
+    title: String(row.title ?? 'Вопросы для контакта'),
     description: row.description ? String(row.description) : undefined,
     status: statusFrom(row.status),
     token,
@@ -292,7 +292,7 @@ export async function getLeadQuestionnaireResponses(leadId: string): Promise<Lea
     const key = `${questionnaireId}:${groupId}`;
     const current = groups.get(key) ?? {
       id: key,
-      questionnaireTitle: questionnaire?.title ?? 'Персональная анкета',
+      questionnaireTitle: questionnaire?.title ?? 'Вопросы для контакта',
       questionnaireId,
       questionnaireUrl: token ? publicUrl(token) : '',
       respondentName: row.respondent_name ? String(row.respondent_name) : undefined,
@@ -317,7 +317,7 @@ function relatedQuestionnaire(value: unknown): { id: string; title: string; toke
     const row = value as { id?: unknown; title?: unknown; token?: unknown };
     return {
       id: String(row.id ?? ''),
-      title: String(row.title ?? 'Персональная анкета'),
+      title: String(row.title ?? 'Вопросы для контакта'),
       token: String(row.token ?? '')
     };
   }

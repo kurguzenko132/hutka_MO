@@ -63,7 +63,7 @@ export default async function TelegramSettingsPage({ searchParams }: { searchPar
     <div className="space-y-6">
       <PageHeader
         title="Telegram-уведомления"
-        subtitle="Настрой уведомления для команды: ответы на анкеты, follow-up и важные события будут приходить в Telegram."
+        subtitle="Настрой уведомления для команды: ответы на анкеты, действия и важные события будут приходить в Telegram."
         actionLabel="Назад в настройки"
         actionHref="/settings"
       />

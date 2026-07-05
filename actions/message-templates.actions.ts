@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
 import type { MessageTemplateAudience, MessageTemplateCategory, MessageTemplateChannel, MessageTemplateStatus } from '@/lib/message-templates';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -50,7 +51,7 @@ async function templateExists(supabase: Awaited<ReturnType<typeof createClient>>
 }
 
 export async function createMessageTemplateAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
   const title = getText(formData, 'title');
   const body = getText(formData, 'body');
@@ -75,6 +76,14 @@ export async function createMessageTemplateAction(formData: FormData) {
     .single();
 
   if (error || !data) redirect('/settings/message-templates?error=create-failed');
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал шаблон сообщения',
+    entityType: 'message_template',
+    entityId: String(data.id),
+    entityTitle: title
+  });
 
   revalidateTemplates(String(data.id));
   redirect(`/settings/message-templates/${data.id}?saved=created`);
@@ -115,17 +124,26 @@ export async function updateMessageTemplateAction(formData: FormData) {
 }
 
 export async function deleteMessageTemplateAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
   const id = getText(formData, 'id');
   if (!id) redirect('/settings/message-templates?error=required');
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
-  if (!(await templateExists(supabase, id))) redirect('/settings/message-templates?error=template-not-found');
+  const { data: template } = await supabase.from('message_templates').select('id,title').eq('id', id).maybeSingle();
+  if (!template?.id) redirect('/settings/message-templates?error=template-not-found');
 
   const { error } = await supabase.from('message_templates').delete().eq('id', id);
   if (error) redirect(`/settings/message-templates/${id}?error=delete-failed`);
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил шаблон сообщения',
+    entityType: 'message_template',
+    entityId: id,
+    entityTitle: String(template.title ?? 'Шаблон сообщения')
+  });
 
   revalidateTemplates();
   redirect('/settings/message-templates?deleted=template');

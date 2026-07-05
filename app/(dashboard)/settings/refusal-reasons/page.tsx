@@ -34,6 +34,7 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   const saved = typeof searchParams.saved === 'string' ? searchParams.saved : '';
   const deleted = typeof searchParams.deleted === 'string' ? searchParams.deleted : '';
   const demo = typeof searchParams.demo === 'string' ? searchParams.demo : '';
+  const count = typeof searchParams.count === 'string' ? searchParams.count : '';
 
   if (!error && !saved && !deleted && !demo) return null;
 
@@ -41,6 +42,8 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   const message = isError
     ? error === 'reason-not-found'
       ? 'Причина отказа не найдена. Возможно, она уже удалена.'
+      : error === 'in-use'
+        ? `Нельзя удалить причину отказа, потому что она используется в ${count || 'нескольких'} контактах.`
       : 'Не удалось выполнить действие. Возможно, причина уже используется в контактах или Supabase не обновлен.'
     : demo
       ? 'Supabase еще не настроен, поэтому причины отказа показаны в demo-режиме.'

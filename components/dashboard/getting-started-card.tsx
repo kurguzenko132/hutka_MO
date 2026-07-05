@@ -13,8 +13,8 @@ const steps = [
     permission: 'manageContacts' as const
   },
   {
-    title: 'Запустить опрос',
-    text: 'Создай короткий опрос для мастеров и отправь публичную ссылку.',
+    title: 'Запустить анкету',
+    text: 'Создай короткую анкету для мастеров и отправь публичную ссылку.',
     href: '/surveys/new',
     icon: ClipboardList,
     permission: 'manageSurveys' as const
@@ -45,7 +45,7 @@ export function GettingStartedCard({ role }: { role: UserRole }) {
       <CardContent className="p-5">
         <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-app-faint">Быстрый старт</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-app-faint">Рабочие шаги</p>
             <h2 className="mt-1 text-lg font-black text-app-text">Что сделать, чтобы Hutka начала приносить пользу</h2>
           </div>
           {can(role, 'manageContacts') ? (

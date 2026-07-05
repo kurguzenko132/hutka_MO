@@ -35,7 +35,7 @@ export async function createHypothesisAction(formData: FormData) {
     .insert({
       title,
       description: getText(formData, 'description') || null,
-      category: getText(formData, 'category') || 'Гипотеза',
+      category: getText(formData, 'category') || 'Проверка',
       status: hypothesisStatusToDb[getText(formData, 'status')] ?? 'new',
       confidence: hypothesisConfidenceToDb[getText(formData, 'confidence')] ?? 'medium',
       test_method: getText(formData, 'test_method') || null,

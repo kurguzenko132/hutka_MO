@@ -25,7 +25,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <Button asChild variant="secondary"><Link href="/insights"><ArrowLeft className="h-4 w-4" />Назад</Link></Button>
-      <PageHeader title="Добавить вывод" subtitle="Зафиксируй вывод с доказательствами и привяжи его к контактам, кампаниям или опросам" />
+      <PageHeader title="Добавить вывод" subtitle="Зафиксируй вывод с доказательствами и привяжи его к контактам, кампаниям или анкетам" />
 
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
@@ -83,7 +83,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
                   {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
                 </Select>
               </Field>
-              <Field label="Опросники">
+              <Field label="Анкеты">
                 <Select name="survey_ids" multiple className="min-h-36 py-2">
                   {surveys.map((survey) => <option key={survey.id} value={survey.id}>{survey.name}</option>)}
                 </Select>
@@ -109,7 +109,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
           <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Brain className="h-5 w-5" /></div>
             <h3 className="mt-4 text-lg font-black text-app-text">Дальше</h3>
-            <p className="mt-2 text-sm leading-6 text-app-muted">После выводов следующим этапом мы свяжем их с идеями: идея → проверка → вывод → решение.</p>
+            <p className="mt-2 text-sm leading-6 text-app-muted">После вывода следующим этапом можно назначить действие, обновить текст сообщения или изменить кампанию.</p>
           </div>
         </aside>
       </div>

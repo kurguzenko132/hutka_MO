@@ -19,7 +19,7 @@ export function FunnelOverview({ steps }: { steps?: FunnelStep[] }) {
   return (
     <Card className="overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-3 bg-gradient-to-br from-white to-slate-50/80">
-        <CardTitle>Воронка привлечения</CardTitle>
+        <CardTitle>Воронка контактов по стадиям</CardTitle>
         <a href="/funnels" className="rounded-xl border border-app-line px-3 py-1.5 text-xs font-bold text-app-muted transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">Открыть воронку</a>
       </CardHeader>
       <CardContent>

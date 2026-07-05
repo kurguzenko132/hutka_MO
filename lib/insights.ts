@@ -61,7 +61,7 @@ const demoInsights: InsightDetail[] = [
     title: 'Главный барьер — заполнение профиля без гарантии заявок',
     description: 'Мастера готовы смотреть продукт, но не хотят тратить время на заполнение профиля, если не понимают, будут ли реальные клиенты.',
     category: 'Онбординг',
-    evidence: 'В переписках повторяется вопрос: “А клиенты точно будут?”. В опросах несколько мастеров указали, что им нужен быстрый старт.',
+    evidence: 'В переписках повторяется вопрос: “А клиенты точно будут?”. В анкетах несколько мастеров указали, что им нужен быстрый старт.',
     importance: 'high',
     importanceLabel: 'Высокая',
     status: 'in_review',
@@ -76,7 +76,7 @@ const demoInsights: InsightDetail[] = [
   {
     id: 'demo-insight-3',
     title: 'Telegram дает меньше контактов, но выше качество',
-    description: 'В Telegram меньше объем, но люди чаще отвечают развернуто и быстрее соглашаются на опрос или тестирование.',
+    description: 'В Telegram меньше объем, но люди чаще отвечают развернуто и быстрее соглашаются на анкету или тестирование.',
     category: 'Канал привлечения',
     evidence: 'В демо-кампании Telegram конверсия в тестирование выше, чем в Instagram.',
     importance: 'medium',
@@ -96,7 +96,7 @@ export const insightCategories = [
   'Боль',
   'Возражение',
   'Желание',
-  'Продуктовая идея',
+  'Продуктовый вывод',
   'Маркетинговый вывод',
   'Сегмент',
   'Канал привлечения',
@@ -300,8 +300,8 @@ export async function getCampaignOptions(): Promise<InsightOption[]> {
 export async function getSurveyOptions(): Promise<InsightOption[]> {
   if (!isSupabaseConfigured()) {
     return [
-      { id: 'demo-survey-1', name: 'Опрос для мастеров' },
-      { id: 'demo-survey-2', name: 'Опрос клиентов' }
+      { id: 'demo-survey-1', name: 'Анкета для мастеров' },
+      { id: 'demo-survey-2', name: 'Анкета клиентов' }
     ];
   }
 

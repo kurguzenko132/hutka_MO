@@ -141,6 +141,17 @@ create table if not exists public.campaign_leads (
   primary key (campaign_id, lead_id)
 );
 
+create table if not exists public.activity_logs (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references public.profiles(id) on delete set null,
+  action text not null,
+  entity_type text not null,
+  entity_id uuid,
+  entity_title text,
+  details jsonb default '{}'::jsonb,
+  created_at timestamptz default now()
+);
+
 create table if not exists public.insights (
   id uuid primary key default uuid_generate_v4(),
   title text not null,
@@ -237,6 +248,7 @@ alter table public.survey_questions enable row level security;
 alter table public.survey_answers enable row level security;
 alter table public.campaigns enable row level security;
 alter table public.campaign_leads enable row level security;
+alter table public.activity_logs enable row level security;
 alter table public.insights enable row level security;
 alter table public.hypotheses enable row level security;
 
@@ -248,7 +260,7 @@ declare
 begin
   foreach tbl in array array[
     'profiles','sources','funnel_stages','leads','tags','lead_tags','lead_interactions','tasks',
-    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','insights','hypotheses'
+    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','activity_logs','insights','hypotheses'
   ] loop
     policy_name := 'Authenticated users can manage ' || tbl;
     execute format('drop policy if exists %I on public.%I', policy_name, tbl);
@@ -454,16 +466,16 @@ select
   count(*)::int as total_contacts,
   count(*) filter (where l.created_at >= now() - interval '7 days')::int as new_contacts_week,
   count(*) filter (where l.priority_score >= 75)::int as hot_contacts,
-  count(*) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as interested_contacts,
-  count(*) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as testing_contacts,
-  count(*) filter (where l.next_contact_date < now())::int as need_action_contacts,
   count(*) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as ready_to_pilot,
   count(*) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as active_participants,
   (select count(*) from public.survey_answers)::int as survey_answers,
   (select count(*) from public.tasks where status != 'done' and due_date < now())::int as overdue_tasks,
   (select count(*) from public.campaigns where status = 'active')::int as active_campaigns,
   (select count(*) from public.insights where status = 'accepted')::int as accepted_insights,
-  (select count(*) from public.hypotheses where status in ('new', 'testing', 'needs_data'))::int as hypotheses_in_check
+  (select count(*) from public.hypotheses where status in ('new', 'testing', 'needs_data'))::int as hypotheses_in_check,
+  count(*) filter (where fs.name in ('Заинтересован', 'Опрос') or l.priority_score >= 75)::int as interested_contacts,
+  count(*) filter (where fs.name in ('Тестирует', 'Тест', 'Активен'))::int as testing_contacts,
+  count(*) filter (where l.next_contact_date < now())::int as need_action_contacts
 from public.leads l
 left join public.funnel_stages fs on fs.id = l.stage_id;
 
@@ -706,8 +718,59 @@ insert into public.app_settings (key, value) values
   ('weekly_report_day', 'Понедельник')
 on conflict (key) do nothing;
 
+create or replace function public.normalize_source_name(input text)
+returns text
+language sql
+immutable
+as $$
+  select case
+    when trim(coalesce(input, '')) = '' then ''
+    when lower(trim(input)) in ('instagram', 'insta', 'ig', 'инстаграм', 'инста') then 'Instagram'
+    when lower(trim(input)) in ('telegram', 'tg', 'телеграм', 'телега') then 'Telegram'
+    when lower(trim(input)) in ('tiktok', 'тик ток', 'тикток') then 'TikTok'
+    else regexp_replace(trim(input), '\s+', ' ', 'g')
+  end;
+$$;
+
+with ranked_sources as (
+  select
+    id,
+    public.normalize_source_name(name) as normalized_name,
+    first_value(id) over (
+      partition by public.normalize_source_name(name)
+      order by created_at asc, id asc
+    ) as keeper_id,
+    row_number() over (
+      partition by public.normalize_source_name(name)
+      order by created_at asc, id asc
+    ) as rn
+  from public.sources
+), reassigned_sources as (
+  update public.leads l
+  set source_id = ranked_sources.keeper_id
+  from ranked_sources
+  where l.source_id = ranked_sources.id
+    and ranked_sources.rn > 1
+  returning l.id
+), renamed_sources as (
+  update public.sources s
+  set name = ranked_sources.normalized_name
+  from ranked_sources
+  where s.id = ranked_sources.id
+    and ranked_sources.rn = 1
+    and ranked_sources.normalized_name <> ''
+  returning s.id
+)
+delete from public.sources s
+using ranked_sources
+where s.id = ranked_sources.id
+  and ranked_sources.rn > 1;
+
 create index if not exists sources_name_idx on public.sources(name);
 create index if not exists sources_type_idx on public.sources(type);
+create unique index if not exists sources_normalized_name_unique_idx
+  on public.sources(public.normalize_source_name(name))
+  where public.normalize_source_name(name) <> '';
 create index if not exists funnel_stages_type_order_idx on public.funnel_stages(type, order_index);
 create index if not exists tags_name_idx on public.tags(name);
 
@@ -799,7 +862,7 @@ declare
 begin
   foreach tbl in array array[
     'profiles','sources','funnel_stages','leads','tags','lead_tags','lead_interactions','tasks',
-    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','insights','hypotheses',
+    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','activity_logs','insights','hypotheses',
     'insight_leads','insight_campaigns','insight_surveys',
     'hypothesis_leads','hypothesis_insights','hypothesis_campaigns','hypothesis_surveys'
   ] loop
@@ -831,7 +894,7 @@ declare
 begin
   foreach tbl in array array[
     'sources','funnel_stages','leads','tags','lead_tags','lead_interactions','tasks',
-    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','insights','hypotheses',
+    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','activity_logs','insights','hypotheses',
     'insight_leads','insight_campaigns','insight_surveys',
     'hypothesis_leads','hypothesis_insights','hypothesis_campaigns','hypothesis_surveys',
     'app_settings'
@@ -849,7 +912,7 @@ declare
 begin
   foreach tbl in array array[
     'leads','tags','lead_tags','lead_interactions','tasks',
-    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','insights','hypotheses',
+    'surveys','survey_questions','survey_answers','campaigns','campaign_leads','activity_logs','insights','hypotheses',
     'insight_leads','insight_campaigns','insight_surveys',
     'hypothesis_leads','hypothesis_insights','hypothesis_campaigns','hypothesis_surveys'
   ] loop
@@ -906,6 +969,9 @@ end $$;
 
 create index if not exists profiles_email_idx on public.profiles(email);
 create index if not exists profiles_role_idx on public.profiles(role);
+create index if not exists activity_logs_created_at_idx on public.activity_logs(created_at desc);
+create index if not exists activity_logs_user_id_idx on public.activity_logs(user_id);
+create index if not exists activity_logs_entity_idx on public.activity_logs(entity_type, entity_id);
 
 -- Step 20 CSV imports workflow
 create table if not exists public.import_logs (

@@ -157,8 +157,8 @@ function interactionTitle(type?: string | null) {
     message: 'Сообщение',
     call: 'Звонок',
     meeting: 'Встреча',
-    survey_sent: 'Опрос отправлен',
-    survey_completed: 'Опрос пройден',
+    survey_sent: 'Анкета отправлена',
+    survey_completed: 'Анкета пройдена',
     note: 'Заметка',
     status_change: 'Смена стадии',
     task_status: 'Обновление задачи'
@@ -180,7 +180,7 @@ function buildFocus({ needAction, interested, testing }: { needAction: number; i
   if (needAction > 0) return `Закрой ${needAction} действий без внимания: это самый быстрый способ не потерять теплые контакты.`;
   if (interested > testing) return `Переведи ${interested - testing} заинтересованных контактов к конкретному тестированию или следующему шагу.`;
   if (testing > 0) return `Собери обратную связь у ${testing} контактов в тестировании и зафиксируй выводы для команды.`;
-  return 'Добавь первые контакты, запусти опрос и собери первые выводы по beauty-рынку.';
+  return 'Добавь первые контакты, запусти анкету и собери первые выводы по beauty-рынку.';
 }
 
 function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
@@ -214,7 +214,7 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[],
       href: `/people/${lead.id}`
     })),
     recentActivities: [
-      { id: 'demo-a1', title: 'Опрос пройден', text: 'Анна Смирнова оставила ответы по тестированию карты', date: 'Сегодня, 10:30', href: '/people/anna-smirnova' },
+      { id: 'demo-a1', title: 'Анкета пройдена', text: 'Анна Смирнова оставила ответы по тестированию карты', date: 'Сегодня, 10:30', href: '/people/anna-smirnova' },
       { id: 'demo-a2', title: 'Смена стадии', text: 'Ольга Кузнецова переведена в “Ответил”', date: 'Сегодня, 09:15', href: '/people/olga-kuznetsova' },
       { id: 'demo-a3', title: 'Новый контакт', text: 'Добавлен салон Beauty Line из офлайн-канала', date: 'Вчера, 18:10', href: '/people/beauty-line' }
     ],
@@ -244,7 +244,7 @@ function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[]
     insights,
     hypotheses,
     refusals,
-    focus: 'Добавь первые контакты, запусти опрос и собери первые выводы по beauty-рынку.'
+    focus: 'Добавь первые контакты, запусти анкету и собери первые выводы по beauty-рынку.'
   };
 }
 

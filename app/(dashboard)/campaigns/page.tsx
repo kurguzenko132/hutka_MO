@@ -43,11 +43,12 @@ export default async function CampaignsPage() {
                 </Button>
               </div>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-4">
-                <Metric label="Контакты" value={campaign.metrics.contacts} />
-                <Metric label="Ответы" value={campaign.metrics.responses} />
-                <Metric label="Опрос / интерес" value={campaign.metrics.surveys} />
-                <Metric label="Участники" value={campaign.metrics.participants} />
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Metric label="Добавлено контактов" value={campaign.metrics.contacts} />
+                <Metric label="Ответили" value={campaign.metrics.responses} />
+                <Metric label="Заинтересованы" value={campaign.metrics.surveys} />
+                <Metric label="Тестируют" value={campaign.metrics.participants} />
+                <Metric label="Отказались" value={campaign.metrics.refused} />
               </div>
 
               {campaign.resultNotes && (

@@ -165,8 +165,8 @@ function interactionTitle(type?: string | null) {
     message: 'Сообщение',
     call: 'Звонок',
     meeting: 'Встреча',
-    survey_sent: 'Опрос отправлен',
-    survey_completed: 'Опрос пройден',
+    survey_sent: 'Анкета отправлена',
+    survey_completed: 'Анкета пройдена',
     note: 'Заметка',
     status_change: 'Изменение статуса'
   };
@@ -230,7 +230,8 @@ function mapDbLead(row: Record<string, unknown>): Lead {
     notes: row.notes ? String(row.notes) : undefined,
     refusalReason: row.refusal_reason ? String(row.refusal_reason) : relatedName(row.refusal_reasons),
     refusalComment: row.refusal_comment ? String(row.refusal_comment) : undefined,
-    refusedAt: row.refused_at ? formatDate(String(row.refused_at), true) : undefined
+    refusedAt: row.refused_at ? formatDate(String(row.refused_at), true) : undefined,
+    createdAt: row.created_at ? formatDate(String(row.created_at), true) : undefined
   };
 }
 
@@ -329,7 +330,7 @@ export async function getLeadTasks(leadId: string): Promise<LeadTask[]> {
   if (!isSupabaseConfigured()) {
     return [
       { id: 'demo-task-1', title: 'Написать повторно', description: 'Уточнить интерес к тестированию', dueDate: 'Сегодня', priority: 'Высокий', status: 'К выполнению' },
-      { id: 'demo-task-2', title: 'Отправить опрос', description: 'Короткий опрос по текущей записи', dueDate: 'Завтра', priority: 'Средний', status: 'К выполнению' }
+      { id: 'demo-task-2', title: 'Отправить анкету', description: 'Короткая анкета по текущей записи', dueDate: 'Завтра', priority: 'Средний', status: 'К выполнению' }
     ];
   }
 
@@ -448,7 +449,7 @@ function buildFallbackRelatedItems(leadId: string): LeadRelatedItems {
     surveys: [
       {
         id: 'demo-survey-response-1',
-        title: 'Опрос потребностей мастеров',
+        title: 'Анкета потребностей мастеров',
         href: '/surveys/demo-survey-1',
         respondent: lead?.name,
         contact: lead?.instagram ?? lead?.telegram,
@@ -535,7 +536,7 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
       }
       surveyGroups.set(key, {
         id: key,
-        title: survey ? relationTitle(survey) : 'Опрос без названия',
+        title: survey ? relationTitle(survey) : 'Анкета без названия',
         href: survey?.id ? `/surveys/${survey.id}` : '/surveys',
         respondent: row.respondent_name ? String(row.respondent_name) : undefined,
         contact: row.respondent_contact ? String(row.respondent_contact) : undefined,
@@ -570,7 +571,7 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
         href: `/hypotheses/${hypothesis.id}`,
         type: 'hypothesis' as const,
         label: String(hypothesis.status ?? 'new'),
-        meta: String(hypothesis.category ?? 'Идея')
+        meta: String(hypothesis.category ?? 'Архив')
       }));
 
   return {

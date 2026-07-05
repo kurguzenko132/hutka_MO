@@ -62,7 +62,7 @@ export default async function TasksPage({ searchParams }: { searchParams?: Promi
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Задачи" subtitle="Follow-up, созвоны, опросы и действия по контактам" actionLabel={can(role, 'manageTasks') ? 'Создать задачу' : undefined} actionHref={can(role, 'manageTasks') ? '/tasks/new' : undefined} />
+      <PageHeader title="Задачи" subtitle="Действия, созвоны, анкеты и рабочие шаги по контактам" actionLabel={can(role, 'manageTasks') ? 'Создать задачу' : undefined} actionHref={can(role, 'manageTasks') ? '/tasks/new' : undefined} />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Stat icon={CalendarCheck} label="Найдено по фильтрам" value={summary.total} tone="bg-purple-50 text-app-purple" />

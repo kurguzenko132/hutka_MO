@@ -2,7 +2,7 @@ import { PeopleFilters } from '@/components/people/people-filters';
 import { PeopleTable } from '@/components/people/people-table';
 import { getCampaignOptions } from '@/lib/campaigns';
 import { getLeadFilterOptions, getLeads, type LeadFilters } from '@/lib/leads';
-import { getSavedLeadViews, getSmartLeadViews } from '@/lib/lead-views';
+import { getSmartLeadViews } from '@/lib/lead-views';
 import { PageHeader } from '@/components/layout/page-header';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { ActionNotice } from '@/components/ui/action-notice';
@@ -35,24 +35,23 @@ export default async function PeoplePage({ searchParams }: PeoplePageProps) {
   const role = user?.role ?? 'viewer';
   const params = await searchParams;
   const filters = buildFilters(params);
-  const [leads, allLeads, filterOptions, campaigns, savedViews] = await Promise.all([
+  const [leads, allLeads, filterOptions, campaigns] = await Promise.all([
     getLeads(filters),
     getLeads(),
     getLeadFilterOptions(),
-    getCampaignOptions(),
-    getSavedLeadViews(user?.profileId)
+    getCampaignOptions()
   ]);
   const smartViews = getSmartLeadViews(allLeads);
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Люди"
+        title="Контакты"
         subtitle="База мастеров, салонов, клиентов и партнеров с рабочими фильтрами и быстрыми действиями"
       />
 
       <ActionNotice searchParams={params} />
-      <PeopleFilters filters={filters} options={filterOptions} shown={leads.length} total={allLeads.length} role={role} smartViews={smartViews} savedViews={savedViews} />
+      <PeopleFilters filters={filters} options={filterOptions} shown={leads.length} total={allLeads.length} role={role} smartViews={smartViews} />
       <PeopleTable items={leads} role={role} stages={filterOptions.stages} tags={filterOptions.tags} campaigns={campaigns} />
     </div>
   );

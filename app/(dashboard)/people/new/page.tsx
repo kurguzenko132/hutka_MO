@@ -78,7 +78,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
             </div>
           </FormSection>
 
-          <FormSection title="Контакты и follow-up" subtitle="Эти поля помогут не потерять человека после первого касания.">
+          <FormSection title="Контакты и действие" subtitle="Эти поля помогут не потерять человека после первого касания.">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Instagram">
                 <Input name="instagram" placeholder="@username" />
@@ -111,7 +111,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
                 <Input name="tags" placeholder={(tags.length ? tags.slice(0, 3).join(', ') : 'Нужны клиенты, Нет CRM, Пустые окна')} />
               </Field>
               <Field label="Следующий шаг">
-                <Input name="next_step" placeholder="Написать повторно, отправить опрос, назначить тестирование..." />
+                <Input name="next_step" placeholder="Написать повторно, отправить анкету, назначить тестирование..." />
               </Field>
               <Field label="Заметка">
                 <Textarea name="notes" placeholder="Что известно о контакте, какую боль озвучил, что обещали сделать дальше..." />
@@ -137,7 +137,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
             </div>
             <h3 className="mt-4 text-lg font-black text-app-text">Как заполнять быстрее</h3>
             <p className="mt-2 text-sm leading-6 text-app-muted">
-              На первом касании достаточно имени, ссылки, города и стадии. Остальное можно заполнить после ответа или опроса.
+              На первом касании достаточно имени, ссылки, города и стадии. Остальное можно заполнить после ответа или анкеты.
             </p>
           </div>
           <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">

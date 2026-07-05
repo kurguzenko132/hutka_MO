@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, ArrowUpRight, BarChart3, ClipboardList, Lightbulb, Target, Timer } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, BarChart3, ClipboardList, LineChart, Lightbulb, Target, Timer, Users } from 'lucide-react';
 import { CopyReportButton } from '@/components/reports/copy-report-button';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
@@ -40,7 +40,7 @@ export default async function ReportsPage() {
             <Badge tone="purple">Сформировано: {report.generatedAt}</Badge>
             <h2 className="mt-4 text-2xl font-black tracking-tight text-app-text">Еженедельный маркетинг-отчет Hutka</h2>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-app-muted">
-              Здесь собирается единая картина запуска: контакты, тестирование, задачи, кампании, опросы, выводы и идеи.
+              Здесь собирается единая картина работы: контакты, тестирование, задачи, кампании, анкеты, выводы и причины отказов.
               Этот блок можно использовать на командной встрече или отправить в чат.
             </p>
           </div>
@@ -66,6 +66,15 @@ export default async function ReportsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><LineChart className="h-4 w-4 text-app-purple" /> Динамика контактов по неделям</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Bars items={report.weeklyDynamics} tone="blue" />
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><BarChart3 className="h-4 w-4 text-app-purple" /> Воронка по стадиям</CardTitle>
@@ -98,7 +107,7 @@ export default async function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Timer className="h-4 w-4 text-app-purple" /> Задачи и follow-up</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Timer className="h-4 w-4 text-app-purple" /> Задачи и действия</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <SmallMetric label="Всего задач" value={report.taskSummary.total} />
@@ -106,6 +115,17 @@ export default async function ReportsPage() {
             <SmallMetric label="Сегодня" value={report.taskSummary.today} tone="yellow" />
             <SmallMetric label="Позже" value={report.taskSummary.later} tone="blue" />
           </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Target className="h-4 w-4 text-app-purple" /> Кампании по эффективности</CardTitle></CardHeader>
+          <CardContent><Bars items={report.campaignEfficiency} tone="purple" /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Users className="h-4 w-4 text-app-purple" /> Ниши по реакции</CardTitle></CardHeader>
+          <CardContent><Bars items={report.nicheReaction} tone="pink" /></CardContent>
         </Card>
       </div>
 
@@ -122,9 +142,8 @@ export default async function ReportsPage() {
 
       <div className="grid gap-6 xl:grid-cols-2">
         <HighlightCard icon={<Target className="h-4 w-4 text-app-purple" />} title="Кампании" items={report.campaignHighlights} empty="Кампаний пока нет." />
-        <HighlightCard icon={<ClipboardList className="h-4 w-4 text-app-purple" />} title="Опросники" items={report.surveyHighlights} empty="Опросников пока нет." />
+        <HighlightCard icon={<ClipboardList className="h-4 w-4 text-app-purple" />} title="Анкеты" items={report.surveyHighlights} empty="Анкет пока нет." />
         <HighlightCard icon={<Lightbulb className="h-4 w-4 text-app-purple" />} title="Главные выводы" items={report.insightHighlights} empty="Выводов пока нет." />
-        <HighlightCard icon={<Target className="h-4 w-4 text-app-purple" />} title="Идеи и проверки" items={report.hypothesisHighlights} empty="Идей пока нет." />
       </div>
 
       <Card>
@@ -151,9 +170,6 @@ export default async function ReportsPage() {
             <CopyReportButton text={report.teamText} />
             <Link href="/campaigns" className="inline-flex h-10 items-center justify-center rounded-xl border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
               Открыть кампании
-            </Link>
-            <Link href="/hypotheses" className="inline-flex h-10 items-center justify-center rounded-xl border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
-              Открыть идеи
             </Link>
           </div>
         </CardContent>

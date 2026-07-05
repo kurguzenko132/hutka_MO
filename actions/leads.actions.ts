@@ -8,15 +8,21 @@ import { leadTypeToDb, priorityToScore } from '@/lib/leads';
 import type { LeadType, Priority } from '@/lib/data';
 import { requirePermission } from '@/lib/permissions';
 import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
+import { recordActivityLog } from '@/lib/activity-log';
+import { normalizeSourceName, sourceKey } from '@/lib/source-normalization';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
 }
 
 async function ensureSourceId(supabase: Awaited<ReturnType<typeof createClient>>, name: string) {
-  const sourceName = name || 'Не указан';
+  const sourceName = normalizeSourceName(name) || 'Не указан';
   const existing = await supabase.from('sources').select('id').eq('name', sourceName).maybeSingle();
   if (existing.data?.id) return existing.data.id as string;
+
+  const { data: sources } = await supabase.from('sources').select('id,name');
+  const duplicate = (sources ?? []).find((source) => sourceKey(normalizeSourceName(String(source.name ?? ''))) === sourceKey(sourceName));
+  if (duplicate?.id) return String(duplicate.id);
 
   const created = await supabase.from('sources').insert({ name: sourceName, type: 'manual' }).select('id').single();
   if (created.error) throw created.error;
@@ -125,7 +131,7 @@ async function syncLeadTags(supabase: Awaited<ReturnType<typeof createClient>>, 
 }
 
 export async function createLeadAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   if (!isSupabaseConfigured()) {
     redirect('/people?created=demo');
   }
@@ -191,6 +197,14 @@ export async function createLeadAction(formData: FormData) {
     text: 'Контакт добавлен в Hutka',
     result: 'created'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал контакт',
+    entityType: 'contact',
+    entityId: lead.id,
+    entityTitle: name,
+    details: { source: normalizeSourceName(source), stage }
+  });
 
   revalidatePath('/people');
   revalidatePath('/dashboard');
@@ -198,7 +212,7 @@ export async function createLeadAction(formData: FormData) {
 }
 
 export async function updateLeadAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadId = getText(formData, 'id');
   if (!leadId) redirect('/people');
 
@@ -269,11 +283,28 @@ export async function updateLeadAction(formData: FormData) {
     text: `Контакт обновлен. Стадия: ${stage || 'не указана'}`,
     result: 'updated'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил контакт',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: name,
+    details: {
+      stage,
+      source: normalizeSourceName(source),
+      next_step: getText(formData, 'next_step') || null,
+      next_contact_date: getText(formData, 'next_contact_date') || null
+    }
+  });
 
   revalidatePath('/people');
   revalidatePath(`/people/${leadId}`);
   revalidatePath('/dashboard');
-  redirect(`/people/${leadId}`);
+  revalidatePath('/funnels');
+  revalidatePath('/followups');
+  revalidatePath('/reports');
+  revalidatePath('/geography');
+  redirect(`/people/${leadId}?updated=contact`);
 }
 
 export async function addLeadInteractionAction(formData: FormData) {
@@ -343,7 +374,7 @@ function revalidateLeadCollection() {
 }
 
 export async function bulkChangeStageAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadIds = getLeadIds(formData);
   const stage = normalizeStageName(getText(formData, 'stage'));
 
@@ -367,6 +398,13 @@ export async function bulkChangeStageAction(formData: FormData) {
   if (error) redirect('/people?error=bulk-stage-failed');
 
   await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: стадия изменена на «${stage}»`, 'bulk_stage_changed');
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил стадию контакта',
+    entityType: 'contact',
+    entityTitle: 'Массовое изменение стадии',
+    details: { contacts: existingLeadIds.length, stage, bulk: true }
+  });
   revalidateLeadCollection();
   redirect(`/people?bulk=stage&count=${existingLeadIds.length}`);
 }
@@ -399,7 +437,7 @@ export async function bulkAssignTagAction(formData: FormData) {
 }
 
 export async function bulkCreateTaskAction(formData: FormData) {
-  await requirePermission('manageTasks', '/people?error=forbidden');
+  const user = await requirePermission('manageTasks', '/people?error=forbidden');
   const leadIds = getLeadIds(formData);
   const title = getText(formData, 'title');
 
@@ -426,13 +464,21 @@ export async function bulkCreateTaskAction(formData: FormData) {
   if (error) redirect('/people?error=bulk-task-failed');
 
   await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: создана задача «${title}»`, 'bulk_task_created');
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал задачу',
+    entityType: 'task',
+    entityTitle: title,
+    details: { contacts: existingLeadIds.length, bulk: true }
+  });
   revalidateLeadCollection();
   revalidatePath('/tasks');
+  revalidatePath('/followups');
   redirect(`/people?bulk=task&count=${existingLeadIds.length}`);
 }
 
 export async function bulkAddToCampaignAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/people?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/people?error=forbidden');
   const leadIds = getLeadIds(formData);
   const campaignId = getText(formData, 'campaign_id');
 
@@ -453,14 +499,23 @@ export async function bulkAddToCampaignAction(formData: FormData) {
   if (error) redirect('/people?error=bulk-campaign-failed');
 
   await addBulkInteractions(supabase, existingLeadIds, 'Массовое действие: контакт добавлен в кампанию', 'bulk_campaign_attached');
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'добавил контакт в кампанию',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: 'Кампания',
+    details: { contacts: existingLeadIds.length, bulk: true }
+  });
   revalidateLeadCollection();
   revalidatePath('/campaigns');
   revalidatePath(`/campaigns/${campaignId}`);
+  revalidatePath('/funnels');
   redirect(`/people?bulk=campaign&count=${existingLeadIds.length}`);
 }
 
 export async function updateLeadStageFromProfileAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadId = getText(formData, 'lead_id');
   const stageId = getText(formData, 'stage_id');
   const stageName = getText(formData, 'stage_name');
@@ -517,6 +572,14 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
     text: `Стадия изменена из карточки контакта: ${nextStageName}`,
     result: 'stage_updated'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил стадию контакта',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: 'Контакт',
+    details: { stage: nextStageName }
+  });
 
   revalidatePath(`/people/${leadId}`);
   revalidatePath('/people');
@@ -528,20 +591,22 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
 }
 
 export async function updateLeadFollowUpAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadId = getText(formData, 'lead_id');
   const nextStep = getText(formData, 'next_step');
   const nextContactDate = getText(formData, 'next_contact_date');
+  const comment = getText(formData, 'comment') || getText(formData, 'description');
 
   if (!leadId) redirect('/people?error=missing-lead');
+  if (!nextStep) redirect(`/people/${leadId}?error=missing-next-action`);
 
   if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?followup=demo`);
+    redirect(`/people/${leadId}?action=demo`);
   }
 
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
+  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
+  if (leadError || !lead?.id) redirect('/people?error=contact-not-found');
 
   const { error } = await supabase
     .from('leads')
@@ -554,19 +619,74 @@ export async function updateLeadFollowUpAction(formData: FormData) {
 
   if (error) redirect(`/people/${leadId}?error=followup-update-failed`);
 
+  const { data: existingTask } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('lead_id', leadId)
+    .in('status', ['todo', 'in_progress'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const hadExistingTask = Boolean(existingTask?.id);
+  let taskId = existingTask?.id ? String(existingTask.id) : '';
+  if (taskId) {
+    const { error: taskUpdateError } = await supabase
+      .from('tasks')
+      .update({
+        title: nextStep,
+        description: comment || null,
+        due_date: nextContactDate || null,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', taskId);
+    if (taskUpdateError) redirect(`/people/${leadId}?error=task-save-failed`);
+  } else {
+    const { data: task, error: taskCreateError } = await supabase
+      .from('tasks')
+      .insert({
+        lead_id: leadId,
+        title: nextStep,
+        description: comment || null,
+        due_date: nextContactDate || null,
+        priority: 'none',
+        status: 'todo',
+        created_by: user.profileId
+      })
+      .select('id')
+      .single();
+    if (taskCreateError || !task?.id) redirect(`/people/${leadId}?error=task-save-failed`);
+    taskId = String(task.id);
+  }
+
   await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'note',
     channel: 'Hutka',
-    text: `Следующий шаг обновлен: ${nextStep || 'не указан'}${nextContactDate ? ` · дата ${nextContactDate}` : ''}`,
-    result: 'followup_updated'
+    text: `Запланировано действие: ${nextStep}${nextContactDate ? ` · дата ${nextContactDate}` : ''}${comment ? ` · ${comment}` : ''}`,
+    result: 'next_action_planned'
+  });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: hadExistingTask ? 'изменил задачу' : 'создал задачу',
+    entityType: 'task',
+    entityId: taskId,
+    entityTitle: nextStep,
+    details: {
+      contact_id: leadId,
+      contact: String(lead.name ?? 'Контакт'),
+      due_date: nextContactDate || null,
+      from_next_action: true
+    }
   });
 
   revalidatePath(`/people/${leadId}`);
   revalidatePath('/people');
   revalidatePath('/dashboard');
   revalidatePath('/tasks');
-  redirect(`/people/${leadId}?updated=followup`);
+  revalidatePath('/followups');
+  revalidatePath('/notifications');
+  redirect(`/people/${leadId}?updated=next-action`);
 }
 
 async function requireLeadRelationInputs(formData: FormData, relationKey: string) {
@@ -584,10 +704,11 @@ function revalidateLeadRelationPages(leadId: string) {
   revalidatePath('/people');
   revalidatePath('/dashboard');
   revalidatePath('/reports');
+  revalidatePath('/funnels');
 }
 
 export async function attachLeadToCampaignFromProfileAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/people?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/people?error=forbidden');
   const { leadId, relationId: campaignId } = await requireLeadRelationInputs(formData, 'campaign_id');
 
   if (!isSupabaseConfigured()) {
@@ -614,6 +735,14 @@ export async function attachLeadToCampaignFromProfileAction(formData: FormData) 
     text: `Контакт привязан к кампании «${campaignName}» из карточки контакта`,
     result: 'campaign_attached'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'добавил контакт в кампанию',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: campaignName,
+    details: { contact_id: leadId }
+  });
 
   revalidateLeadRelationPages(leadId);
   revalidatePath('/campaigns');
@@ -634,7 +763,7 @@ export async function attachLeadToInsightFromProfileAction(formData: FormData) {
   if (!existingLeadId) redirect('/people?error=contact-not-found');
 
   const { data: insight } = await supabase.from('insights').select('title').eq('id', insightId).maybeSingle();
-  const insightTitle = insight?.title ? String(insight.title) : 'инсайт';
+  const insightTitle = insight?.title ? String(insight.title) : 'вывод';
 
   const { error } = await supabase
     .from('insight_leads')
@@ -646,7 +775,7 @@ export async function attachLeadToInsightFromProfileAction(formData: FormData) {
     lead_id: leadId,
     type: 'note',
     channel: 'Hutka',
-    text: `Контакт связан с инсайтом «${insightTitle}»`,
+    text: `Контакт связан с выводом «${insightTitle}»`,
     result: 'insight_attached'
   });
 
@@ -669,7 +798,7 @@ export async function attachLeadToHypothesisFromProfileAction(formData: FormData
   if (!existingLeadId) redirect('/people?error=contact-not-found');
 
   const { data: hypothesis } = await supabase.from('hypotheses').select('title').eq('id', hypothesisId).maybeSingle();
-  const hypothesisTitle = hypothesis?.title ? String(hypothesis.title) : 'гипотеза';
+  const hypothesisTitle = hypothesis?.title ? String(hypothesis.title) : 'проверка';
 
   const { error } = await supabase
     .from('hypothesis_leads')
@@ -681,7 +810,7 @@ export async function attachLeadToHypothesisFromProfileAction(formData: FormData
     lead_id: leadId,
     type: 'note',
     channel: 'Hutka',
-    text: `Контакт связан с гипотезой «${hypothesisTitle}»`,
+    text: `Контакт связан с проверкой «${hypothesisTitle}»`,
     result: 'hypothesis_attached'
   });
 
@@ -713,13 +842,13 @@ export async function createLeadSurveyInviteAction(formData: FormData) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
   const surveyUrl = `${appUrl ?? ''}/s/${survey.slug}`;
-  const surveyTitle = survey.title ? String(survey.title) : 'опрос';
+  const surveyTitle = survey.title ? String(survey.title) : 'анкета';
 
   await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'survey_sent',
     channel: 'Hutka',
-    text: `Создана ссылка на общий опрос «${surveyTitle}»: ${surveyUrl}`,
+    text: `Создана ссылка на анкету «${surveyTitle}»: ${surveyUrl}`,
     result: 'survey_link_created'
   });
 
@@ -730,20 +859,29 @@ export async function createLeadSurveyInviteAction(formData: FormData) {
 }
 
 export async function deleteLeadAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadId = getText(formData, 'lead_id');
+  const confirmation = getText(formData, 'confirmation');
   if (!leadId) redirect('/people?error=missing-lead');
+  if (confirmation !== 'УДАЛИТЬ') redirect(`/people/${leadId}?error=confirmation-required`);
 
   if (!isSupabaseConfigured()) {
     redirect('/people?deleted=demo');
   }
 
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
+  const { data: lead } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
+  if (!lead?.id) redirect('/people?error=contact-not-found');
 
   const { error } = await supabase.from('leads').delete().eq('id', leadId);
   if (error) redirect(`/people/${leadId}?error=delete-failed`);
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил контакт',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: String(lead.name ?? 'Контакт')
+  });
 
   revalidateLeadCollection();
   revalidatePath('/tasks');

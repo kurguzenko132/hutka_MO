@@ -16,6 +16,7 @@ import {
   deleteSourceAction,
   deleteStageAction,
   deleteTagAction,
+  mergeDuplicateSourcesAction,
   updateAppSettingsAction,
   updateSourceAction,
   updateStageAction,
@@ -82,16 +83,27 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   const saved = typeof searchParams.saved === 'string' ? searchParams.saved : '';
   const deleted = typeof searchParams.deleted === 'string' ? searchParams.deleted : '';
   const demo = typeof searchParams.demo === 'string' ? searchParams.demo : '';
+  const count = typeof searchParams.count === 'string' ? searchParams.count : '';
 
   if (!error && !saved && !deleted && !demo) return null;
 
   const isError = Boolean(error);
+  const errorMessages: Record<string, string> = {
+    'source-duplicate': 'Такой источник уже есть. Названия вроде Instagram, instagram и Инстаграм считаются одним источником.',
+    'source-in-use': `Нельзя удалить источник, потому что он используется в ${count || 'нескольких'} контактах.`,
+    'stage-in-use': `Нельзя удалить стадию, потому что она используется в ${count || 'нескольких'} контактах.`,
+    'tag-in-use': `Нельзя удалить тег, потому что он используется в ${count || 'нескольких'} контактах.`,
+    'source-merge-failed': 'Не удалось объединить дубликаты источников. Проверь права и ограничения базы.'
+  };
+
   const message = isError
-    ? 'Не удалось выполнить действие. Возможно, справочник уже используется в контактах или есть ограничение базы.'
+    ? errorMessages[error] ?? 'Не удалось выполнить действие. Возможно, справочник уже используется в контактах или есть ограничение базы.'
     : demo
       ? 'Supabase еще не настроен, поэтому настройки показаны в демо-режиме.'
       : deleted
         ? 'Элемент справочника удален.'
+        : saved === 'source-merge'
+          ? `Дубликаты источников объединены${count ? `: ${count}` : ''}.`
         : 'Настройки сохранены.';
 
   return (
@@ -428,14 +440,14 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <FileQuestion className="h-5 w-5 text-app-purple" />
-              <h2 className="text-lg font-black text-app-text">Паки вопросов</h2>
+              <h2 className="text-lg font-black text-app-text">Готовые вопросы</h2>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
-              Управляй готовыми наборами вопросов для мастеров, салонов и клиентов. Эти паки можно одним кликом отправлять из карточки контакта.
+              Управляй готовыми наборами вопросов для мастеров, салонов и клиентов. Их можно одним кликом отправлять из карточки контакта.
             </p>
           </div>
           <Button asChild>
-            <Link href="/settings/question-packs">Открыть паки</Link>
+            <Link href="/settings/question-packs">Открыть вопросы</Link>
           </Button>
         </CardContent>
       </Card>
@@ -448,7 +460,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
               <h2 className="text-lg font-black text-app-text">Шаблоны сообщений</h2>
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
-              Управляй готовыми текстами для первого касания, отправки анкеты, follow-up, приглашения в тестирование и сбора фидбека.
+              Управляй готовыми текстами для первого сообщения, отправки анкеты, действия по контакту, приглашения в тестирование и сбора обратной связи.
             </p>
           </div>
           <Button asChild>
@@ -457,6 +469,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         </CardContent>
       </Card>
 
+
+      <Card className="border-purple-100 bg-gradient-to-br from-white to-purple-50">
+        <CardContent className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <DatabaseZap className="h-5 w-5 text-app-purple" />
+              <h2 className="text-lg font-black text-app-text">Логи действий</h2>
+            </div>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
+              Журнал показывает, кто создавал, изменял и удалял контакты, задачи, кампании, источники и другие рабочие данные.
+            </p>
+          </div>
+          <Button asChild variant="secondary">
+            <Link href="/settings/activity-log">Открыть логи</Link>
+          </Button>
+        </CardContent>
+      </Card>
 
 
 
@@ -525,6 +554,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         title="Источники"
         description="Каналы, из которых приходят контакты: Instagram, Telegram, рекомендации, реклама, партнеры."
       >
+        <form action={mergeDuplicateSourcesAction} className="mb-3 flex justify-end">
+          <Button type="submit" variant="secondary">Объединить дубликаты</Button>
+        </form>
         {settings.sources.length ? settings.sources.map((item) => <SourceRow key={item.id} item={item} />) : <p className="text-sm text-app-muted">Источники пока не добавлены.</p>}
       </DirectorySection>
 

@@ -37,7 +37,7 @@ export type RefusalAnalytics = {
 
 const defaultReasons: RefusalReason[] = [
   { id: 'no-time', name: 'Нет времени', description: 'Человеку интересно, но сейчас нет ресурса проходить тест или заполнять профиль.', color: 'yellow', isActive: true, orderIndex: 1, usageCount: 0 },
-  { id: 'not-relevant', name: 'Неактуально сейчас', description: 'Потребность может появиться позже, контакт стоит вернуть в follow-up.', color: 'gray', isActive: true, orderIndex: 2, usageCount: 0 },
+  { id: 'not-relevant', name: 'Неактуально сейчас', description: 'Потребность может появиться позже, контакт стоит вернуть в работу.', color: 'gray', isActive: true, orderIndex: 2, usageCount: 0 },
   { id: 'has-crm', name: 'Уже есть CRM', description: 'Пользуется другой системой и не видит причины менять процесс.', color: 'blue', isActive: true, orderIndex: 3, usageCount: 0 },
   { id: 'unclear-value', name: 'Не понимает пользу', description: 'Нужно лучше объяснить ценность карты, заявок и записи.', color: 'purple', isActive: true, orderIndex: 4, usageCount: 0 },
   { id: 'profile-friction', name: 'Не хочет заполнять профиль', description: 'Барьер онбординга: нужно упростить профиль или помочь заполнить.', color: 'pink', isActive: true, orderIndex: 5, usageCount: 0 },

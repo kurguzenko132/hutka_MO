@@ -61,7 +61,7 @@ function categoryLabel(value: string) {
   const map: Record<string, string> = {
     first_touch: 'Первое касание',
     questionnaire: 'Анкета',
-    follow_up: 'Follow-up',
+    follow_up: 'Действие',
     pilot: 'Тестирование',
     refusal: 'Отказ / пауза',
     feedback: 'Фидбек',

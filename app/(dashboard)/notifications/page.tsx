@@ -10,8 +10,8 @@ import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
 
 const categoryLabel: Record<NotificationCategory, string> = {
-  followup: 'Follow-up',
-  survey: 'Опрос',
+  followup: 'Что сделать',
+  survey: 'Анкета',
   activity: 'Активность',
   contact: 'Контакт',
   campaign: 'Кампания'
@@ -101,7 +101,7 @@ function EmptyState({ canManageContacts, canManageTasks }: { canManageContacts: 
         </div>
         <h2 className="mt-5 text-xl font-black text-app-text">Пока нет событий</h2>
         <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">
-          Здесь появятся новые ответы на опросы, просроченные follow-up, заинтересованные контакты, действия по карточкам и результаты кампаний.
+          Здесь появятся новые ответы на анкеты, просроченные действия, заинтересованные контакты, действия по карточкам и результаты кампаний.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button asChild>
@@ -148,14 +148,14 @@ export default async function NotificationsPage({ searchParams }: { searchParams
     <div>
       <PageHeader
         title="Уведомления"
-        subtitle="Центр событий: follow-up, ответы на опросы, заинтересованные контакты и важные изменения в запуске."
+        subtitle="Центр событий: действия, ответы на анкеты, заинтересованные контакты и важные изменения."
       />
 
       <Notice error={typeof params?.error === 'string' ? params.error : undefined} />
 
       {data.demoMode && (
         <div className="mb-6 rounded-2xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
-          Демо-режим: подключи Supabase и создай первые контакты, задачи и опросы, чтобы видеть реальные события.
+          Демо-режим: подключи Supabase и создай первые контакты, задачи и анкеты, чтобы видеть реальные события.
         </div>
       )}
 
@@ -163,7 +163,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
         <StatCard label="Всего событий" value={data.stats.total} tone="purple" />
         <StatCard label="Новые" value={data.stats.unread} tone="pink" />
         <StatCard label="Срочные" value={data.stats.urgent} tone="red" />
-        <StatCard label="Ответы на опросы" value={data.stats.surveyResponses} tone="blue" />
+        <StatCard label="Ответы на анкеты" value={data.stats.surveyResponses} tone="blue" />
         <StatCard label="Заинтересованные" value={data.stats.hotContacts} tone="green" />
       </div>
 
@@ -176,7 +176,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             <p className="font-black text-app-text">Фокус дня</p>
             <p className="text-sm text-app-muted">
               {data.stats.overdueFollowUps > 0
-                ? `Сначала закрой ${data.stats.overdueFollowUps} просроченных follow-up.`
+                ? `Сначала закрой ${data.stats.overdueFollowUps} просроченных действий.`
                 : data.stats.unread > 0
                   ? `Разбери ${data.stats.unread} новых событий и назначь следующие шаги.`
                   : 'Критичных уведомлений нет. Можно работать с новыми контактами и кампаниями.'}
@@ -231,7 +231,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-app-muted">
                 <p>• просроченные и ближайшие задачи;</p>
-                <p>• новые ответы на публичные опросы;</p>
+                <p>• новые ответы на анкеты;</p>
                 <p>• последние действия в карточках контактов;</p>
                 <p>• заинтересованные контакты с высоким приоритетом;</p>
                 <p>• активные кампании с набранными контактами.</p>
@@ -247,7 +247,7 @@ export default async function NotificationsPage({ searchParams }: { searchParams
                   <Link href="/tasks">Открыть задачи</Link>
                 </Button>
                 <Button asChild variant="secondary">
-                  <Link href="/surveys">Открыть опросы</Link>
+                  <Link href="/surveys">Открыть анкеты</Link>
                 </Button>
                 <Button asChild variant="secondary">
                   <Link href="/people?view=interested">Заинтересованные контакты</Link>

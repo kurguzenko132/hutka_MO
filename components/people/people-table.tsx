@@ -1,14 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { CalendarPlus, CheckSquare, Edit3, Eye, MoreVertical, Square, Tag, UsersRound } from 'lucide-react';
+import { CheckSquare, MoreVertical, Square, Tag, UsersRound } from 'lucide-react';
 import { bulkAddToCampaignAction, bulkAssignTagAction, bulkChangeStageAction, bulkCreateTaskAction } from '@/actions/leads.actions';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
-import type { Lead, Priority } from '@/lib/data';
+import type { Lead } from '@/lib/data';
 import type { CampaignOption } from '@/lib/campaigns';
 import { can, type UserRole } from '@/lib/roles';
 import { stageTone as getStageTone } from '@/lib/stages';
@@ -22,12 +22,6 @@ type PeopleTableProps = {
   tags?: string[];
   campaigns?: CampaignOption[];
 };
-
-function priorityTone(priority: Priority): BadgeTone {
-  if (priority === 'Высокий') return 'red';
-  if (priority === 'Средний') return 'yellow';
-  return 'green';
-}
 
 function stageTone(stage: string): BadgeTone {
   return getStageTone(stage);
@@ -110,7 +104,7 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-left text-sm">
+          <table className="w-full min-w-[920px] text-left text-sm">
             <thead className="border-b border-app-line bg-slate-50/70 text-xs uppercase tracking-wide text-app-faint">
               <tr>
                 <th className="px-5 py-4">
@@ -124,11 +118,9 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
                 <th className="px-5 py-4">Тип</th>
                 <th className="px-5 py-4">Ниша</th>
                 <th className="px-5 py-4">Город</th>
-                <th className="px-5 py-4">Стадия</th>
-                <th className="px-5 py-4">Приоритет</th>
-                <th className="px-5 py-4">Теги</th>
+                <th className="px-5 py-4">Статус</th>
+                <th className="px-5 py-4">Источник</th>
                 <th className="px-5 py-4">Следующий шаг</th>
-                <th className="px-5 py-4 text-right">Действия</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-app-line">
@@ -161,35 +153,10 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
                     <td className="px-5 py-4 text-app-muted">{lead.niche}</td>
                     <td className="px-5 py-4 text-app-muted">{lead.city}</td>
                     <td className="px-5 py-4"><Badge tone={stageTone(lead.stage)}>{lead.stage}</Badge></td>
-                    <td className="px-5 py-4"><Badge tone={priorityTone(lead.priority)}>● {lead.priority}</Badge></td>
-                    <td className="px-5 py-4">
-                      <div className="flex max-w-[220px] flex-wrap gap-1.5">
-                        {lead.tags.slice(0, 2).map((tagName) => (
-                          <Badge key={tagName} tone="purple">{tagName}</Badge>
-                        ))}
-                        {lead.tags.length > 2 ? <Badge tone="blue">+{lead.tags.length - 2}</Badge> : null}
-                      </div>
-                    </td>
+                    <td className="px-5 py-4 text-app-muted">{lead.source}</td>
                     <td className="px-5 py-4">
                       <p className="font-semibold text-app-text">{lead.nextStep}</p>
                       <p className="text-xs text-app-muted">{lead.nextDate}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-1.5">
-                        <Link href={`/people/${lead.id}`} className="rounded-lg p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" title="Открыть карточку">
-                          <Eye className="h-4 w-4" />
-                        </Link>
-                        {canManageContacts && (
-                          <Link href={`/people/${lead.id}/edit`} className="rounded-lg p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" title="Редактировать">
-                            <Edit3 className="h-4 w-4" />
-                          </Link>
-                        )}
-                        {canManageTasks && (
-                          <Link href={`/tasks/new?leadId=${lead.id}`} className="rounded-lg p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" title="Создать задачу">
-                            <CalendarPlus className="h-4 w-4" />
-                          </Link>
-                        )}
-                      </div>
                     </td>
                   </tr>
                 );

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
 import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -51,20 +52,22 @@ async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>,
 }
 
 export async function moveLeadToStageAction(formData: FormData) {
-  await requirePermission('manageFunnels', '/funnels?error=forbidden');
+  const user = await requirePermission('manageFunnels', '/funnels?error=forbidden');
   const leadId = getText(formData, 'lead_id');
   const stageId = getText(formData, 'stage_id');
   const rawStageName = getText(formData, 'stage_name');
+  const campaignId = getText(formData, 'campaign_id');
+  const baseRedirect = campaignId ? `/funnels?campaignId=${encodeURIComponent(campaignId)}` : '/funnels';
 
-  if (!leadId) redirect('/funnels?error=missing-lead');
+  if (!leadId) redirect(`${baseRedirect}${campaignId ? '&' : '?'}error=missing-lead`);
 
   if (!isSupabaseConfigured()) {
-    redirect('/funnels?updated=demo');
+    redirect(`${baseRedirect}${campaignId ? '&' : '?'}updated=demo`);
   }
 
   const supabase = await createClient();
   const { data: lead, error: leadError } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
-  if (leadError || !lead?.id) redirect('/funnels?error=lead-not-found');
+  if (leadError || !lead?.id) redirect(`${baseRedirect}${campaignId ? '&' : '?'}error=lead-not-found`);
 
   let stageName = rawStageName;
   if (!stageName && stageId && !looksLikeUuid(stageId)) {
@@ -80,7 +83,7 @@ export async function moveLeadToStageAction(formData: FormData) {
   try {
     nextStageId = await ensureStageId(supabase, stageName ? '' : stageId, stageName);
   } catch {
-    redirect('/funnels?error=stage-not-found');
+    redirect(`${baseRedirect}${campaignId ? '&' : '?'}error=stage-not-found`);
   }
 
   let nextStageName = stageName;
@@ -91,7 +94,7 @@ export async function moveLeadToStageAction(formData: FormData) {
     .eq('id', leadId);
 
   if (error) {
-    redirect('/funnels?error=move-failed');
+    redirect(`${baseRedirect}${campaignId ? '&' : '?'}error=move-failed`);
   }
 
   await supabase.from('lead_interactions').insert({
@@ -101,6 +104,14 @@ export async function moveLeadToStageAction(formData: FormData) {
     text: `Контакт перемещен в стадию: ${nextStageName || 'не указана'}`,
     result: 'stage_updated'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'перетащил контакт в воронке',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: 'Контакт',
+    details: { stage: nextStageName, campaign_id: campaignId || null }
+  });
 
   revalidatePath('/funnels');
   revalidatePath('/people');
@@ -108,5 +119,80 @@ export async function moveLeadToStageAction(formData: FormData) {
   revalidatePath('/dashboard');
   revalidatePath('/reports');
   revalidatePath('/geography');
-  redirect('/funnels?updated=stage');
+  redirect(`${baseRedirect}${campaignId ? '&' : '?'}updated=stage`);
+}
+
+export async function moveLeadToStageMutationAction(input: {
+  leadId: string;
+  stageName: string;
+  campaignId?: string;
+  refusalReason?: string;
+}) {
+  const user = await requirePermission('manageFunnels', '/funnels?error=forbidden');
+  const leadId = input.leadId.trim();
+  const nextStageName = normalizeStageName(input.stageName);
+  const refusalReason = input.refusalReason?.trim() ?? '';
+
+  if (!leadId || !nextStageName) return { ok: false, error: 'missing-data' };
+  if (nextStageName === 'Отказ' && !refusalReason) return { ok: false, error: 'refusal-required' };
+  if (!isSupabaseConfigured()) return { ok: true, stageName: nextStageName };
+
+  const supabase = await createClient();
+  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
+  if (leadError || !lead?.id) return { ok: false, error: 'lead-not-found' };
+
+  let nextStageId = '';
+  try {
+    nextStageId = await ensureStageId(supabase, '', nextStageName);
+  } catch {
+    return { ok: false, error: 'stage-not-found' };
+  }
+
+  const updatePayload: Record<string, string | null> = {
+    stage_id: nextStageId,
+    updated_at: new Date().toISOString()
+  };
+
+  if (nextStageName === 'Отказ') {
+    updatePayload.refusal_reason = refusalReason;
+    updatePayload.refusal_comment = refusalReason;
+    updatePayload.refused_at = new Date().toISOString();
+  } else {
+    updatePayload.refusal_reason_id = null;
+    updatePayload.refusal_reason = null;
+    updatePayload.refusal_comment = null;
+    updatePayload.refused_at = null;
+  }
+
+  const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId);
+  if (error) return { ok: false, error: 'move-failed' };
+
+  const testingText = nextStageName === 'Тестирует'
+    ? 'Важное событие: контакт начал тестирование.'
+    : `Контакт перемещен в стадию: ${nextStageName}`;
+
+  await supabase.from('lead_interactions').insert({
+    lead_id: leadId,
+    type: 'status_change',
+    channel: 'Hutka',
+    text: nextStageName === 'Отказ' ? `Контакт перемещен в отказ. Причина: ${refusalReason}` : testingText,
+    result: 'stage_updated'
+  });
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'перетащил контакт в воронке',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: String(lead.name ?? 'Контакт'),
+    details: { stage: nextStageName, campaign_id: input.campaignId || null, refusal_reason: refusalReason || null }
+  });
+
+  revalidatePath('/funnels');
+  revalidatePath('/people');
+  revalidatePath(`/people/${leadId}`);
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  revalidatePath('/geography');
+  return { ok: true, stageName: nextStageName };
 }

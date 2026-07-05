@@ -18,7 +18,7 @@ async function clearTables(supabase: ReturnType<typeof createServiceClient>, tab
 }
 
 export async function resetWorkspaceDataAction(formData: FormData) {
-  await requireAdmin('/settings?error=forbidden');
+  const user = await requireAdmin('/settings?error=forbidden');
   const mode = getText(formData, 'mode') || 'work';
   const confirmation = getText(formData, 'confirmation');
 
@@ -38,6 +38,13 @@ export async function resetWorkspaceDataAction(formData: FormData) {
     if (mode === 'full') {
       await clearTables(supabase, [...directoryDataTables]);
     }
+    await supabase.from('activity_logs').insert({
+      user_id: user.profileId,
+      action: 'очистил базу',
+      entity_type: 'settings',
+      entity_title: 'Очистка базы',
+      details: { mode }
+    });
   } catch (error) {
     console.error(error);
     redirect('/settings/data-cleanup?error=cleanup-failed');

@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requireUser } from '@/lib/permissions';
 import type { LeadFilters } from '@/lib/leads';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -36,13 +37,26 @@ export async function createSavedLeadViewAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('saved_lead_views').insert({
-    profile_id: user.profileId,
-    name,
-    filters
-  });
+  const { data: view, error } = await supabase
+    .from('saved_lead_views')
+    .insert({
+      profile_id: user.profileId,
+      name,
+      filters
+    })
+    .select('id')
+    .single();
 
-  if (error) redirect('/people?error=view-save-failed');
+  if (error || !view) redirect('/people?error=view-save-failed');
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал сохраненный фильтр',
+    entityType: 'saved_lead_view',
+    entityId: String(view.id),
+    entityTitle: name,
+    details: { filters }
+  });
 
   revalidatePath('/people');
   redirect('/people?saved=view');
@@ -62,7 +76,7 @@ export async function deleteSavedLeadViewAction(formData: FormData) {
   const supabase = await createClient();
   const { data: view, error: viewError } = await supabase
     .from('saved_lead_views')
-    .select('id')
+    .select('id,name')
     .eq('id', id)
     .eq('profile_id', user.profileId)
     .maybeSingle();
@@ -76,6 +90,14 @@ export async function deleteSavedLeadViewAction(formData: FormData) {
     .eq('profile_id', user.profileId);
 
   if (error) redirect('/people?error=view-delete-failed');
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил сохраненный фильтр',
+    entityType: 'saved_lead_view',
+    entityId: id,
+    entityTitle: String(view.name ?? 'Сохраненный фильтр')
+  });
 
   revalidatePath('/people');
   redirect('/people?deleted=view');

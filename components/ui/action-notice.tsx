@@ -52,10 +52,10 @@ function successNotice(params: SearchParams): Notice | null {
     const relation: Record<string, string> = {
       campaign: 'кампанией',
       insight: 'выводом',
-      hypothesis: 'идеей',
+      hypothesis: 'выводом',
       'demo-campaign': 'демо-кампанией',
       'demo-insight': 'демо-выводом',
-      'demo-hypothesis': 'демо-идеей'
+      'demo-hypothesis': 'демо-выводом'
     };
 
     return { tone: 'success', title: 'Связь сохранена', text: `Контакт связан с ${relation[attached] ?? 'выбранным объектом'}.` };
@@ -63,8 +63,8 @@ function successNotice(params: SearchParams): Notice | null {
 
   if (updated) return { tone: 'success', title: 'Изменения сохранены', text: 'Данные обновлены и связанные разделы пересчитаны.' };
   if (created) return { tone: 'success', title: 'Контакт добавлен', text: 'Новый контакт появился в базе Hutka.' };
-  if (survey === 'link-created') return { tone: 'success', title: 'Ссылка на опрос создана', text: 'Персональная ссылка записана в историю контакта.' };
-  if (saved === 'view') return { tone: 'success', title: 'Вид сохранен', text: 'Теперь этот набор фильтров доступен в блоке «Мои сохраненные виды». ' };
+  if (survey === 'link-created') return { tone: 'success', title: 'Ссылка на анкету создана', text: 'Персональная ссылка записана в историю контакта.' };
+  if (saved === 'view') return { tone: 'success', title: 'Фильтр сохранен', text: 'Набор фильтров сохранен.' };
   if (saved === 'demo') return { tone: 'success', title: 'Демо-режим', text: 'Supabase не настроен, поэтому вид не сохранен в базу.' };
   if (deleted === 'view') return { tone: 'success', title: 'Вид удален', text: 'Сохраненный вид больше не отображается в списке.' };
   if (deleted === 'demo-view') return { tone: 'success', title: 'Демо-режим', text: 'В демо-режиме удаление сохраненного вида не записывается в базу.' };
@@ -80,6 +80,7 @@ function errorNotice(params: SearchParams): Notice | null {
   const dictionary: Record<string, Notice> = {
     forbidden: { tone: 'error', title: 'Нет доступа', text: 'Текущая роль не позволяет выполнить это действие.' },
     'admin-only': { tone: 'error', title: 'Нужны права администратора', text: 'Этот раздел доступен только пользователю с ролью admin.' },
+    'confirmation-required': { tone: 'error', title: 'Нужно подтверждение', text: 'Чтобы удалить важную сущность, введи УДАЛИТЬ в поле подтверждения.' },
     'missing-name': { tone: 'error', title: 'Не указано имя', text: 'Заполни имя контакта и попробуй еще раз.' },
     'save-failed': { tone: 'error', title: 'Не удалось сохранить', text: 'Проверь поля формы и подключение к Supabase.' },
     'interaction-failed': { tone: 'error', title: 'Активность не сохранена', text: 'Попробуй повторить действие или проверь таблицу lead_interactions.' },

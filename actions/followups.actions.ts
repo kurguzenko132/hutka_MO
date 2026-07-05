@@ -61,7 +61,7 @@ async function createTaskFromRecommendation(
     lead_id: recommendation.leadId,
     type: 'note',
     channel: 'Hutka',
-    text: `Автоматически создана follow-up задача: ${recommendation.suggestedTaskTitle}`,
+    text: `Автоматически создана задача по рекомендации: ${recommendation.suggestedTaskTitle}`,
     result: 'auto_followup_task_created'
   });
 
@@ -106,8 +106,8 @@ export async function createFollowUpTaskAction(formData: FormData) {
   if (created) {
     await sendWorkspaceTelegramNotification({
       eventType: 'followup_task_created',
-      title: 'создан follow-up',
-      text: `Создана follow-up задача: ${title}`,
+      title: 'создана задача',
+      text: `Создана задача по рекомендации: ${title}`,
       href: `/people/${leadId}`,
       extraLines: [description ? `Описание: ${description}` : '', dueDate ? `Срок: ${dueDate}` : ''].filter((line): line is string => Boolean(line))
     });
@@ -150,8 +150,8 @@ export async function createAllFollowUpTasksAction(formData: FormData) {
   if (created > 0) {
     await sendWorkspaceTelegramNotification({
       eventType: 'followup_tasks_created',
-      title: 'созданы follow-up задачи',
-      text: `Hutka автоматически создала ${created} follow-up задач.`,
+      title: 'созданы задачи',
+      text: `Hutka автоматически создала ${created} задач по рекомендациям.`,
       href: '/followups'
     });
   }

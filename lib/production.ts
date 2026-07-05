@@ -30,7 +30,7 @@ export const routeCheckGroups: RouteCheckGroup[] = [
     routes: [
       { href: '/', label: 'Страница входа', access: 'public' },
       { href: '/login', label: 'Вход', access: 'public' },
-      { href: '/s/demo', label: 'Публичный опрос по slug', access: 'public' }
+      { href: '/s/demo', label: 'Публичная анкета по slug', access: 'public' }
     ]
   },
   {
@@ -42,10 +42,9 @@ export const routeCheckGroups: RouteCheckGroup[] = [
       { href: '/people', label: 'Контакты', access: 'auth' },
       { href: '/funnels', label: 'Воронки', access: 'auth' },
       { href: '/tasks', label: 'Задачи', access: 'auth' },
-      { href: '/surveys', label: 'Опросники', access: 'auth' },
+      { href: '/surveys', label: 'Анкеты', access: 'auth' },
       { href: '/campaigns', label: 'Кампании', access: 'auth' },
       { href: '/insights', label: 'Выводы', access: 'auth' },
-      { href: '/hypotheses', label: 'Идеи', access: 'auth' },
       { href: '/reports', label: 'Отчеты', access: 'auth' },
       { href: '/notifications', label: 'Уведомления', access: 'auth' }
     ]
@@ -77,7 +76,7 @@ export function getProductionChecks(): ProductionCheck[] {
     {
       id: 'supabase-public-env',
       title: 'Supabase public env',
-      description: 'NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY нужны для входа, CRUD и публичных опросов.',
+      description: 'NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY нужны для входа, CRUD и публичных анкет.',
       status: supabaseConfigured ? 'ok' : 'error',
       action: supabaseConfigured ? undefined : 'Добавь NEXT_PUBLIC_SUPABASE_URL и NEXT_PUBLIC_SUPABASE_ANON_KEY в Vercel Environment Variables.'
     },
@@ -91,7 +90,7 @@ export function getProductionChecks(): ProductionCheck[] {
     {
       id: 'app-url',
       title: 'NEXT_PUBLIC_APP_URL',
-      description: 'Нужен для корректных публичных ссылок на опросы, редиректов и командной документации.',
+      description: 'Нужен для корректных публичных ссылок на анкеты, редиректов и командной документации.',
       status: appUrl ? (isHttps ? 'ok' : 'warning') : 'warning',
       action: appUrl ? (isHttps ? undefined : 'Для production лучше использовать https://домен.') : 'Укажи NEXT_PUBLIC_APP_URL в Vercel.'
     },

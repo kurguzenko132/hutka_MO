@@ -80,7 +80,7 @@ export async function sendTelegramTestToAllRecipientsAction() {
   const result = await sendWorkspaceTelegramNotification({
     eventType: 'manual_quick_test',
     title: 'быстрый тест',
-    text: 'Telegram-интеграция Hutka работает. Команда будет получать важные уведомления по анкетам, follow-up и запуску.',
+    text: 'Telegram-интеграция Hutka работает. Команда будет получать важные уведомления по анкетам, действиям и запуску.',
     href: '/dashboard'
   });
 

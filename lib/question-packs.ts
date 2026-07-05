@@ -63,7 +63,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'master',
     badge: 'старт',
     status: 'active',
-    description: 'Базовый пакет, чтобы быстро понять нишу, запись, клиентов, боли и готовность к тестированию.',
+    description: 'Базовый набор, чтобы быстро понять нишу, запись, клиентов, боли и готовность к тестированию.',
     questions: [
       { text: 'Какое у вас beauty-направление и какие основные услуги вы оказываете?', type: 'long_text', required: true },
       { text: 'В каком городе и районе вы принимаете клиентов?', type: 'short_text', required: true },
@@ -82,7 +82,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'master',
     badge: 'карта',
     status: 'active',
-    description: 'Пак для сбора данных, которые нужны для карточки мастера на карте: услуги, цены, фото, адрес, расписание.',
+    description: 'Набор для сбора данных, которые нужны для карточки мастера на карте: услуги, цены, фото, адрес, расписание.',
     questions: [
       { text: 'Как вы хотите, чтобы назывался ваш профиль на карте?', type: 'short_text', required: true },
       { text: 'Опишите себя как мастера в 2–4 предложениях.', type: 'long_text', required: true },
@@ -101,7 +101,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'salon',
     badge: 'b2b',
     status: 'active',
-    description: 'Пак для салона: команда, запись, администраторы, текущая CRM, проблемы и интерес к карте.',
+    description: 'Набор для салона: команда, запись, администраторы, текущая CRM, проблемы и интерес к карте.',
     questions: [
       { text: 'Сколько мастеров работает в салоне и какие направления закрываете?', type: 'long_text', required: true },
       { text: 'Кто сейчас ведет запись клиентов?', type: 'single_choice', required: true, options: ['Администратор', 'Владелец', 'Каждый мастер сам', 'CRM/онлайн-запись', 'Смешанный формат'] },
@@ -120,7 +120,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'any',
     badge: 'фидбек',
     status: 'active',
-    description: 'Пак после тестирования: что понятно, что мешает, чего не хватило, готовность пользоваться дальше.',
+    description: 'Набор после тестирования: что понятно, что мешает, чего не хватило, готовность пользоваться дальше.',
     questions: [
       { text: 'Что было самым понятным и полезным в Hutka?', type: 'long_text', required: true },
       { text: 'Что было непонятно или неудобно?', type: 'long_text', required: true },
@@ -138,7 +138,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'any',
     badge: 'отказ',
     status: 'active',
-    description: 'Короткий пак, чтобы понять, почему человек не идет дальше, и можно ли вернуться позже.',
+    description: 'Короткий набор, чтобы понять, почему человек не идет дальше, и можно ли вернуться позже.',
     questions: [
       { text: 'Почему сейчас не готовы тестировать Hutka?', type: 'single_choice', required: true, options: ['Нет времени', 'Неактуально', 'Уже есть CRM', 'Не понимаю пользу', 'Не хочу заполнять профиль', 'Не верю, что будут заявки', 'Не готов(а) платить', 'Другое'] },
       { text: 'Что могло бы изменить ваше решение?', type: 'long_text', required: false },
@@ -153,7 +153,7 @@ export const defaultQuestionPacks: QuestionPack[] = [
     audience: 'client',
     badge: 'b2c',
     status: 'active',
-    description: 'Пак для клиентов, чтобы понять, как они ищут мастеров и что должно быть в карточке на карте.',
+    description: 'Набор для клиентов, чтобы понять, как они ищут мастеров и что должно быть в карточке на карте.',
     questions: [
       { text: 'Как вы обычно ищете beauty-мастера?', type: 'multiple_choice', required: true, options: ['Instagram', 'TikTok', 'Google/Яндекс', 'По рекомендациям', 'Карты', 'Telegram-чаты', 'Сервисы записи', 'Другое'] },
       { text: 'Что важнее при выборе мастера?', type: 'multiple_choice', required: true, options: ['Фото работ', 'Отзывы', 'Цена', 'Близость', 'Свободное время', 'Опыт', 'Сертификаты', 'Скорость ответа'] },
@@ -228,11 +228,11 @@ function relatedCount(value: unknown) {
 function mapPackRow(row: Record<string, unknown>): QuestionPackListItem {
   return {
     id: String(row.id),
-    title: String(row.title ?? 'Пак вопросов'),
-    shortTitle: String(row.short_title ?? row.title ?? 'Пак'),
+    title: String(row.title ?? 'Готовые вопросы'),
+    shortTitle: String(row.short_title ?? row.title ?? 'Набор'),
     description: String(row.description ?? ''),
     audience: asAudience(row.audience),
-    badge: String(row.badge ?? 'пак'),
+    badge: String(row.badge ?? 'набор'),
     status: asStatus(row.status),
     questionsCount: typeof row.questions_count === 'number' ? row.questions_count : relatedCount(row.question_pack_questions),
     createdAt: row.created_at ? String(row.created_at) : undefined,
@@ -282,11 +282,11 @@ export async function getQuestionPacks(audience?: QuestionPackAudience | 'all', 
         : [];
       return {
         id: String(row.id),
-        title: String(row.title ?? 'Пак вопросов'),
-        shortTitle: String(row.short_title ?? row.title ?? 'Пак'),
+        title: String(row.title ?? 'Готовые вопросы'),
+        shortTitle: String(row.short_title ?? row.title ?? 'Набор'),
         description: String(row.description ?? ''),
         audience: asAudience(row.audience),
-        badge: String(row.badge ?? 'пак'),
+        badge: String(row.badge ?? 'набор'),
         status: asStatus(row.status),
         questions
       };
@@ -342,11 +342,11 @@ export async function getQuestionPackById(id: string): Promise<QuestionPack | nu
 
     return {
       id: String(row.id),
-      title: String(row.title ?? 'Пак вопросов'),
-      shortTitle: String(row.short_title ?? row.title ?? 'Пак'),
+      title: String(row.title ?? 'Готовые вопросы'),
+      shortTitle: String(row.short_title ?? row.title ?? 'Набор'),
       description: String(row.description ?? ''),
       audience: asAudience(row.audience),
-      badge: String(row.badge ?? 'пак'),
+      badge: String(row.badge ?? 'набор'),
       status: asStatus(row.status),
       questions
     };

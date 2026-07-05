@@ -1,9 +1,7 @@
 import Link from 'next/link';
 import { AlarmClockCheck, AlertTriangle, BellRing, Heart, Send, Timer, Users, Sparkles } from 'lucide-react';
-import { ActionGrid } from '@/components/dashboard/action-grid';
 import { BarList } from '@/components/dashboard/bar-list';
 import { FunnelOverview } from '@/components/dashboard/funnel-overview';
-import { GettingStartedCard } from '@/components/dashboard/getting-started-card';
 import { HotContactsCard } from '@/components/dashboard/hot-contacts-card';
 import { RecentActivityCard } from '@/components/dashboard/recent-activity-card';
 import { StatCard } from '@/components/dashboard/stat-card';
@@ -14,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDashboardData } from '@/lib/dashboard';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
-import { hypothesisStatusTone } from '@/lib/hypotheses';
 import { getFollowUpRecommendations } from '@/lib/followups';
 
 const kpiIcons = [Users, Send, Heart, Timer];
@@ -23,6 +20,7 @@ export default async function DashboardPage() {
   const [dashboard, followups] = await Promise.all([getDashboardData(), getFollowUpRecommendations()]);
   const user = await getCurrentUserContext();
   const role = user?.role ?? 'viewer';
+  const statusItems = dashboard.funnel.map((step) => ({ name: step.label, value: step.count, width: step.percent }));
 
   return (
     <div className="space-y-6">
@@ -58,16 +56,12 @@ export default async function DashboardPage() {
         </CardContent>
       </Card>
 
-      <GettingStartedCard role={role} />
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {dashboard.kpis.map((kpi, index) => {
           const Icon = kpiIcons[index] ?? Users;
           return <StatCard key={kpi.label} {...kpi} icon={Icon} />;
         })}
       </div>
-
-      <ActionGrid role={role} />
 
       {followups.summary.total > 0 && (
         <Card className="border-amber-100 bg-gradient-to-br from-white to-amber-50/70">
@@ -79,7 +73,7 @@ export default async function DashboardPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-black text-app-text">Что нужно сделать</h2>
-                  <Badge tone="yellow">{followups.summary.total} рекомендаций</Badge>
+                  <Badge tone="yellow">{followups.summary.total} действий</Badge>
                   {followups.summary.urgent > 0 ? <Badge tone="red">{followups.summary.urgent} срочно</Badge> : null}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-app-muted">
@@ -95,6 +89,14 @@ export default async function DashboardPage() {
       )}
 
       <FunnelOverview steps={dashboard.funnel} />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <BarList title="Распределение контактов по статусам" items={statusItems} color="purple" />
+        <BarList title="Что нужно сделать" items={[
+          { name: 'Просрочено', value: followups.summary.urgent, width: followups.summary.total ? `${Math.max(8, Math.round((followups.summary.urgent / followups.summary.total) * 100))}%` : '0%' },
+          { name: 'Всего действий', value: followups.summary.total, width: followups.summary.total ? '100%' : '0%' }
+        ].filter((item) => item.value > 0)} color="pink" />
+      </div>
 
       {dashboard.refusals.total > 0 && (
         <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/50">
@@ -156,7 +158,7 @@ export default async function DashboardPage() {
           <CardContent className="space-y-4">
             {dashboard.insights.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-app-line p-4 text-sm text-app-muted">
-                Пока нет выводов. Создай первый вывод после опроса, кампании или интервью.
+                Пока нет выводов. Создай первый вывод после анкеты, кампании или интервью.
               </div>
             ) : (
               dashboard.insights.slice(0, 3).map((insight) => (
@@ -177,30 +179,6 @@ export default async function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Идеи для проверки</CardTitle>
-          <Link href="/hypotheses" className="text-xs font-bold text-app-purple">Все идеи →</Link>
-        </CardHeader>
-        <CardContent className="grid gap-3 lg:grid-cols-3">
-          {dashboard.hypotheses.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-app-line p-4 text-sm text-app-muted lg:col-span-3">
-              Пока нет идей в проверке. Добавь предположение, метрику успеха и следующий эксперимент.
-            </div>
-          ) : (
-            dashboard.hypotheses.slice(0, 3).map((hypothesis) => (
-              <Link key={hypothesis.id} href={`/hypotheses/${hypothesis.id}`} className="rounded-2xl border border-app-line bg-gradient-to-br from-white to-pink-50 p-4 transition hover:border-purple-200 hover:shadow-card">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge tone={hypothesisStatusTone(hypothesis.status)}>{hypothesis.statusLabel}</Badge>
-                  <Badge tone="gray">{hypothesis.category}</Badge>
-                </div>
-                <p className="mt-3 text-sm font-black leading-6 text-app-text">{hypothesis.title}</p>
-                <p className="mt-2 line-clamp-2 text-xs leading-5 text-app-muted">{hypothesis.nextAction || hypothesis.testMethod || 'Следующее действие пока не указано.'}</p>
-              </Link>
-            ))
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

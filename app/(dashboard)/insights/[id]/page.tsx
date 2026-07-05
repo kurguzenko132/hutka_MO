@@ -8,6 +8,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { getInsightById, insightImportanceTone, insightStatusTone } from '@/lib/insights';
@@ -46,7 +47,7 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
           <div className="grid gap-6 lg:grid-cols-3">
             <RelationCard icon={<Users className="h-5 w-5" />} title="Контакты" empty="Контакты не привязаны" items={insight.leads} />
             <RelationCard icon={<Send className="h-5 w-5" />} title="Кампании" empty="Кампании не привязаны" items={insight.campaigns} />
-            <RelationCard icon={<ClipboardList className="h-5 w-5" />} title="Опросники" empty="Опросники не привязаны" items={insight.surveys} />
+            <RelationCard icon={<ClipboardList className="h-5 w-5" />} title="Анкеты" empty="Анкеты не привязаны" items={insight.surveys} />
           </div>
 
           <Card>
@@ -55,7 +56,7 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-purple-50 text-app-purple"><Sparkles className="h-5 w-5" /></div>
                 <div>
                   <h3 className="font-black text-app-text">Как использовать этот вывод</h3>
-                  <p className="mt-2 text-sm leading-6 text-app-muted">Обсуди его на командной встрече и преврати в действие: изменить оффер, упростить онбординг, выбрать другой канал, изменить MVP или создать новую идею для проверки.</p>
+                  <p className="mt-2 text-sm leading-6 text-app-muted">Обсуди его на командной встрече и преврати в действие: изменить оффер, упростить онбординг, выбрать другой канал или обновить сценарий общения.</p>
                 </div>
               </div>
             </CardContent>
@@ -100,14 +101,15 @@ export default async function InsightDetailPage({ params }: { params: Promise<{ 
             <CardContent>
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Brain className="h-5 w-5" /></div>
               <h3 className="mt-4 text-lg font-black text-app-text">Следующий этап</h3>
-              <p className="mt-2 text-sm leading-6 text-app-muted">После этого мы сделаем идеи реальными и сможем связывать их с такими выводами.</p>
+              <p className="mt-2 text-sm leading-6 text-app-muted">После этого вывод можно переносить в тексты, задачи и решения по кампании.</p>
             </CardContent>
           </Card>
 
           {canManageInsights && (
             <form action={deleteInsightAction}>
               <input type="hidden" name="insight_id" value={insight.id} />
-              <FormSection title="Удалить вывод" subtitle="Удалится вывод и его связи. Контакты, кампании и опросы останутся.">
+              <FormSection title="Удалить вывод" subtitle="Удалится вывод и его связи. Контакты, кампании и анкеты останутся.">
+                <Input name="confirmation" placeholder="Напиши: УДАЛИТЬ" required />
                 <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить вывод</Button>
               </FormSection>
             </form>

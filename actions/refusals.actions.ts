@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -50,7 +51,7 @@ async function refusalReasonExists(supabase: Awaited<ReturnType<typeof createCli
 }
 
 export async function markLeadRefusedAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
 
   const leadId = getText(formData, 'lead_id');
   const reasonId = getText(formData, 'reason_id');
@@ -107,6 +108,15 @@ export async function markLeadRefusedAction(formData: FormData) {
     result: 'refused'
   });
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'зафиксировал отказ',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: 'Контакт',
+    details: { reason: reasonName || 'Причина не указана', comment: comment || null }
+  });
+
   revalidateRefusals(leadId);
   redirect(`/people/${leadId}?updated=refusal`);
 }
@@ -146,21 +156,28 @@ export async function clearLeadRefusalAction(formData: FormData) {
 }
 
 export async function createRefusalReasonAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
   const name = getText(formData, 'name');
   if (!name) redirect('/settings/refusal-reasons?error=name-required');
   if (!isSupabaseConfigured()) redirect('/settings/refusal-reasons?demo=1');
 
   const supabase = await createClient();
-  const { error } = await supabase.from('refusal_reasons').insert({
+  const { data: reason, error } = await supabase.from('refusal_reasons').insert({
     name,
     description: getText(formData, 'description') || null,
     color: getText(formData, 'color') || 'gray',
     order_index: getInt(formData, 'order_index', 99),
     is_active: getText(formData, 'is_active') !== 'false'
-  });
+  }).select('id').single();
 
-  if (error) redirect('/settings/refusal-reasons?error=create-failed');
+  if (error || !reason?.id) redirect('/settings/refusal-reasons?error=create-failed');
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал причину отказа',
+    entityType: 'refusal_reason',
+    entityId: String(reason.id),
+    entityTitle: name
+  });
   revalidateRefusals();
   redirect('/settings/refusal-reasons?saved=created');
 }
@@ -193,16 +210,30 @@ export async function updateRefusalReasonAction(formData: FormData) {
 }
 
 export async function deleteRefusalReasonAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
   const id = getText(formData, 'id');
   if (!id) redirect('/settings/refusal-reasons?error=delete-required');
   if (!isSupabaseConfigured()) redirect('/settings/refusal-reasons?demo=1');
 
   const supabase = await createClient();
-  if (!(await refusalReasonExists(supabase, id))) redirect('/settings/refusal-reasons?error=reason-not-found');
+  const { data: reason } = await supabase.from('refusal_reasons').select('id,name').eq('id', id).maybeSingle();
+  if (!reason?.id) redirect('/settings/refusal-reasons?error=reason-not-found');
+  const { count: leadsCount } = await supabase
+    .from('leads')
+    .select('id', { count: 'exact', head: true })
+    .eq('refusal_reason_id', id);
+  if ((leadsCount ?? 0) > 0) redirect(`/settings/refusal-reasons?error=in-use&count=${leadsCount}`);
 
   const { error } = await supabase.from('refusal_reasons').delete().eq('id', id);
   if (error) redirect('/settings/refusal-reasons?error=in-use');
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил причину отказа',
+    entityType: 'refusal_reason',
+    entityId: id,
+    entityTitle: String(reason.name ?? 'Причина отказа')
+  });
 
   revalidateRefusals();
   redirect('/settings/refusal-reasons?deleted=1');

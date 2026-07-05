@@ -26,6 +26,7 @@ export type CampaignMetrics = {
   responses: number;
   surveys: number;
   participants: number;
+  refused: number;
   conversion: string;
 };
 
@@ -67,7 +68,7 @@ const demoCampaigns: CampaignDetail[] = [
     startDate: '20.05.2025',
     endDate: '—',
     createdAt: '20.05.2025',
-    metrics: { contacts: 60, responses: 22, surveys: 10, participants: 4, conversion: '6,7%' },
+    metrics: { contacts: 60, responses: 22, surveys: 10, participants: 4, refused: 3, conversion: '6,7%' },
     contacts: [
       { id: 'anna-smirnova', name: 'Анна Смирнова', type: 'Мастер', niche: 'Брови и ресницы', city: 'Москва', stage: 'Тестирует', source: 'Instagram', score: 86 },
       { id: 'darya-volkova', name: 'Дарья Волкова', type: 'Мастер', niche: 'Маникюр', city: 'Екатеринбург', stage: 'Новый', source: 'TikTok', score: 38 }
@@ -88,12 +89,12 @@ const demoCampaigns: CampaignDetail[] = [
     startDate: '22.05.2025',
     endDate: '—',
     createdAt: '22.05.2025',
-    metrics: { contacts: 38, responses: 19, surveys: 12, participants: 6, conversion: '15,8%' },
+    metrics: { contacts: 38, responses: 19, surveys: 12, participants: 6, refused: 2, conversion: '15,8%' },
     contacts: []
   },
   {
     id: 'demo-campaign-3',
-    name: 'Опрос клиентов — карта мастеров',
+    name: 'Анкета клиентов — карта мастеров',
     goal: 'Собрать 100 ответов клиентов о поиске мастеров на карте.',
     channel: 'Instagram',
     city: 'Минск',
@@ -106,7 +107,7 @@ const demoCampaigns: CampaignDetail[] = [
     startDate: '10.05.2025',
     endDate: '18.05.2025',
     createdAt: '10.05.2025',
-    metrics: { contacts: 130, responses: 82, surveys: 56, participants: 0, conversion: '43,1%' },
+    metrics: { contacts: 130, responses: 82, surveys: 56, participants: 0, refused: 9, conversion: '43,1%' },
     contacts: []
   }
 ];
@@ -193,7 +194,8 @@ function calculateMetrics(contacts: CampaignContact[]): CampaignMetrics {
   const total = contacts.length;
   const responses = contacts.filter((contact) => stageResponseNames.has(contact.stage)).length;
   const surveys = contacts.filter((contact) => isInterestedStage(contact.stage) || isTestingStage(contact.stage)).length;
-  const participants = contacts.filter((contact) => isTestingStage(contact.stage) || contact.score >= 75).length;
+  const participants = contacts.filter((contact) => isTestingStage(contact.stage)).length;
+  const refused = contacts.filter((contact) => contact.stage === 'Отказ').length;
   const base = total || 1;
 
   return {
@@ -201,6 +203,7 @@ function calculateMetrics(contacts: CampaignContact[]): CampaignMetrics {
     responses,
     surveys,
     participants,
+    refused,
     conversion: `${Math.round((participants / base) * 1000) / 10}%`
   };
 }

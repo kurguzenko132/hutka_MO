@@ -34,7 +34,7 @@ function Notice({ searchParams }: { searchParams: Record<string, string | string
   const message = isError
     ? 'Не удалось сохранить изменения. Проверь обязательные поля или подключение Supabase.'
     : deleted
-      ? 'Вопрос удален из пака.'
+      ? 'Вопрос удален из набора.'
       : 'Изменения сохранены.';
 
   return (
@@ -67,8 +67,8 @@ export default async function QuestionPackDetailPage({
     <div className="space-y-6">
       <PageHeader
         title={pack.shortTitle}
-        subtitle="Редактируй название, аудиторию, статус и вопросы пака. После сохранения обновленный пак сразу появится в карточках контактов."
-        actionLabel="Все паки"
+        subtitle="Редактируй название, аудиторию, статус и вопросы набора. После сохранения обновленный набор сразу появится в карточках контактов."
+        actionLabel="Все готовые вопросы"
         actionHref="/settings/question-packs"
       />
 
@@ -76,7 +76,7 @@ export default async function QuestionPackDetailPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>Настройки пака</CardTitle>
+          <CardTitle>Настройки набора</CardTitle>
         </CardHeader>
         <CardContent>
           <form action={updateQuestionPackAction} className="grid gap-4 lg:grid-cols-2">
@@ -110,13 +110,13 @@ export default async function QuestionPackDetailPage({
               <Textarea name="description" defaultValue={pack.description} />
             </div>
             <div className="flex flex-wrap gap-2 lg:col-span-2">
-              <Button type="submit"><Save className="h-4 w-4" />Сохранить пак</Button>
+              <Button type="submit"><Save className="h-4 w-4" />Сохранить набор</Button>
             </div>
           </form>
 
           <form action={deleteQuestionPackAction} className="mt-4 border-t border-app-line pt-4">
             <input type="hidden" name="id" value={pack.id} />
-            <Button type="submit" variant="danger"><Trash2 className="h-4 w-4" />Удалить пак</Button>
+            <Button type="submit" variant="danger"><Trash2 className="h-4 w-4" />Удалить набор</Button>
           </form>
         </CardContent>
       </Card>
@@ -159,7 +159,7 @@ export default async function QuestionPackDetailPage({
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-black text-app-text">Вопросы пака</h2>
+          <h2 className="text-xl font-black text-app-text">Вопросы набора</h2>
           <Badge tone="gray">{pack.questions.length} вопросов</Badge>
         </div>
 
@@ -212,7 +212,7 @@ export default async function QuestionPackDetailPage({
             </Card>
           )) : (
             <Card>
-              <CardContent className="py-10 text-center text-sm text-app-muted">В этом паке пока нет вопросов. Добавь первый вопрос выше.</CardContent>
+              <CardContent className="py-10 text-center text-sm text-app-muted">В этом наборе пока нет вопросов. Добавь первый вопрос выше.</CardContent>
             </Card>
           )}
       </div>

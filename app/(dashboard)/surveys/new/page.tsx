@@ -10,9 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
-  'missing-title': 'Укажи название опроса.',
-  'save-failed': 'Не удалось сохранить опрос. Проверь Supabase и попробуй снова.',
-  'questions-save-failed': 'Опрос создан, но вопросы не сохранились.'
+  'missing-title': 'Укажи название анкеты.',
+  'save-failed': 'Не удалось сохранить анкету. Проверь Supabase и попробуй снова.',
+  'questions-save-failed': 'Анкета создана, но вопросы не сохранились.'
 };
 
 const starterQuestions = [
@@ -35,16 +35,16 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
         <Link href="/surveys"><ArrowLeft className="h-4 w-4" />Назад</Link>
       </Button>
 
-      <PageHeader title="Создать опрос" subtitle="Форма для проверки болей, интереса и готовности к тестированию" />
+      <PageHeader title="Создать анкету" subtitle="Форма для проверки болей, интереса и готовности к тестированию" />
 
       {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <form action={createSurveyAction} className="space-y-6">
-          <FormSection title="Настройки опроса">
+          <FormSection title="Настройки анкеты">
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Название">
-                <Input name="title" placeholder="Опрос для мастеров" required />
+                <Input name="title" placeholder="Анкета для мастеров" required />
               </Field>
               <Field label="Сегмент">
                 <Select name="type" defaultValue="Мастера">
@@ -67,7 +67,7 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
             </div>
             <div className="mt-4">
               <Field label="Описание для респондента">
-                <Textarea name="description" placeholder="Коротко объясни, зачем проходить опрос и сколько это займет времени..." />
+                <Textarea name="description" placeholder="Коротко объясни, зачем проходить анкету и сколько это займет времени..." />
               </Field>
             </div>
           </FormSection>
@@ -107,14 +107,14 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <Button asChild variant="secondary"><Link href="/surveys">Отмена</Link></Button>
-            <Button type="submit"><Save className="h-4 w-4" />Сохранить опрос</Button>
+            <Button type="submit"><Save className="h-4 w-4" />Сохранить анкету</Button>
           </div>
         </form>
 
         <aside className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-5 h-fit">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-app-purple shadow-sm"><ClipboardList className="h-5 w-5" /></div>
           <h3 className="mt-4 text-lg font-black text-app-text">Что важно спросить</h3>
-          <p className="mt-2 text-sm leading-6 text-app-muted">Опрос должен быстро показывать боль, текущий инструмент, готовность к тестированию и барьер перед использованием.</p>
+          <p className="mt-2 text-sm leading-6 text-app-muted">Анкета должна быстро показывать боль, текущий инструмент, готовность к тестированию и барьер перед использованием.</p>
           <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 text-app-muted">
             <Plus className="mr-2 inline h-4 w-4 text-app-purple" />
             В следующем этапе добавим редактирование и удаление вопросов.

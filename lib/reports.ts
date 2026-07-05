@@ -37,9 +37,12 @@ export type WeeklyReport = {
   periodLabel: string;
   generatedAt: string;
   metrics: ReportMetric[];
+  weeklyDynamics: ReportBarItem[];
   funnel: ReportBarItem[];
   topChannels: ReportBarItem[];
   topNiches: ReportBarItem[];
+  campaignEfficiency: ReportBarItem[];
+  nicheReaction: ReportBarItem[];
   taskSummary: {
     total: number;
     overdue: number;
@@ -115,6 +118,15 @@ function makeBarItems(entries: Array<[string, number]>, maxItems = 5): ReportBar
   }));
 }
 
+function makeOrderedBarItems(entries: Array<[string, number]>): ReportBarItem[] {
+  const max = Math.max(...entries.map(([, value]) => value), 1);
+  return entries.map(([name, value]) => ({
+    name,
+    value,
+    width: value > 0 ? `${Math.max(8, Math.round((value / max) * 100))}%` : '0%'
+  }));
+}
+
 function groupCount(items: string[]) {
   return Array.from(
     items.reduce((acc, item) => {
@@ -122,6 +134,60 @@ function groupCount(items: string[]) {
       return acc;
     }, new Map<string, number>())
   );
+}
+
+function buildWeeklyDynamics(leads: RawLead[], now: Date) {
+  const buckets: Array<{ label: string; start: Date; end: Date; count: number }> = [];
+
+  for (let index = 5; index >= 0; index -= 1) {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    start.setDate(start.getDate() - index * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    buckets.push({
+      label: start.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }),
+      start,
+      end,
+      count: 0
+    });
+  }
+
+  leads.forEach((lead) => {
+    if (!lead.created_at) return;
+    const createdAt = new Date(lead.created_at);
+    if (Number.isNaN(createdAt.getTime())) return;
+    const bucket = buckets.find((item) => createdAt >= item.start && createdAt < item.end);
+    if (bucket) bucket.count += 1;
+  });
+
+  return makeOrderedBarItems(buckets.map((bucket) => [bucket.label, bucket.count]));
+}
+
+function buildNicheReaction(leads: RawLead[]) {
+  const byNiche = new Map<string, { total: number; reacted: number }>();
+  leads.forEach((lead) => {
+    const niche = lead.niche || 'Не указана';
+    const current = byNiche.get(niche) ?? { total: 0, reacted: 0 };
+    const stage = normalizeStage(lead.funnel_stages);
+    current.total += 1;
+    if (['Ответил', 'Заинтересован', 'Тестирует'].includes(stage)) current.reacted += 1;
+    byNiche.set(niche, current);
+  });
+
+  return Array.from(byNiche.entries())
+    .sort((a, b) => b[1].reacted - a[1].reacted || b[1].total - a[1].total)
+    .slice(0, 5)
+    .map(([name, value]) => ({
+      name,
+      value: value.reacted,
+      helper: `${percentage(value.reacted, value.total)} реакции`,
+      width: '0%'
+    }))
+    .map((item, _, items) => {
+      const max = Math.max(...items.map((entry) => entry.value), 1);
+      return { ...item, width: item.value > 0 ? `${Math.max(8, Math.round((item.value / max) * 100))}%` : '0%' };
+    });
 }
 
 async function getRawLeads(): Promise<RawLead[]> {
@@ -150,15 +216,13 @@ function buildRecommendations({
   topNiche,
   overdueTasks,
   activeCampaigns,
-  acceptedInsights,
-  testingHypotheses
+  acceptedInsights
 }: {
   topChannel?: string;
   topNiche?: string;
   overdueTasks: number;
   activeCampaigns: number;
   acceptedInsights: number;
-  testingHypotheses: number;
 }) {
   const recommendations: string[] = [];
 
@@ -178,10 +242,6 @@ function buildRecommendations({
     recommendations.push('По активным кампаниям зафиксировать вывод: какой оффер дал ответы, а какой нужно отключить.');
   }
 
-  if (testingHypotheses > 0) {
-    recommendations.push(`Для ${testingHypotheses} идей в проверке назначить конкретный следующий замер или интервью.`);
-  }
-
   if (acceptedInsights > 0) {
     recommendations.push('Принятые выводы сразу переносить в продуктовые задачи и тексты первого сообщения.');
   }
@@ -193,10 +253,9 @@ function buildTeamText(report: Omit<WeeklyReport, 'teamText'>) {
   const metricsText = report.metrics.map((metric) => `— ${metric.label}: ${metric.value}`).join('\n');
   const recommendationsText = report.recommendations.map((item, index) => `${index + 1}. ${item}`).join('\n');
   const insightsText = report.insightHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет новых выводов.';
-  const hypothesesText = report.hypothesisHighlights.map((item, index) => `${index + 1}. ${item.title}`).join('\n') || 'Пока нет идей в проверке.';
   const refusalsText = report.refusalSummary.topReasons.slice(0, 5).map((item, index) => `${index + 1}. ${item.reason}: ${item.count}`).join('\n') || 'Причины отказов пока не зафиксированы.';
 
-  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные выводы:\n${insightsText}\n\nИдеи / проверки:\n${hypothesesText}\n\nПричины отказов:\n${refusalsText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
+  return `Hutka — отчет за период: ${report.periodLabel}\n\nПоказатели:\n${metricsText}\n\nГлавные выводы:\n${insightsText}\n\nПричины отказов:\n${refusalsText}\n\nЧто делаем дальше:\n${recommendationsText || 'Следующее действие пока не указано.'}`;
 }
 
 export async function getWeeklyReport(): Promise<WeeklyReport> {
@@ -250,19 +309,37 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
       ? demoNiches.map((item) => ({ name: item.name, value: item.value, width: item.width }))
       : [];
 
+  const weeklyDynamics = buildWeeklyDynamics(rawLeads, now);
+
   const overdueTasks = tasks.filter((task) => task.group === 'Просрочено').length;
   const todayTasks = tasks.filter((task) => task.group === 'Сегодня').length;
   const laterTasks = tasks.filter((task) => task.group === 'Позже').length;
 
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === 'active').length;
   const acceptedInsights = insights.filter((insight) => insight.status === 'accepted').length;
-  const testingHypotheses = hypotheses.filter((hypothesis) => ['testing', 'needs_data', 'new'].includes(hypothesis.status)).length;
+  const campaignEfficiency = campaigns
+    .map((campaign) => {
+      const value = campaign.metrics.participants || campaign.metrics.surveys || campaign.metrics.responses;
+      return {
+        name: campaign.name,
+        value,
+        helper: `${campaign.metrics.contacts} контактов · ${campaign.metrics.conversion}`,
+        width: '0%'
+      };
+    })
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5)
+    .map((item, _, items) => {
+      const max = Math.max(...items.map((entry) => entry.value), 1);
+      return { ...item, width: item.value > 0 ? `${Math.max(8, Math.round((item.value / max) * 100))}%` : '0%' };
+    });
+  const nicheReaction = buildNicheReaction(rawLeads);
 
   const metrics: ReportMetric[] = [
     { label: 'Всего контактов', value: String(demoMode ? totalContacts || 2842 : totalContacts), helper: `${demoMode ? newContacts || 312 : newContacts} новых за 7 дней`, tone: 'purple' },
     { label: 'Заинтересованы', value: String(demoMode ? interestedContacts || 128 : interestedContacts), helper: 'стадия “Заинтересован” или высокий score', tone: 'pink' },
     { label: 'Тестируют', value: String(demoMode ? testingContacts || 63 : testingContacts), helper: 'стадия “Тестирует”', tone: 'green' },
-    { label: 'Ответов на опросы', value: String(demoMode ? surveyResponses || 145 : surveyResponses), helper: `${surveys.length} опросников`, tone: 'blue' },
+    { label: 'Ответов на анкеты', value: String(demoMode ? surveyResponses || 145 : surveyResponses), helper: `${surveys.length} анкет`, tone: 'blue' },
     { label: 'Просроченные действия', value: String(overdueTasks), helper: `${todayTasks} задач на сегодня`, tone: overdueTasks > 0 ? 'red' : 'green' },
     { label: 'Отказы', value: String(refusalSummary.total), helper: refusalSummary.topReasons[0] ? `топ: ${refusalSummary.topReasons[0].reason}` : 'причины не зафиксированы', tone: refusalSummary.total > 0 ? 'red' : 'gray' }
   ];
@@ -319,17 +396,19 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     topNiche: topNiches[0]?.name,
     overdueTasks,
     activeCampaigns,
-    acceptedInsights,
-    testingHypotheses
+    acceptedInsights
   });
 
   const reportWithoutText: Omit<WeeklyReport, 'teamText'> = {
     periodLabel: `${formatDate(weekStart)} — ${formatDate(now)}`,
     generatedAt: formatDateTime(now),
     metrics,
+    weeklyDynamics,
     funnel,
     topChannels,
     topNiches,
+    campaignEfficiency,
+    nicheReaction,
     taskSummary: {
       total: tasks.length,
       overdue: overdueTasks,

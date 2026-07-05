@@ -136,12 +136,12 @@ function isRefused(stage: string) {
 
 function titleForReason(reason: FollowUpReason) {
   const map: Record<FollowUpReason, string> = {
-    overdue_followup: 'Просроченный follow-up',
-    today_followup: 'Follow-up сегодня',
-    missing_next_action: 'Нет следующего шага',
-    hot_without_task: 'Высокий интерес без задачи',
-    unanswered_questionnaire: 'Анкета без ответа',
-    stale_stage: 'Контакт завис на стадии'
+    overdue_followup: 'Просрочено действие',
+    today_followup: 'Нужно сделать сегодня',
+    missing_next_action: 'Нет запланированного действия',
+    hot_without_task: 'Заинтересованный без действия',
+    unanswered_questionnaire: 'Ждет ответа на вопросы',
+    stale_stage: 'Давно без движения'
   };
   return map[reason];
 }
@@ -189,7 +189,7 @@ function buildRecommendation(input: {
     title: titleForReason(input.reason),
     description: input.description,
     suggestedTaskTitle: taskTitleForReason(input.reason, input.lead.name),
-    suggestedTaskDescription: `Авто follow-up от Hutka. Причина: ${titleForReason(input.reason)}. ${input.description}`,
+    suggestedTaskDescription: `Автоматическая рекомендация Hutka. Причина: ${titleForReason(input.reason)}. ${input.description}`,
     suggestedDueDate: input.dueDate ?? addDays(1),
     priority,
     priorityLabel: priorityLabel(priority),
@@ -371,7 +371,7 @@ export async function getFollowUpRecommendations(): Promise<FollowUpData> {
       recommendations.push(buildRecommendation({
         lead,
         reason: 'unanswered_questionnaire',
-        description: `Персональная анкета «${form.title ?? 'Анкета'}» создана, но ответов пока нет. Нужно напомнить человеку пройти форму.`,
+        description: `Вопросы для контакта «${form.title ?? 'Анкета'}» созданы, но ответов пока нет. Нужно напомнить человеку пройти форму.`,
         priority: 'medium',
         dueDate: addDays(1),
         hasOpenTask,
@@ -385,7 +385,7 @@ export async function getFollowUpRecommendations(): Promise<FollowUpData> {
       recommendations.push(buildRecommendation({
         lead,
         reason: 'missing_next_action',
-        description: 'У контакта не заполнен следующий шаг или дата follow-up. Нужно назначить действие, чтобы контакт не потерялся.',
+        description: 'У контакта не заполнен следующий шаг или дата действия. Нужно назначить действие, чтобы контакт не потерялся.',
         priority: lead.score >= 60 ? 'high' : 'medium',
         dueDate: addDays(1),
         hasOpenTask

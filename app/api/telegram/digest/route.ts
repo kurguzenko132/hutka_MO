@@ -20,11 +20,11 @@ export async function GET(request: Request) {
     eventType: 'daily_digest',
     title: 'ежедневный дайджест',
     text: [
-      `Follow-up рекомендаций: ${followups.summary.total}`,
+      `Рекомендаций по действиям: ${followups.summary.total}`,
       `Срочных: ${followups.summary.urgent}`,
       `Просроченных: ${followups.summary.overdue}`,
       `Анкет без ответа: ${followups.summary.questionnaires}`,
-      focus ? `Главный фокус: ${focus.leadName} — ${focus.title}` : 'Критичных follow-up сейчас нет.'
+      focus ? `Главный фокус: ${focus.leadName} — ${focus.title}` : 'Критичных действий сейчас нет.'
     ].join('\n'),
     href: '/followups'
   });

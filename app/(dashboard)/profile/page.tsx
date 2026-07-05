@@ -110,7 +110,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
               <input name="telegram_notifications_enabled" type="checkbox" defaultChecked={profile.telegramNotificationsEnabled} className="mt-1 h-4 w-4 rounded border-app-line text-app-purple" />
               <span>
                 <span className="block font-bold text-app-text">Получать Telegram-уведомления</span>
-                <span className="mt-1 block text-app-muted">Новые ответы на анкеты, важные follow-up и системные события будут приходить в Telegram, если bot token настроен в Vercel.</span>
+                <span className="mt-1 block text-app-muted">Новые ответы на анкеты, важные действия и системные события будут приходить в Telegram, если bot token настроен в Vercel.</span>
               </span>
             </label>
 
@@ -119,7 +119,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             </Field>
 
             <div className="md:col-span-2">
-              <Field label="Коротко о роли в проекте" hint="Например: отвечаю за привлечение мастеров, кампании и опросы.">
+              <Field label="Коротко о роли в проекте" hint="Например: отвечаю за привлечение мастеров, кампании и анкеты.">
                 <Textarea name="bio" defaultValue={profile.bio} placeholder="Что ты делаешь в Hutka и за какие процессы отвечаешь" />
               </Field>
             </div>

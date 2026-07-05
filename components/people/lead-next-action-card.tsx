@@ -1,8 +1,6 @@
-import Link from 'next/link';
-import { AlertTriangle, CalendarClock, CheckCircle2, ClipboardList, Flag, Sparkles, TimerReset } from 'lucide-react';
+import { AlertTriangle, CalendarClock, CheckCircle2, Flag, Sparkles, TimerReset } from 'lucide-react';
 import { updateLeadFollowUpAction } from '@/actions/leads.actions';
-import { createTaskAction } from '@/actions/tasks.actions';
-import { buildLeadNextAction, quickFollowUpDates } from '@/lib/lead-next-actions';
+import { buildLeadNextAction } from '@/lib/lead-next-actions';
 import type { Lead } from '@/lib/data';
 import type { LeadTask } from '@/lib/leads';
 import { can, type UserRole } from '@/lib/roles';
@@ -10,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
 function statusIcon(status: ReturnType<typeof buildLeadNextAction>['status']) {
@@ -22,10 +19,11 @@ function statusIcon(status: ReturnType<typeof buildLeadNextAction>['status']) {
 
 export function LeadNextActionCard({ lead, tasks, role = 'viewer' }: { lead: Lead; tasks: LeadTask[]; role?: UserRole }) {
   const action = buildLeadNextAction(lead, tasks);
-  const dates = quickFollowUpDates();
   const canManageContacts = can(role, 'manageContacts');
   const canManageTasks = can(role, 'manageTasks');
   const canManageNextAction = canManageContacts || canManageTasks;
+  const plannedTask = tasks.find((task) => task.status !== 'Готово' && task.status !== 'Отменено');
+  const hasPlannedAction = Boolean((lead.nextStep && lead.nextStep !== '—') || plannedTask);
 
   return (
     <Card className="overflow-hidden border-purple-100 bg-gradient-to-br from-white via-white to-purple-50/60">
@@ -40,17 +38,9 @@ export function LeadNextActionCard({ lead, tasks, role = 'viewer' }: { lead: Lea
                   <Badge tone="gray">Открытых задач: {action.openTasks}</Badge>
                   {action.overdueTasks > 0 && <Badge tone="red">Просрочено задач: {action.overdueTasks}</Badge>}
                 </div>
-                <h2 className="text-xl font-black tracking-tight text-app-text sm:text-2xl">Что делать дальше</h2>
+                <h2 className="text-xl font-black tracking-tight text-app-text sm:text-2xl">Что сделать дальше</h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">{action.subtitle}</p>
               </div>
-              {canManageTasks && (
-                <Button asChild variant="secondary" className="shrink-0">
-                  <Link href={`/tasks/new?leadId=${lead.id}`}>
-                    <ClipboardList className="h-4 w-4" />
-                    Создать задачу
-                  </Link>
-                </Button>
-              )}
             </div>
 
             <div className="grid gap-3 md:grid-cols-2">
@@ -59,8 +49,11 @@ export function LeadNextActionCard({ lead, tasks, role = 'viewer' }: { lead: Lea
                 <p className="mt-2 text-sm font-bold leading-6 text-app-text">{action.recommendedStep}</p>
               </div>
               <div className="rounded-2xl border border-app-line bg-white p-4">
-                <p className="text-xs font-black uppercase tracking-wide text-app-faint">Текущий follow-up</p>
-                <p className="mt-2 text-sm font-bold leading-6 text-app-text">{lead.nextStep || 'Не указан'} · {lead.nextDate || 'без даты'}</p>
+                <p className="text-xs font-black uppercase tracking-wide text-app-faint">
+                  {hasPlannedAction ? 'Следующее действие запланировано' : 'Следующее действие'}
+                </p>
+                <p className="mt-2 text-sm font-bold leading-6 text-app-text">{plannedTask?.title || lead.nextStep || 'Не указано'} · {plannedTask?.dueDate || lead.nextDate || 'без даты'}</p>
+                {plannedTask && <p className="mt-1 text-xs font-semibold text-app-green">Задача: создана</p>}
               </div>
             </div>
 
@@ -82,46 +75,22 @@ export function LeadNextActionCard({ lead, tasks, role = 'viewer' }: { lead: Lea
               {canManageContacts && (
                 <form action={updateLeadFollowUpAction} className="space-y-3 rounded-2xl border border-app-line bg-white p-4">
                   <input type="hidden" name="lead_id" value={lead.id} />
-                  <p className="flex items-center gap-2 text-sm font-black text-app-text"><Flag className="h-4 w-4 text-app-purple" />Быстро поставить следующий шаг</p>
-                  <Textarea name="next_step" defaultValue={action.recommendedStep} rows={3} placeholder="Что нужно сделать дальше" />
-                  <div className="grid gap-2 sm:grid-cols-[1fr_auto] xl:grid-cols-1">
-                    <Input name="next_contact_date" type="date" defaultValue={action.recommendedDate} />
-                    <Button type="submit" className="w-full"><TimerReset className="h-4 w-4" />Сохранить</Button>
+                  <p className="flex items-center gap-2 text-sm font-black text-app-text"><Flag className="h-4 w-4 text-app-purple" />Запланировать действие</p>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Действие</span>
+                    <Input name="next_step" defaultValue={plannedTask?.title || (lead.nextStep === '—' ? '' : lead.nextStep) || action.recommendedStep} required />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Дата</span>
+                    <Input name="next_contact_date" type="date" defaultValue={lead.nextDateRaw || action.recommendedDate} />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Комментарий</span>
+                    <Textarea name="comment" rows={3} defaultValue={plannedTask?.description ?? ''} placeholder="Например: отправить ссылку на вопросы" />
+                  </label>
+                  <div>
+                    <Button type="submit" className="w-full"><TimerReset className="h-4 w-4" />Запланировать действие</Button>
                   </div>
-                </form>
-              )}
-
-              {canManageContacts && (
-                <div className="rounded-2xl border border-app-line bg-white p-4">
-                  <p className="mb-3 text-xs font-black uppercase tracking-wide text-app-faint">Быстрые даты</p>
-                  <div className="flex flex-wrap gap-2">
-                    {dates.map((date) => (
-                      <form key={date.value} action={updateLeadFollowUpAction}>
-                        <input type="hidden" name="lead_id" value={lead.id} />
-                        <input type="hidden" name="next_step" value={action.recommendedStep} />
-                        <input type="hidden" name="next_contact_date" value={date.value} />
-                        <Button type="submit" variant="ghost" size="sm">{date.label}</Button>
-                      </form>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {canManageTasks && (
-                <form action={createTaskAction} className="space-y-3 rounded-2xl border border-dashed border-purple-200 bg-purple-50/50 p-4">
-                  <input type="hidden" name="lead_id" value={lead.id} />
-                  <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
-                  <p className="flex items-center gap-2 text-sm font-black text-app-text"><ClipboardList className="h-4 w-4 text-app-pink" />Создать задачу из рекомендации</p>
-                  <Input name="title" defaultValue={action.recommendedStep} required />
-                  <Input name="due_date" type="date" defaultValue={action.recommendedDate} />
-                  <Select name="priority" defaultValue={lead.score >= 75 || action.status === 'overdue' ? 'Высокий' : 'Средний'}>
-                    <option>Низкий</option>
-                    <option>Средний</option>
-                    <option>Высокий</option>
-                    <option>Срочно</option>
-                  </Select>
-                  <Textarea name="description" rows={3} placeholder="Комментарий к задаче" />
-                  <Button type="submit" variant="secondary" className="w-full">Создать задачу</Button>
                 </form>
               )}
             </div>

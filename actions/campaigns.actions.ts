@@ -6,6 +6,7 @@ import { campaignStatusToDb } from '@/lib/campaigns';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -22,7 +23,7 @@ async function leadExists(supabase: Awaited<ReturnType<typeof createClient>>, le
 }
 
 export async function createCampaignAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const name = getText(formData, 'name');
   if (!name) redirect('/campaigns/new?error=missing-name');
 
@@ -51,13 +52,22 @@ export async function createCampaignAction(formData: FormData) {
 
   if (error || !data) redirect('/campaigns/new?error=save-failed');
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал кампанию',
+    entityType: 'campaign',
+    entityId: String(data.id),
+    entityTitle: name,
+    details: { channel: getText(formData, 'channel') || null, status: campaignStatusToDb[getText(formData, 'status')] ?? 'draft' }
+  });
   revalidatePath('/campaigns');
+  revalidatePath('/funnels');
   revalidatePath('/dashboard');
   redirect(`/campaigns/${data.id}`);
 }
 
 export async function addLeadToCampaignAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const campaignId = getText(formData, 'campaign_id');
   const leadId = getText(formData, 'lead_id');
   if (!campaignId) redirect('/campaigns');
@@ -89,15 +99,67 @@ export async function addLeadToCampaignAction(formData: FormData) {
     text: 'Контакт добавлен в маркетинговую кампанию',
     result: 'campaign_attached'
   });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'добавил контакт в кампанию',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: 'Кампания',
+    details: { lead_id: leadId }
+  });
 
   revalidatePath('/campaigns');
   revalidatePath(`/campaigns/${campaignId}`);
   revalidatePath(`/people/${leadId}`);
+  revalidatePath('/funnels');
+  redirect(`/campaigns/${campaignId}`);
+}
+
+export async function removeLeadFromCampaignAction(formData: FormData) {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const campaignId = getText(formData, 'campaign_id');
+  const leadId = getText(formData, 'lead_id');
+  if (!campaignId) redirect('/campaigns');
+  if (!leadId) redirect(`/campaigns/${campaignId}?error=missing-lead`);
+
+  if (!isSupabaseConfigured()) {
+    redirect(`/campaigns/${campaignId}?lead=demo-remove`);
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('campaign_leads')
+    .delete()
+    .eq('campaign_id', campaignId)
+    .eq('lead_id', leadId);
+
+  if (error) redirect(`/campaigns/${campaignId}?error=lead-remove-failed`);
+
+  await supabase.from('lead_interactions').insert({
+    lead_id: leadId,
+    type: 'note',
+    channel: 'Hutka',
+    text: 'Контакт убран из кампании',
+    result: 'campaign_detached'
+  });
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'убрал контакт из кампании',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: 'Кампания',
+    details: { lead_id: leadId }
+  });
+
+  revalidatePath('/campaigns');
+  revalidatePath(`/campaigns/${campaignId}`);
+  revalidatePath(`/people/${leadId}`);
+  revalidatePath('/funnels');
   redirect(`/campaigns/${campaignId}`);
 }
 
 export async function updateCampaignResultAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const campaignId = getText(formData, 'campaign_id');
   if (!campaignId) redirect('/campaigns');
 
@@ -119,28 +181,48 @@ export async function updateCampaignResultAction(formData: FormData) {
 
   if (error) redirect(`/campaigns/${campaignId}?error=result-save-failed`);
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил кампанию',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: 'Кампания',
+    details: { status: campaignStatusToDb[getText(formData, 'status')] ?? 'active' }
+  });
   revalidatePath('/campaigns');
   revalidatePath(`/campaigns/${campaignId}`);
+  revalidatePath('/funnels');
   revalidatePath('/dashboard');
   redirect(`/campaigns/${campaignId}`);
 }
 
 export async function deleteCampaignAction(formData: FormData) {
-  await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const campaignId = getText(formData, 'campaign_id');
+  const confirmation = getText(formData, 'confirmation');
   if (!campaignId) redirect('/campaigns?error=missing-campaign');
+  if (confirmation !== 'УДАЛИТЬ') redirect(`/campaigns/${campaignId}?error=confirmation-required`);
 
   if (!isSupabaseConfigured()) {
     redirect('/campaigns?deleted=demo');
   }
 
   const supabase = await createClient();
-  if (!(await campaignExists(supabase, campaignId))) redirect('/campaigns?error=campaign-not-found');
+  const { data: campaign } = await supabase.from('campaigns').select('id,name').eq('id', campaignId).maybeSingle();
+  if (!campaign?.id) redirect('/campaigns?error=campaign-not-found');
 
   const { error } = await supabase.from('campaigns').delete().eq('id', campaignId);
   if (error) redirect(`/campaigns/${campaignId}?error=delete-failed`);
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил кампанию',
+    entityType: 'campaign',
+    entityId: campaignId,
+    entityTitle: String(campaign.name ?? 'Кампания')
+  });
   revalidatePath('/campaigns');
+  revalidatePath('/funnels');
   revalidatePath('/dashboard');
   revalidatePath('/reports');
   redirect('/campaigns?deleted=campaign');

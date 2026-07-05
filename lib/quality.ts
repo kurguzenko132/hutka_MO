@@ -62,7 +62,7 @@ export async function getQualityReport(): Promise<QualityReport> {
         label: 'App URL',
         description: process.env.NEXT_PUBLIC_APP_URL ? 'NEXT_PUBLIC_APP_URL настроен.' : 'NEXT_PUBLIC_APP_URL не задан.',
         status: process.env.NEXT_PUBLIC_APP_URL ? 'ok' : 'warning',
-        action: process.env.NEXT_PUBLIC_APP_URL ? undefined : 'Укажи production URL, чтобы персональные ссылки на опросы были корректными.'
+        action: process.env.NEXT_PUBLIC_APP_URL ? undefined : 'Укажи production URL, чтобы персональные ссылки на анкеты были корректными.'
       }
     ]
   };

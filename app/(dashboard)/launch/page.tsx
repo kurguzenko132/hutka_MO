@@ -41,7 +41,7 @@ export default async function LaunchPage() {
               <p className="text-xs font-black uppercase tracking-[0.2em] text-app-muted">Готовность MVP</p>
               <h2 className="mt-2 text-2xl font-black text-app-text">Hutka почти готова к работе команды</h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-app-muted">
-                Перед активным использованием проверь роли, создай первые справочники, добавь контакты, настрой опросы и обязательно сделай резервный экспорт данных.
+                Перед активным использованием проверь роли, создай первые справочники, добавь контакты, настрой анкеты и обязательно сделай резервный экспорт данных.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
@@ -151,7 +151,7 @@ export default async function LaunchPage() {
         </CardHeader>
         <CardContent className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-app-muted">
-            Экспорт выгружает все таблицы рабочей схемы в один JSON-файл: контакты, задачи, опросы, персональные анкеты, кампании, выводы, идеи, настройки, справочники, шаблоны, причины отказов, сохраненные виды и Telegram-логи. Делай такой экспорт перед массовыми импортами, изменением schema.sql и активным использованием команды.
+            Экспорт выгружает все таблицы рабочей схемы в один JSON-файл: контакты, задачи, анкеты, вопросы для контактов, кампании, выводы, настройки, справочники, шаблоны, причины отказов, сохраненные фильтры и Telegram-логи. Делай такой экспорт перед массовыми импортами, изменением schema.sql и активным использованием команды.
           </div>
           <Button asChild size="lg">
             <Link href="/backup/export">

@@ -3,28 +3,23 @@ import Link from 'next/link';
 import {
   addLeadInteractionAction,
   attachLeadToCampaignFromProfileAction,
-  attachLeadToHypothesisFromProfileAction,
   attachLeadToInsightFromProfileAction,
   createLeadSurveyInviteAction,
-  updateLeadFollowUpAction,
-  updateLeadStageFromProfileAction,
   deleteLeadAction
 } from '@/actions/leads.actions';
 import { createLeadQuestionnaireAction, createLeadQuestionnaireFromPackAction, deleteLeadQuestionnaireAction } from '@/actions/lead-questionnaires.actions';
 import { clearLeadRefusalAction, markLeadRefusedAction } from '@/actions/refusals.actions';
-import { createTaskAction, deleteTaskAction } from '@/actions/tasks.actions';
+import { deleteTaskAction } from '@/actions/tasks.actions';
 import { getCampaignOptions, type CampaignOption } from '@/lib/campaigns';
 import { needs, surveyAnswers } from '@/lib/data';
 import {
   getLeadById,
   getLeadInteractions,
   getLeadRelatedItems,
-  getLeadStageOptions,
   getLeadTasks,
   type LeadRelationItem,
   type LeadSurveyResponseGroup
 } from '@/lib/leads';
-import { getHypothesisOptions, type HypothesisOption } from '@/lib/hypotheses';
 import { getInsightOptions, type InsightOption } from '@/lib/insights';
 import { getSurveyOptions, type SurveyOption } from '@/lib/surveys';
 import { getLeadQuestionnaires, getLeadQuestionnaireResponses, questionnaireStatusLabel, type LeadQuestionnaireListItem, type LeadQuestionnaireResponseGroup } from '@/lib/lead-questionnaires';
@@ -43,26 +38,19 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import {
   AlertTriangle,
-  ArrowRight,
-  CalendarPlus,
   ClipboardList,
   Edit3,
   ExternalLink,
   FileQuestion,
-  Flag,
   FlaskConical,
   Lightbulb,
   Link2,
   MessageSquare,
-  MoreVertical,
   PackageCheck,
   Trash2,
   PlusCircle,
   Save,
-  Send,
-  Sparkles,
-  Target,
-  TestTube2
+  Send
 } from 'lucide-react';
 import { notFound } from 'next/navigation';
 
@@ -132,7 +120,7 @@ function RelationList({ title, empty, items, icon }: { title: string; empty: str
               <ExternalLink className="h-4 w-4 shrink-0 text-app-faint" />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge tone={relationTone[item.type]}>{item.type === 'campaign' ? 'Кампания' : item.type === 'insight' ? 'Вывод' : 'Идея'}</Badge>
+              <Badge tone={relationTone[item.type]}>{item.type === 'campaign' ? 'Кампания' : item.type === 'insight' ? 'Вывод' : 'Связь'}</Badge>
               {item.label && <Badge tone={toneFromLabel(item.label)}>{normalizeLabel(item.label)}</Badge>}
             </div>
           </Link>
@@ -146,7 +134,7 @@ function SurveyRelations({ items }: { items: LeadSurveyResponseGroup[] }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="flex items-center gap-2"><FileQuestion className="h-4 w-4 text-app-purple" />Опросы контакта</CardTitle>
+        <CardTitle className="flex items-center gap-2"><FileQuestion className="h-4 w-4 text-app-purple" />Анкеты контакта</CardTitle>
         <Badge tone="gray">{items.length}</Badge>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -164,7 +152,7 @@ function SurveyRelations({ items }: { items: LeadSurveyResponseGroup[] }) {
               <Badge tone="gray">{item.date}</Badge>
             </div>
           </Link>
-        )) : <p className="text-sm text-app-muted">Пока нет связанных ответов на опросы.</p>}
+        )) : <p className="text-sm text-app-muted">Пока нет ответов контакта по анкетам.</p>}
       </CardContent>
     </Card>
   );
@@ -218,12 +206,58 @@ function RefusalManagementCard({ leadId, lead, reasons }: { leadId: string; lead
   );
 }
 
+function MobileStickyActions({
+  instagramHref,
+  telegramHref,
+  phoneHref,
+  emailHref
+}: {
+  instagramHref?: string;
+  telegramHref?: string;
+  phoneHref?: string;
+  emailHref?: string;
+}) {
+  const links = [
+    instagramHref ? { label: 'Instagram', href: instagramHref, external: true } : null,
+    telegramHref ? { label: 'Telegram', href: telegramHref, external: true } : null,
+    phoneHref ? { label: 'Телефон', href: phoneHref } : null,
+    emailHref ? { label: 'Email', href: emailHref } : null
+  ].filter((item): item is { label: string; href: string; external?: boolean } => Boolean(item));
+
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-app-line bg-white/95 p-3 shadow-2xl backdrop-blur md:hidden">
+      <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
+        <a href="#next-action" className="flex h-11 items-center justify-center rounded-xl bg-app-purple px-2 text-sm font-black text-white">
+          Запланировать
+        </a>
+        <a href="#lead-questions" className="flex h-11 items-center justify-center rounded-xl border border-app-line bg-white px-2 text-sm font-black text-app-text">
+          Вопросы
+        </a>
+        <details className="relative">
+          <summary className="flex h-11 cursor-pointer list-none items-center justify-center rounded-xl border border-app-line bg-white px-2 text-sm font-black text-app-text [&::-webkit-details-marker]:hidden">
+            Написать
+          </summary>
+          <div className="absolute bottom-14 right-0 grid min-w-44 gap-2 rounded-2xl border border-app-line bg-white p-3 shadow-card">
+            {links.length ? links.map((link) => (
+              <a key={link.label} href={link.href} target={link.external ? '_blank' : undefined} rel={link.external ? 'noreferrer' : undefined} className="rounded-xl bg-app-soft px-3 py-2 text-sm font-bold text-app-text">
+                {link.label}
+              </a>
+            )) : (
+              <span className="rounded-xl bg-app-soft px-3 py-2 text-sm font-bold text-app-muted">Контакты не указаны</span>
+            )}
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+}
+
 
 function LeadQuestionnairesCard({ items, canManageQuestionnaires = false }: { items: LeadQuestionnaireListItem[]; canManageQuestionnaires?: boolean }) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="flex items-center gap-2"><FileQuestion className="h-4 w-4 text-app-purple" />Персональные анкеты</CardTitle>
+        <CardTitle className="flex items-center gap-2"><FileQuestion className="h-4 w-4 text-app-purple" />Вопросы для контакта</CardTitle>
         <Badge tone="gray">{items.length}</Badge>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -243,9 +277,10 @@ function LeadQuestionnairesCard({ items, canManageQuestionnaires = false }: { it
             <div className="mt-3 flex flex-wrap gap-2">
               <Button asChild size="sm" variant="secondary"><a href={item.publicUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" />Открыть ссылку</a></Button>
               {canManageQuestionnaires && (
-                <form action={deleteLeadQuestionnaireAction}>
+                <form action={deleteLeadQuestionnaireAction} className="flex flex-wrap items-center gap-2">
                   <input type="hidden" name="questionnaire_id" value={item.id} />
                   <input type="hidden" name="lead_id" value={item.leadId} />
+                  <Input name="confirmation" placeholder="УДАЛИТЬ" className="h-9 w-32 text-xs" />
                   <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-4 w-4" />Удалить</Button>
                 </form>
               )}
@@ -253,7 +288,7 @@ function LeadQuestionnairesCard({ items, canManageQuestionnaires = false }: { it
           </div>
         )) : (
           <p className="text-sm text-app-muted">
-            {canManageQuestionnaires ? 'Пока нет персональных анкет. Создай вопросы ниже и отправь человеку ссылку.' : 'Персональных анкет пока нет.'}
+            {canManageQuestionnaires ? 'Пока нет вопросов для контакта. Создай вопросы ниже и отправь человеку ссылку.' : 'Вопросов для контакта пока нет.'}
           </p>
         )}
       </CardContent>
@@ -266,7 +301,7 @@ function LeadQuestionnaireResponsesCard({ items }: { items: LeadQuestionnaireRes
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-3">
-        <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4 text-app-pink" />Ответы по персональным вопросам</CardTitle>
+        <CardTitle className="flex items-center gap-2"><ClipboardList className="h-4 w-4 text-app-pink" />Ответы контакта</CardTitle>
         <Badge tone="gray">{items.length}</Badge>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -292,7 +327,7 @@ function LeadQuestionnaireResponsesCard({ items }: { items: LeadQuestionnaireRes
               ))}
             </div>
           </div>
-        )) : <p className="text-sm text-app-muted">Ответов на персональные вопросы пока нет.</p>}
+        )) : <p className="text-sm text-app-muted">Ответов контакта пока нет.</p>}
       </CardContent>
     </Card>
   );
@@ -303,11 +338,11 @@ function QuestionPacksCard({ leadId, packs }: { leadId: string; packs: QuestionP
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><PackageCheck className="h-4 w-4 text-app-purple" />Готовые паки вопросов</CardTitle>
+        <CardTitle className="flex items-center gap-2"><PackageCheck className="h-4 w-4 text-app-purple" />Готовые вопросы</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm leading-6 text-app-muted">
-          Выбери готовый пакет — Hutka сразу создаст персональную ссылку с вопросами. Не нужно каждый раз вручную заполнять анкету для мастера или салона.
+          Выбери готовые вопросы — Hutka сразу создаст персональную ссылку. Не нужно каждый раз вручную заполнять анкету для мастера или салона.
         </p>
         <div className="grid gap-3">
           {packs.map((pack) => (
@@ -325,7 +360,7 @@ function QuestionPacksCard({ leadId, packs }: { leadId: string; packs: QuestionP
                 </div>
                 <Button type="submit" size="sm" variant="secondary">
                   <Link2 className="h-4 w-4" />
-                  Создать ссылку
+                  Создать ссылку на вопросы
                 </Button>
               </div>
             </form>
@@ -342,14 +377,14 @@ function PersonalQuestionnaireBuilder({ leadId, leadName }: { leadId: string; le
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2"><PlusCircle className="h-4 w-4 text-app-purple" />Создать вопросы для контакта</CardTitle>
+        <CardTitle className="flex items-center gap-2"><PlusCircle className="h-4 w-4 text-app-purple" />Вопросы для контакта</CardTitle>
       </CardHeader>
       <CardContent>
         <form action={createLeadQuestionnaireAction} className="space-y-4">
           <input type="hidden" name="lead_id" value={leadId} />
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-2 block text-sm font-bold text-app-text">Название анкеты</span>
+              <span className="mb-2 block text-sm font-bold text-app-text">Название вопросов</span>
               <Input name="title" defaultValue={`Вопросы для ${leadName}`} />
             </label>
             <label className="block">
@@ -385,7 +420,7 @@ function PersonalQuestionnaireBuilder({ leadId, leadName }: { leadId: string; le
 
           <Button type="submit" className="w-full" size="lg">
             <Link2 className="h-4 w-4" />
-            Создать ссылку для отправки
+            Создать ссылку на вопросы
           </Button>
         </form>
       </CardContent>
@@ -397,24 +432,20 @@ function ContactRelationsHub({
   leadId,
   campaigns,
   insights,
-  hypotheses,
   surveys,
   canManageCampaigns = false,
   canManageSurveys = false,
-  canManageInsights = false,
-  canManageHypotheses = false
+  canManageInsights = false
 }: {
   leadId: string;
   campaigns: CampaignOption[];
   insights: InsightOption[];
-  hypotheses: HypothesisOption[];
   surveys: SurveyOption[];
   canManageCampaigns?: boolean;
   canManageSurveys?: boolean;
   canManageInsights?: boolean;
-  canManageHypotheses?: boolean;
 }) {
-  const hasRelationActions = canManageCampaigns || canManageSurveys || canManageInsights || canManageHypotheses;
+  const hasRelationActions = canManageCampaigns || canManageSurveys || canManageInsights;
   if (!hasRelationActions) return null;
 
   return (
@@ -424,7 +455,7 @@ function ContactRelationsHub({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm leading-6 text-app-muted">
-          Добавляй контакт в кампании, связывай его с выводами и идеями для проверки, а также фиксируй отправку общей ссылки на опрос прямо из карточки.
+          Добавляй контакт в кампании, связывай его с выводами и фиксируй отправку ссылки на анкету прямо из карточки.
         </p>
 
         {canManageCampaigns && (
@@ -445,9 +476,9 @@ function ContactRelationsHub({
         {canManageSurveys && (
           <form action={createLeadSurveyInviteAction} className="space-y-3 rounded-2xl border border-app-line p-4">
             <input type="hidden" name="lead_id" value={leadId} />
-            <p className="text-sm font-bold text-app-text">Общая ссылка на опрос</p>
+            <p className="text-sm font-bold text-app-text">Ссылка на анкету</p>
             <Select name="survey_id" defaultValue="" required disabled={surveys.length === 0}>
-              <EmptyOption label={surveys.length ? 'Выбери опрос' : 'Опросов пока нет'} />
+              <EmptyOption label={surveys.length ? 'Выбери анкету' : 'Анкет пока нет'} />
               {surveys.map((survey) => (
                 <option key={survey.id} value={survey.id}>
                   {survey.name}{survey.status !== 'active' ? ' · черновик' : ''}
@@ -456,7 +487,7 @@ function ContactRelationsHub({
             </Select>
             <Button type="submit" variant="secondary" className="w-full" disabled={surveys.length === 0}>
               <ClipboardList className="h-4 w-4" />
-              Зафиксировать ссылку
+              Создать ссылку на вопросы
             </Button>
           </form>
         )}
@@ -475,36 +506,19 @@ function ContactRelationsHub({
             </Button>
           </form>
         )}
-
-        {canManageHypotheses && (
-          <form action={attachLeadToHypothesisFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-            <input type="hidden" name="lead_id" value={leadId} />
-            <p className="text-sm font-bold text-app-text">Связать с идеей</p>
-            <Select name="hypothesis_id" defaultValue="" required disabled={hypotheses.length === 0}>
-              <EmptyOption label={hypotheses.length ? 'Выбери идею' : 'Идей пока нет'} />
-              {hypotheses.map((hypothesis) => <option key={hypothesis.id} value={hypothesis.id}>{hypothesis.name}</option>)}
-            </Select>
-            <Button type="submit" variant="secondary" className="w-full" disabled={hypotheses.length === 0}>
-              <Target className="h-4 w-4" />
-              Привязать идею
-            </Button>
-          </form>
-        )}
       </CardContent>
     </Card>
   );
 }
 
 export async function LeadProfile({ id }: { id: string }) {
-  const [lead, interactions, tasks, stageOptions, related, campaignOptions, insightOptions, hypothesisOptions, surveyOptions, leadQuestionnaires, leadQuestionnaireResponses, currentUser, refusalReasons] = await Promise.all([
+  const [lead, interactions, tasks, related, campaignOptions, insightOptions, surveyOptions, leadQuestionnaires, leadQuestionnaireResponses, currentUser, refusalReasons] = await Promise.all([
     getLeadById(id),
     getLeadInteractions(id),
     getLeadTasks(id),
-    getLeadStageOptions(),
     getLeadRelatedItems(id),
     getCampaignOptions(),
     getInsightOptions(),
-    getHypothesisOptions(),
     getSurveyOptions(),
     getLeadQuestionnaires(id),
     getLeadQuestionnaireResponses(id),
@@ -518,196 +532,114 @@ export async function LeadProfile({ id }: { id: string }) {
   const telegramHref = contactHref(lead.telegram, 'telegram');
   const emailHref = contactHref(lead.email, 'email');
   const phoneHref = contactHref(lead.phone, 'phone');
-  const currentStageOption = stageOptions.find((stage) => stage.name === lead.stage);
   const currentRole = currentUser?.role ?? 'viewer';
   const canManageContacts = can(currentRole, 'manageContacts');
   const canManageTasks = can(currentRole, 'manageTasks');
   const canManageCampaigns = can(currentRole, 'manageCampaigns');
   const canManageSurveys = can(currentRole, 'manageSurveys');
   const canManageInsights = can(currentRole, 'manageInsights');
-  const canManageHypotheses = can(currentRole, 'manageHypotheses');
   const canManageSettings = can(currentRole, 'manageSettings');
-  const canManageRelations = canManageCampaigns || canManageSurveys || canManageInsights || canManageHypotheses;
-  const canUseQuickManagement = canManageContacts || canManageTasks || canManageInsights || canManageHypotheses;
+  const canManageRelations = canManageCampaigns || canManageSurveys || canManageInsights;
   const [questionPacks, messageTemplates] = await Promise.all([
     getQuestionPacks(),
     getMessageTemplatesForLead(lead.type)
   ]);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 rounded-3xl border border-app-line bg-white p-6 shadow-card lg:flex-row lg:items-start">
-        <div>
-          <p className="mb-2 text-sm text-app-muted">Люди → {lead.name}</p>
-          <h1 className="text-3xl font-black tracking-tight text-app-text">{lead.name}</h1>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Badge tone={lead.score >= 75 ? 'red' : lead.score >= 45 ? 'yellow' : 'gray'}>{lead.priority} · {lead.score}/100</Badge>
-            <Badge tone={lead.stage === 'Отказ' ? 'red' : 'purple'}>{lead.stage}</Badge>
-            {lead.refusalReason && <Badge tone="red">Отказ: {lead.refusalReason}</Badge>}
-            {lead.tags.length ? lead.tags.map((tag, index) => (
-              <Badge key={tag} tone={index === 0 ? 'red' : index === 1 ? 'pink' : index === 2 ? 'purple' : 'green'}>{tag}</Badge>
-            )) : <Badge tone="gray">Без тегов</Badge>}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canManageContacts && (
-            <Button asChild variant="secondary">
-              <Link href={`/people/${lead.id}/edit`}>
-                <Edit3 className="h-4 w-4" />
-                Редактировать
-              </Link>
-            </Button>
-          )}
-          {instagramHref && (
-            <Button asChild variant="secondary">
-              <a href={instagramHref} target="_blank" rel="noreferrer"><MessageSquare className="h-4 w-4" /> Instagram</a>
-            </Button>
-          )}
-          {telegramHref && (
-            <Button asChild variant="secondary">
-              <a href={telegramHref} target="_blank" rel="noreferrer"><Send className="h-4 w-4" /> Telegram</a>
-            </Button>
-          )}
-          {canManageContacts && (
-            <>
-              <form action={updateLeadStageFromProfileAction}>
-                <input type="hidden" name="lead_id" value={lead.id} />
-                <input type="hidden" name="stage_name" value="Тестирует" />
-                <Button type="submit"><TestTube2 className="h-4 w-4" /> В тестирование</Button>
-              </form>
-              <Button variant="ghost"><MoreVertical className="h-4 w-4" /></Button>
-            </>
-          )}
-        </div>
-      </div>
+    <div className="space-y-6 pb-24 md:pb-0">
+      <Card className="overflow-hidden">
+        <CardContent className="grid gap-6 p-5 lg:grid-cols-[1fr_320px] lg:p-6">
+          <div className="min-w-0">
+            <p className="mb-2 text-sm text-app-muted">Контакты → {lead.name}</p>
+            <h1 className="text-3xl font-black tracking-tight text-app-text">{lead.name}</h1>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Badge tone={lead.score >= 75 ? 'red' : lead.score >= 45 ? 'yellow' : 'gray'}>{lead.priority} · {lead.score}/100</Badge>
+              <Badge tone={lead.stage === 'Отказ' ? 'red' : 'purple'}>{lead.stage}</Badge>
+              {lead.refusalReason && <Badge tone="red">Отказ: {lead.refusalReason}</Badge>}
+              {lead.tags.length ? lead.tags.map((tag, index) => (
+                <Badge key={tag} tone={index === 0 ? 'red' : index === 1 ? 'pink' : index === 2 ? 'purple' : 'green'}>{tag}</Badge>
+              )) : <Badge tone="gray">Без тегов</Badge>}
+            </div>
 
-      <LeadNextActionCard lead={lead} tasks={tasks} role={currentRole} />
-
-      <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.2fr_1fr]">
-        <div className="space-y-6">
-          <Card>
-            <CardContent className="space-y-5">
-              <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br from-pink-200 to-purple-200 text-xl font-black text-purple-800">
-                  {lead.name.split(' ').map((word) => word[0]).join('').slice(0, 2)}
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-app-text">{lead.name}</h2>
-                  <p className="text-sm text-app-muted">{lead.type} · {lead.niche}</p>
-                </div>
-              </div>
+            <div className="mt-6 grid gap-3 md:grid-cols-2">
               {[
-                ['Тип', lead.type],
+                ['Имя', lead.name],
+                ['Тип контакта', lead.type],
                 ['Ниша', lead.niche],
                 ['Город', lead.city],
                 ['Источник', lead.source],
-                ['Стадия', lead.stage],
+                ['Статус', lead.stage],
                 ['Приоритет', `${lead.priority} · ${lead.score}/100`],
-                ['Следующий шаг', lead.nextStep],
-                ['Следующий контакт', lead.nextDate]
+                ['Instagram', lead.instagram || '—'],
+                ['Telegram', lead.telegram || '—'],
+                ['Телефон', lead.phone || '—'],
+                ['Email', lead.email || '—'],
+                ['Комментарий', lead.notes || '—'],
+                ['Теги', lead.tags.length ? lead.tags.join(', ') : '—'],
+                ['Последняя активность', interactions[0]?.date || '—'],
+                ['Дата создания', lead.createdAt || '—']
               ].map(([label, value]) => (
-                <div key={label} className="flex items-center justify-between gap-4 border-b border-app-line pb-3 text-sm last:border-0">
-                  <span className="text-app-muted">{label}</span>
-                  <span className="text-right font-semibold text-app-text">{value}</span>
+                <div key={label} className="rounded-2xl border border-app-line bg-slate-50/70 p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-app-faint">{label}</p>
+                  <p className="mt-1 break-words text-sm font-semibold text-app-text">{value}</p>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader><CardTitle>Контакты</CardTitle></CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {[
-                ['Instagram', lead.instagram, instagramHref],
-                ['Telegram', lead.telegram, telegramHref],
-                ['Телефон', lead.phone, phoneHref],
-                ['Email', lead.email, emailHref]
-              ].map(([label, value, href]) => (
-                <div key={label} className="flex items-center justify-between gap-4 rounded-2xl bg-app-soft px-4 py-3">
-                  <span className="text-app-muted">{label}</span>
-                  {href && value ? (
-                    <a href={href} target={String(href).startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="font-semibold text-app-purple hover:underline">
-                      {value}
-                    </a>
-                  ) : <span className="font-semibold text-app-text">—</span>}
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="space-y-3">
+            <p className="text-sm font-black text-app-text">Быстрые рабочие действия</p>
+            {canManageContacts && (
+              <Button asChild className="w-full justify-start" variant="secondary">
+                <Link href={`/people/${lead.id}/edit`}>
+                  <Edit3 className="h-4 w-4" />
+                  Редактировать контакт
+                </Link>
+              </Button>
+            )}
+            {instagramHref && (
+              <Button asChild className="w-full justify-start" variant="secondary">
+                <a href={instagramHref} target="_blank" rel="noreferrer"><MessageSquare className="h-4 w-4" /> Instagram</a>
+              </Button>
+            )}
+            {telegramHref && (
+              <Button asChild className="w-full justify-start" variant="secondary">
+                <a href={telegramHref} target="_blank" rel="noreferrer"><Send className="h-4 w-4" /> Telegram</a>
+              </Button>
+            )}
+            {phoneHref && (
+              <Button asChild className="w-full justify-start" variant="secondary">
+                <a href={phoneHref}><MessageSquare className="h-4 w-4" /> Телефон</a>
+              </Button>
+            )}
+            {emailHref && (
+              <Button asChild className="w-full justify-start" variant="secondary">
+                <a href={emailHref}><MessageSquare className="h-4 w-4" /> Email</a>
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
-          {canUseQuickManagement && (
-            <Card>
-              <CardHeader><CardTitle>Быстрое управление</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                {canManageContacts && (
-                  <form action={updateLeadStageFromProfileAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-                    <input type="hidden" name="lead_id" value={lead.id} />
-                    <p className="text-sm font-bold text-app-text">Перевести в стадию</p>
-                    <Select name="stage_id" defaultValue={currentStageOption?.id ?? ''}>
-                      {stageOptions.filter((stage) => stage.name !== 'Отказ').map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-                    </Select>
-                    <Button type="submit" variant="secondary" className="w-full"><ArrowRight className="h-4 w-4" />Сменить стадию</Button>
-                  </form>
-                )}
+      <div id="next-action" className="scroll-mt-24">
+        <LeadNextActionCard lead={lead} tasks={tasks} role={currentRole} />
+      </div>
 
-                {canManageContacts && <RefusalManagementCard leadId={lead.id} lead={lead} reasons={refusalReasons} />}
-
-                {canManageContacts && (
-                  <form action={updateLeadFollowUpAction} className="space-y-3 rounded-2xl border border-app-line p-4">
-                    <input type="hidden" name="lead_id" value={lead.id} />
-                    <p className="text-sm font-bold text-app-text">Следующий шаг</p>
-                    <Input name="next_step" defaultValue={lead.nextStep === '—' ? '' : lead.nextStep} placeholder="Например: отправить ссылку на опрос" />
-                    <Input name="next_contact_date" type="date" defaultValue={lead.nextDateRaw ?? ''} />
-                    <Button type="submit" variant="secondary" className="w-full"><Flag className="h-4 w-4" />Сохранить follow-up</Button>
-                  </form>
-                )}
-
-                <div className="grid gap-2">
-                  {canManageTasks && (
-                    <Button asChild variant="ghost" className="justify-start">
-                      <Link href={`/tasks/new?leadId=${lead.id}`}><CalendarPlus className="h-4 w-4" />Создать задачу</Link>
-                    </Button>
-                  )}
-                  {canManageInsights && (
-                    <Button asChild variant="ghost" className="justify-start">
-                      <Link href={`/insights/new?leadId=${lead.id}`}><Sparkles className="h-4 w-4" />Создать новый вывод</Link>
-                    </Button>
-                  )}
-                  {canManageHypotheses && (
-                    <Button asChild variant="ghost" className="justify-start">
-                      <Link href={`/hypotheses/new?leadId=${lead.id}`}><Target className="h-4 w-4" />Создать новую идею</Link>
-                    </Button>
-                  )}
-                </div>
-
-                {canManageContacts && (
-                  <form action={deleteLeadAction} className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
-                    <input type="hidden" name="lead_id" value={lead.id} />
-                    <p className="text-sm font-black text-red-700">Удалить контакт</p>
-                    <p className="mt-1 text-xs leading-5 text-red-600">Удалятся анкеты, касания и связи контакта. Задачи останутся без привязки к контакту.</p>
-                    <Button type="submit" variant="danger" className="mt-3 w-full">
-                      <Trash2 className="h-4 w-4" />
-                      Удалить контакт
-                    </Button>
-                  </form>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
+      <div className="grid gap-6 2xl:grid-cols-[0.9fr_1.2fr_1fr]">
+        <div className="space-y-6">
           {canManageRelations && (
             <ContactRelationsHub
               leadId={lead.id}
               campaigns={campaignOptions}
               insights={insightOptions}
-              hypotheses={hypothesisOptions}
               surveys={surveyOptions}
               canManageCampaigns={canManageCampaigns}
               canManageSurveys={canManageSurveys}
               canManageInsights={canManageInsights}
-              canManageHypotheses={canManageHypotheses}
             />
           )}
+
+          {canManageContacts && <RefusalManagementCard leadId={lead.id} lead={lead} reasons={refusalReasons} />}
 
           <MessageTemplatePanel
             lead={{
@@ -731,9 +663,23 @@ export async function LeadProfile({ id }: { id: string }) {
             canEditTemplates={canManageSettings}
           />
           {canManageContacts && <QuestionPacksCard leadId={lead.id} packs={questionPacks} />}
-          <LeadQuestionnairesCard items={leadQuestionnaires} canManageQuestionnaires={canManageContacts} />
+          <div id="lead-questions" className="scroll-mt-24">
+            <LeadQuestionnairesCard items={leadQuestionnaires} canManageQuestionnaires={canManageContacts} />
+          </div>
           <LeadQuestionnaireResponsesCard items={leadQuestionnaireResponses} />
           {canManageContacts && <PersonalQuestionnaireBuilder leadId={lead.id} leadName={lead.name} />}
+          {canManageContacts && (
+            <form action={deleteLeadAction} className="rounded-2xl border border-red-100 bg-red-50/50 p-4">
+              <input type="hidden" name="lead_id" value={lead.id} />
+              <p className="text-sm font-black text-red-700">Удалить контакт</p>
+              <p className="mt-1 text-xs leading-5 text-red-600">Удалятся анкеты, касания и связи контакта. Задачи останутся без привязки к контакту.</p>
+              <Input name="confirmation" placeholder="Напиши: УДАЛИТЬ" className="mt-3 bg-white" required />
+              <Button type="submit" variant="danger" className="mt-3 w-full">
+                <Trash2 className="h-4 w-4" />
+                Удалить контакт
+              </Button>
+            </form>
+          )}
         </div>
 
         <div className="space-y-6">
@@ -775,8 +721,8 @@ export async function LeadProfile({ id }: { id: string }) {
                       <option value="message">Сообщение</option>
                       <option value="call">Звонок</option>
                       <option value="meeting">Встреча</option>
-                      <option value="survey_sent">Опрос отправлен</option>
-                      <option value="survey_completed">Опрос пройден</option>
+                      <option value="survey_sent">Анкета отправлена</option>
+                      <option value="survey_completed">Анкета заполнена</option>
                       <option value="status_change">Изменение статуса</option>
                     </Select>
                     <Input name="channel" placeholder="Канал: Instagram, Telegram..." />
@@ -828,24 +774,6 @@ export async function LeadProfile({ id }: { id: string }) {
                 </div>
               )) : <p className="text-sm text-app-muted">Задач по контакту пока нет.</p>}
 
-              {canManageTasks && (
-                <form action={createTaskAction} className="space-y-3 rounded-2xl border border-dashed border-purple-200 bg-purple-50/40 p-4">
-                  <input type="hidden" name="lead_id" value={lead.id} />
-                  <input type="hidden" name="return_to" value={`/people/${lead.id}`} />
-                  <Input name="title" placeholder="Новая задача" required />
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <Input name="due_date" type="date" />
-                    <Select name="priority" defaultValue="Средний">
-                      <option>Низкий</option>
-                      <option>Средний</option>
-                      <option>Высокий</option>
-                      <option>Срочно</option>
-                    </Select>
-                  </div>
-                  <Textarea name="description" placeholder="Описание задачи" />
-                  <Button type="submit" variant="secondary"><CalendarPlus className="h-4 w-4" />Добавить задачу</Button>
-                </form>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -855,11 +783,10 @@ export async function LeadProfile({ id }: { id: string }) {
         <RelationList title="Кампании" empty="Контакт пока не привязан к кампаниям." items={related.campaigns} icon={<Link2 className="h-4 w-4 text-app-purple" />} />
         <SurveyRelations items={related.surveys} />
         <RelationList title="Выводы" empty="По контакту пока нет выводов." items={related.insights} icon={<Lightbulb className="h-4 w-4 text-app-pink" />} />
-        <RelationList title="Идеи" empty="Контакт пока не связан с идеями." items={related.hypotheses} icon={<Target className="h-4 w-4 text-amber-500" />} />
       </div>
 
       <Card>
-        <CardHeader><CardTitle>Последние ответы на опросы</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Последние ответы на анкеты</CardTitle></CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {surveyAnswers.map((answer) => (
             <div key={answer.question} className="rounded-2xl border border-app-line p-4">
@@ -869,6 +796,7 @@ export async function LeadProfile({ id }: { id: string }) {
           ))}
         </CardContent>
       </Card>
+      <MobileStickyActions instagramHref={instagramHref} telegramHref={telegramHref} phoneHref={phoneHref} emailHref={emailHref} />
     </div>
   );
 }

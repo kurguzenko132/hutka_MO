@@ -15,7 +15,7 @@ export default async function HypothesesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Идеи для проверки" subtitle="Проверка идей через данные, опросы, кампании и выводы" actionLabel={can(role, 'manageHypotheses') ? 'Добавить идею' : undefined} actionHref={can(role, 'manageHypotheses') ? '/hypotheses/new' : undefined} />
+      <PageHeader title="Проверки" subtitle="Проверка предположений через данные, анкеты, кампании и выводы" actionLabel={can(role, 'manageHypotheses') ? 'Добавить проверку' : undefined} actionHref={can(role, 'manageHypotheses') ? '/hypotheses/new' : undefined} />
 
       <div className="grid gap-4">
         {hypotheses.map((item) => (
@@ -30,7 +30,7 @@ export default async function HypothesesPage() {
                       <Badge tone="gray">{item.category}</Badge>
                     </div>
                     <h3 className="mt-4 text-xl font-black leading-7 text-app-text">{item.title}</h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-app-muted">{item.description || item.testMethod || 'Описание идеи пока не добавлено.'}</p>
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-app-muted">{item.description || item.testMethod || 'Описание проверки пока не добавлено.'}</p>
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <MiniBlock label="Как проверяем" text={item.testMethod || 'Способ проверки пока не указан.'} />
                       <MiniBlock label="Следующее действие" text={item.nextAction || 'Следующее действие пока не указано.'} />
@@ -51,9 +51,9 @@ export default async function HypothesesPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-3xl bg-purple-50 text-app-purple"><FlaskConical className="h-6 w-6" /></div>
-            <h3 className="mt-4 text-xl font-black text-app-text">Идей пока нет</h3>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">Создай первую идею, чтобы проверить ее через кампании, опросы и реальные контакты.</p>
-            {can(role, 'manageHypotheses') && <Button asChild className="mt-5"><Link href="/hypotheses/new"><Plus className="h-4 w-4" />Добавить идею</Link></Button>}
+            <h3 className="mt-4 text-xl font-black text-app-text">Проверок пока нет</h3>
+            <p className="mt-2 max-w-xl text-sm leading-6 text-app-muted">Создай первую проверку через кампании, анкеты и реальные контакты.</p>
+            {can(role, 'manageHypotheses') && <Button asChild className="mt-5"><Link href="/hypotheses/new"><Plus className="h-4 w-4" />Добавить проверку</Link></Button>}
           </CardContent>
         </Card>
       )}
@@ -64,7 +64,7 @@ export default async function HypothesesPage() {
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pink-50 text-pink-600"><Target className="h-5 w-5" /></div>
             <div>
               <h3 className="font-black text-app-text">Правильная логика проверки</h3>
-              <p className="mt-1 text-sm leading-6 text-app-muted">Идея — это предположение. Кампания или опрос — проверка. Вывод — решение. Дальше меняем продукт, оффер или канал.</p>
+              <p className="mt-1 text-sm leading-6 text-app-muted">Предположение проверяется кампанией или анкетой. Вывод — решение. Дальше меняем продукт, оффер или канал.</p>
             </div>
           </div>
           {can(role, 'manageHypotheses') && <Button asChild variant="secondary"><Link href="/hypotheses/new">Создать проверку</Link></Button>}

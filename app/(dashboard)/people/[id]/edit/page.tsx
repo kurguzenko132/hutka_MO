@@ -87,7 +87,7 @@ export default async function EditLeadPage({
           </div>
         </FormSection>
 
-        <FormSection title="Контакты и follow-up">
+      <FormSection title="Контакты и действие">
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Instagram">
               <Input name="instagram" defaultValue={lead.instagram ?? ''} placeholder="@username" />

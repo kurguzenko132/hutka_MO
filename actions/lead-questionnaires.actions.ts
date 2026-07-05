@@ -9,6 +9,7 @@ import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase
 import { requirePermission } from '@/lib/permissions';
 import { getQuestionPackById } from '@/lib/question-packs';
 import { sendWorkspaceTelegramNotification } from '@/lib/telegram';
+import { recordActivityLog } from '@/lib/activity-log';
 import {
   answerLength,
   getLimitedText,
@@ -64,7 +65,7 @@ async function createUniqueToken(supabase: Awaited<ReturnType<typeof createClien
 
 
 export async function createLeadQuestionnaireFromPackAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
 
   const leadId = getText(formData, 'lead_id');
   const packId = getText(formData, 'pack_id');
@@ -125,8 +126,17 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
     lead_id: lead.id,
     type: 'survey_sent',
     channel: 'Hutka',
-    text: `Создана персональная анкета из пака «${pack.title}»: ${link}`,
+    text: `Созданы вопросы для контакта из готового набора «${pack.title}»: ${link}`,
     result: 'lead_questionnaire_pack_created'
+  });
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал анкету',
+    entityType: 'lead_questionnaire',
+    entityId: String(questionnaire.id),
+    entityTitle: title,
+    details: { lead_id: String(lead.id), source: 'question_pack', questions: pack.questions.length }
   });
 
   revalidatePath(`/people/${lead.id}`);
@@ -135,7 +145,7 @@ export async function createLeadQuestionnaireFromPackAction(formData: FormData) 
 }
 
 export async function createLeadQuestionnaireAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const leadId = getText(formData, 'lead_id');
   if (!leadId) redirect('/people?error=missing-contact');
 
@@ -191,8 +201,17 @@ export async function createLeadQuestionnaireAction(formData: FormData) {
     lead_id: lead.id,
     type: 'survey_sent',
     channel: 'Hutka',
-    text: `Создана персональная анкета «${title}»: ${link}`,
+    text: `Созданы вопросы для контакта «${title}»: ${link}`,
     result: 'lead_questionnaire_created'
+  });
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал анкету',
+    entityType: 'lead_questionnaire',
+    entityId: String(questionnaire.id),
+    entityTitle: title,
+    details: { lead_id: String(lead.id), questions: questions.length }
   });
 
   revalidatePath(`/people/${lead.id}`);
@@ -285,12 +304,27 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
     if (error) redirect(`/q/${token}?error=save-failed`);
   }
 
+  await supabase.from('activity_logs').insert({
+    user_id: null,
+    action: 'получил ответ на анкету',
+    entity_type: 'lead_questionnaire',
+    entity_id: questionnaireId,
+    entity_title: questionnaire.title ?? 'Вопросы для контакта',
+    details: {
+      lead_id: resolvedLeadId,
+      response_group_id: responseGroupId,
+      answers: answerRows.length,
+      respondent_name: respondentName || null,
+      respondent_contact: respondentContact || null
+    }
+  });
+
   if (resolvedLeadId) {
     await supabase.from('lead_interactions').insert({
       lead_id: resolvedLeadId,
       type: 'survey_completed',
       channel: 'Персональная ссылка',
-      text: `Получены ответы на персональную анкету «${questionnaire.title ?? 'Вопросы'}»`,
+      text: `Получены ответы на вопросы для контакта «${questionnaire.title ?? 'Вопросы'}»`,
       result: 'lead_questionnaire_completed'
     });
   }
@@ -305,7 +339,7 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
     await sendWorkspaceTelegramNotification({
       eventType: 'lead_questionnaire_response',
       title: 'новый ответ на анкету',
-      text: `${leadRow?.name ?? 'Контакт'} ответил(а) на персональную анкету «${questionnaire.title ?? 'Вопросы'}».`,
+      text: `${leadRow?.name ?? 'Контакт'} ответил(а) на вопросы для контакта «${questionnaire.title ?? 'Вопросы'}».`,
       href: `/people/${resolvedLeadId}`,
       extraLines: [
         respondentName ? `Имя в форме: ${respondentName}` : '',
@@ -322,10 +356,14 @@ export async function submitLeadQuestionnaireAction(formData: FormData) {
 }
 
 export async function deleteLeadQuestionnaireAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
   const questionnaireId = getText(formData, 'questionnaire_id');
   const fallbackLeadId = getText(formData, 'lead_id');
+  const confirmation = getText(formData, 'confirmation');
   if (!questionnaireId) redirect('/people?error=missing-questionnaire');
+  if (confirmation !== 'УДАЛИТЬ') {
+    redirect(fallbackLeadId ? `/people/${fallbackLeadId}?error=confirmation-required` : '/people?error=confirmation-required');
+  }
 
   if (!isSupabaseConfigured()) {
     if (!fallbackLeadId) redirect('/people?error=missing-questionnaire');
@@ -335,7 +373,7 @@ export async function deleteLeadQuestionnaireAction(formData: FormData) {
   const supabase = await createClient();
   const { data: questionnaire, error: questionnaireError } = await supabase
     .from('lead_questionnaires')
-    .select('id,lead_id')
+    .select('id,lead_id,title')
     .eq('id', questionnaireId)
     .maybeSingle();
 
@@ -356,8 +394,17 @@ export async function deleteLeadQuestionnaireAction(formData: FormData) {
     lead_id: leadId,
     type: 'note',
     channel: 'Hutka',
-    text: 'Персональная анкета удалена',
+    text: 'Вопросы для контакта удалены',
     result: 'lead_questionnaire_deleted'
+  });
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил анкету',
+    entityType: 'lead_questionnaire',
+    entityId: questionnaireId,
+    entityTitle: String(questionnaire.title ?? 'Вопросы для контакта'),
+    details: { lead_id: leadId }
   });
 
   revalidatePath(`/people/${leadId}`);

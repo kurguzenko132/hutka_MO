@@ -52,7 +52,7 @@ export type SurveyDetail = SurveyListItem & {
 const demoSurveys: SurveyListItem[] = [
   {
     id: 'demo-masters',
-    title: 'Опрос для мастеров',
+    title: 'Анкета для мастеров',
     type: 'Мастера',
     description: 'Проверяем боли, текущую запись и готовность к тестированию.',
     status: 'active',
@@ -63,7 +63,7 @@ const demoSurveys: SurveyListItem[] = [
   },
   {
     id: 'demo-salons',
-    title: 'Опрос для салонов',
+    title: 'Анкета для салонов',
     type: 'Салоны',
     description: 'Понимаем роли, расписание, CRM и барьеры перехода.',
     status: 'active',
@@ -74,9 +74,9 @@ const demoSurveys: SurveyListItem[] = [
   },
   {
     id: 'demo-clients',
-    title: 'Опрос клиентов',
+    title: 'Анкета клиентов',
     type: 'Клиенты',
-    description: 'Проверяем идею поиска мастера на карте.',
+    description: 'Проверяем интерес к поиску мастера на карте.',
     status: 'draft',
     slug: 'clients-map',
     answersCount: 42,

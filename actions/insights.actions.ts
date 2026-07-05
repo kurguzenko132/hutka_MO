@@ -6,6 +6,7 @@ import { insightImportanceToDb, insightStatusToDb } from '@/lib/insights';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -21,7 +22,7 @@ async function insightExists(supabase: Awaited<ReturnType<typeof createClient>>,
 }
 
 export async function createInsightAction(formData: FormData) {
-  await requirePermission('manageInsights', '/insights?error=forbidden');
+  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
   const title = getText(formData, 'title');
   if (!title) redirect('/insights/new?error=missing-title');
 
@@ -35,7 +36,7 @@ export async function createInsightAction(formData: FormData) {
     .insert({
       title,
       description: getText(formData, 'description') || null,
-      category: getText(formData, 'category') || 'Инсайт',
+      category: getText(formData, 'category') || 'Вывод',
       evidence: getText(formData, 'evidence') || null,
       importance: insightImportanceToDb[getText(formData, 'importance')] ?? 'medium',
       status: insightStatusToDb[getText(formData, 'status')] ?? 'new',
@@ -66,13 +67,22 @@ export async function createInsightAction(formData: FormData) {
     if (surveysError) redirect(`/insights/${insightId}?error=relations-save-failed`);
   }
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал вывод',
+    entityType: 'insight',
+    entityId: insightId,
+    entityTitle: title,
+    details: { leads: leadIds.length, campaigns: campaignIds.length, surveys: surveyIds.length }
+  });
+
   revalidatePath('/insights');
   revalidatePath('/dashboard');
   redirect(`/insights/${insightId}`);
 }
 
 export async function updateInsightAction(formData: FormData) {
-  await requirePermission('manageInsights', '/insights?error=forbidden');
+  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
   const insightId = getText(formData, 'insight_id');
   if (!insightId) redirect('/insights');
 
@@ -95,6 +105,15 @@ export async function updateInsightAction(formData: FormData) {
 
   if (error) redirect(`/insights/${insightId}?error=update-failed`);
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил вывод',
+    entityType: 'insight',
+    entityId: insightId,
+    entityTitle: 'Вывод',
+    details: { status: insightStatusToDb[getText(formData, 'status')] ?? 'new' }
+  });
+
   revalidatePath('/insights');
   revalidatePath(`/insights/${insightId}`);
   revalidatePath('/dashboard');
@@ -102,19 +121,30 @@ export async function updateInsightAction(formData: FormData) {
 }
 
 export async function deleteInsightAction(formData: FormData) {
-  await requirePermission('manageInsights', '/insights?error=forbidden');
+  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
   const insightId = getText(formData, 'insight_id');
+  const confirmation = getText(formData, 'confirmation');
   if (!insightId) redirect('/insights?error=missing-insight');
+  if (confirmation !== 'УДАЛИТЬ') redirect(`/insights/${insightId}?error=confirmation-required`);
 
   if (!isSupabaseConfigured()) {
     redirect('/insights?deleted=demo');
   }
 
   const supabase = await createClient();
-  if (!(await insightExists(supabase, insightId))) redirect('/insights?error=insight-not-found');
+  const { data: insight } = await supabase.from('insights').select('id,title').eq('id', insightId).maybeSingle();
+  if (!insight?.id) redirect('/insights?error=insight-not-found');
 
   const { error } = await supabase.from('insights').delete().eq('id', insightId);
   if (error) redirect(`/insights/${insightId}?error=delete-failed`);
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил вывод',
+    entityType: 'insight',
+    entityId: insightId,
+    entityTitle: String(insight.title ?? 'Вывод')
+  });
 
   revalidatePath('/insights');
   revalidatePath('/dashboard');

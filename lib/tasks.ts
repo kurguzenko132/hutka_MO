@@ -273,7 +273,7 @@ const demoTasks: TaskListItem[] = [
   {
     id: '1',
     title: 'Написать Анне повторно',
-    description: 'Уточнить интерес к тестированию и отправить ссылку на опрос.',
+    description: 'Уточнить интерес к тестированию и отправить ссылку на анкету.',
     dueDate: 'Сегодня',
     dueDateRaw: new Date().toISOString().slice(0, 10),
     priority: 'Высокий',
@@ -296,8 +296,8 @@ const demoTasks: TaskListItem[] = [
   },
   {
     id: '2',
-    title: 'Отправить опрос салону Beauty Line',
-    description: 'Короткий опрос по текущей записи, ролям сотрудников и интересу к карте.',
+    title: 'Отправить анкету салону Beauty Line',
+    description: 'Короткая анкета по текущей записи, ролям сотрудников и интересу к карте.',
     dueDate: 'Вчера',
     dueDateRaw: new Date(Date.now() - 86400000).toISOString().slice(0, 10),
     priority: 'Срочно',
@@ -333,7 +333,7 @@ const demoTasks: TaskListItem[] = [
   },
   {
     id: '4',
-    title: 'Закрыть старый follow-up',
+    title: 'Закрыть старое действие',
     description: 'Пример выполненной задачи для фильтра “Готово”.',
     dueDate: 'Без даты',
     priority: 'Низкий',

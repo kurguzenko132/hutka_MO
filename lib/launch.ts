@@ -34,14 +34,14 @@ const launchChecks: LaunchCheck[] = [
   {
     id: 'contacts',
     title: 'Первые контакты',
-    description: 'Добавлены первые мастера/салоны, проверены карточки, задачи, follow-up и история касаний.',
+    description: 'Добавлены первые мастера/салоны, проверены карточки, задачи, действия и история касаний.',
     owner: 'Маркетолог',
     status: 'warning'
   },
   {
     id: 'surveys',
-    title: 'Опросники',
-    description: 'Создан минимум один опрос для мастеров и проверена публичная ссылка /s/[slug].',
+    title: 'Анкеты',
+    description: 'Создана минимум одна анкета для мастеров и проверена публичная ссылка /s/[slug].',
     owner: 'Маркетолог',
     status: 'todo'
   },
@@ -84,11 +84,10 @@ export async function getLaunchReadiness() {
   const getCount = (table: string) => tableStatus.find((item) => item.table === table)?.count ?? 0;
   metrics.push(
     { label: 'Контакты', value: getCount('leads'), hint: 'людей и организаций в базе' },
-    { label: 'Задачи', value: getCount('tasks'), hint: 'рабочих follow-up и действий' },
-    { label: 'Опросы', value: getCount('surveys'), hint: 'исследовательских форм' },
-    { label: 'Кампании', value: getCount('campaigns'), hint: 'маркетинговых экспериментов' },
-    { label: 'Выводы', value: getCount('insights'), hint: 'выводов по рынку' },
-    { label: 'Идеи', value: getCount('hypotheses'), hint: 'проверяемых предположений' }
+    { label: 'Задачи', value: getCount('tasks'), hint: 'рабочих задач и действий' },
+    { label: 'Анкеты', value: getCount('surveys'), hint: 'исследовательских форм' },
+    { label: 'Кампании', value: getCount('campaigns'), hint: 'маркетинговых активностей' },
+    { label: 'Выводы', value: getCount('insights'), hint: 'выводов по рынку' }
   );
 
   const okTables = tableStatus.filter((item) => item.ok).length;

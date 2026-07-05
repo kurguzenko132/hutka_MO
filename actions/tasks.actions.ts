@@ -9,6 +9,7 @@ import { statusLabel } from '@/lib/tasks';
 import type { TaskAssigneeRole, TaskStatus } from '@/lib/tasks';
 import { requirePermission } from '@/lib/permissions';
 import { getSafeRedirectPath, withRedirectQuery } from '@/lib/auth';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -153,6 +154,15 @@ export async function createTaskAction(formData: FormData) {
     revalidatePath(`/people/${leadId}`);
   }
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал задачу',
+    entityType: 'task',
+    entityId: String(task.id),
+    entityTitle: title,
+    details: { lead_id: leadId, due_date: dueDate || null, assignees: assignees.length }
+  });
+
   await sendWorkspaceTelegramNotification({
     eventType: 'task_created',
     title: 'создана задача',
@@ -171,7 +181,7 @@ export async function createTaskAction(formData: FormData) {
 }
 
 export async function updateTaskStatusAction(formData: FormData) {
-  await requirePermission('manageTasks', '/tasks?error=forbidden');
+  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
   const taskId = getText(formData, 'task_id');
   const status = getText(formData, 'status') as TaskStatus;
   const returnTo = getReturnTo(formData);
@@ -227,6 +237,15 @@ export async function updateTaskStatusAction(formData: FormData) {
     });
   }
 
+  await recordActivityLog({
+    userId: user.profileId,
+    action: status === 'done' ? 'закрыл задачу' : 'изменил задачу',
+    entityType: 'task',
+    entityId: taskId,
+    entityTitle: title,
+    details: { status, lead_id: leadId || null }
+  });
+
   revalidatePath('/tasks');
   revalidatePath('/dashboard');
   revalidatePath('/notifications');
@@ -235,7 +254,7 @@ export async function updateTaskStatusAction(formData: FormData) {
 }
 
 export async function deleteTaskAction(formData: FormData) {
-  await requirePermission('manageTasks', '/tasks?error=forbidden');
+  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
   const taskId = getText(formData, 'task_id');
   const returnTo = getReturnTo(formData);
   if (!taskId) redirect(withRedirectQuery(returnTo, { error: 'missing-task' }, '/tasks'));
@@ -247,7 +266,7 @@ export async function deleteTaskAction(formData: FormData) {
   const supabase = await createClient();
   const { data: task, error: taskError } = await supabase
     .from('tasks')
-    .select('id,lead_id')
+    .select('id,lead_id,title')
     .eq('id', taskId)
     .maybeSingle();
 
@@ -259,6 +278,14 @@ export async function deleteTaskAction(formData: FormData) {
   if (error) redirect(withRedirectQuery(returnTo, { error: 'task-delete-failed' }, '/tasks'));
 
   const leadId = task.lead_id ? String(task.lead_id) : '';
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил задачу',
+    entityType: 'task',
+    entityId: taskId,
+    entityTitle: String(task.title ?? 'Задача'),
+    details: { lead_id: leadId || null }
+  });
 
   revalidatePath('/tasks');
   revalidatePath('/dashboard');

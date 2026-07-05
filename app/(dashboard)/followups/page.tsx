@@ -63,8 +63,8 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Follow-up центр"
-        subtitle="Hutka сама находит контакты, которые могут выпасть из работы, и предлагает задачи на следующий шаг."
+        title="Что сделать"
+        subtitle="Hutka находит контакты, которым нужен следующий шаг, и предлагает задачи."
         actionLabel="Открыть задачи"
         actionHref="/tasks"
       />
@@ -77,7 +77,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
               ? 'Такая открытая задача уже есть — дубль не создан.'
               : created === 'none'
                 ? 'Нет рекомендаций без открытых задач.'
-                : `Создано follow-up задач: ${created}`}
+                : `Создано задач: ${created}`}
           </CardContent>
         </Card>
       ) : null}
@@ -86,7 +86,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
         <Card className="border-red-100 bg-red-50/70">
           <CardContent className="flex items-center gap-3 p-4 text-sm font-bold text-red-700">
             <AlertTriangle className="h-4 w-4" />
-            Не удалось создать follow-up задачу. Проверь права и Supabase.
+            Не удалось создать задачу. Проверь права и Supabase.
           </CardContent>
         </Card>
       ) : null}
@@ -105,7 +105,7 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
           <div>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-app-purple" />
-              <h2 className="text-lg font-black text-app-text">Автоматические follow-up-задачи</h2>
+              <h2 className="text-lg font-black text-app-text">Автоматические задачи</h2>
               {data.demoMode ? <Badge tone="yellow">Demo fallback</Badge> : null}
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-app-muted">
@@ -138,8 +138,8 @@ export default async function FollowUpsPage({ searchParams }: { searchParams: Se
 
       {filtered.length === 0 ? (
         <EmptyState
-          title="Follow-up-рекомендаций нет"
-          text="Сейчас все контакты под контролем: нет просроченных follow-up, заинтересованных контактов без задачи и анкет без ответа."
+          title="Рекомендаций нет"
+          text="Сейчас все контакты под контролем: нет просроченных действий, заинтересованных контактов без задачи и анкет без ответа."
           action={
             <Button asChild variant="secondary">
               <Link href="/people">Открыть контакты</Link>

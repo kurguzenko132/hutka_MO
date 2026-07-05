@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
 import type { QuestionPackAudience, QuestionPackStatus, QuestionType } from '@/lib/question-packs';
+import { recordActivityLog } from '@/lib/activity-log';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -64,7 +65,7 @@ async function packQuestionExists(supabase: Awaited<ReturnType<typeof createClie
 }
 
 export async function createQuestionPackAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
   const title = getText(formData, 'title');
   if (!title) redirect('/settings/question-packs?error=title-required');
@@ -78,13 +79,21 @@ export async function createQuestionPackAction(formData: FormData) {
       short_title: getText(formData, 'short_title') || title,
       description: getText(formData, 'description') || null,
       audience: normalizeAudience(getText(formData, 'audience')),
-      badge: getText(formData, 'badge') || 'пак',
+      badge: getText(formData, 'badge') || 'набор',
       status: normalizeStatus(getText(formData, 'status'))
     })
     .select('id')
     .single();
 
   if (error || !data) redirect('/settings/question-packs?error=create-failed');
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'создал готовые вопросы',
+    entityType: 'question_pack',
+    entityId: String(data.id),
+    entityTitle: title
+  });
 
   revalidateQuestionPacks(String(data.id));
   redirect(`/settings/question-packs/${data.id}?saved=created`);
@@ -108,7 +117,7 @@ export async function updateQuestionPackAction(formData: FormData) {
       short_title: getText(formData, 'short_title') || title,
       description: getText(formData, 'description') || null,
       audience: normalizeAudience(getText(formData, 'audience')),
-      badge: getText(formData, 'badge') || 'пак',
+      badge: getText(formData, 'badge') || 'набор',
       status: normalizeStatus(getText(formData, 'status')),
       updated_at: new Date().toISOString()
     })
@@ -121,17 +130,26 @@ export async function updateQuestionPackAction(formData: FormData) {
 }
 
 export async function deleteQuestionPackAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
   const id = getText(formData, 'id');
   if (!id) redirect('/settings/question-packs?error=pack-required');
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
-  if (!(await packExists(supabase, id))) redirect('/settings/question-packs?error=pack-not-found');
+  const { data: pack } = await supabase.from('question_packs').select('id,title').eq('id', id).maybeSingle();
+  if (!pack?.id) redirect('/settings/question-packs?error=pack-not-found');
 
   const { error } = await supabase.from('question_packs').delete().eq('id', id);
   if (error) redirect(`/settings/question-packs/${id}?error=delete-failed`);
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил готовые вопросы',
+    entityType: 'question_pack',
+    entityId: id,
+    entityTitle: String(pack.title ?? 'Готовые вопросы')
+  });
 
   revalidateQuestionPacks();
   redirect('/settings/question-packs?deleted=pack');
@@ -201,7 +219,7 @@ export async function updateQuestionPackQuestionAction(formData: FormData) {
 }
 
 export async function deleteQuestionPackQuestionAction(formData: FormData) {
-  await requirePermission('manageSettings', '/dashboard?error=admin-only');
+  const user = await requirePermission('manageSettings', '/dashboard?error=admin-only');
 
   const packId = getText(formData, 'pack_id');
   const questionId = getText(formData, 'question_id');
@@ -209,7 +227,14 @@ export async function deleteQuestionPackQuestionAction(formData: FormData) {
   if (!isSupabaseConfigured()) redirectToDemo();
 
   const supabase = await createClient();
-  if (!(await packQuestionExists(supabase, packId, questionId))) {
+  const { data: question, error: questionError } = await supabase
+    .from('question_pack_questions')
+    .select('id,question_text')
+    .eq('id', questionId)
+    .eq('pack_id', packId)
+    .maybeSingle();
+
+  if (questionError || !question?.id) {
     redirect(`/settings/question-packs/${packId}?error=question-not-found`);
   }
 
@@ -220,6 +245,15 @@ export async function deleteQuestionPackQuestionAction(formData: FormData) {
     .eq('pack_id', packId);
 
   if (error) redirect(`/settings/question-packs/${packId}?error=question-delete-failed`);
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'удалил вопрос в готовых вопросах',
+    entityType: 'question_pack_question',
+    entityId: questionId,
+    entityTitle: String(question.question_text ?? 'Вопрос'),
+    details: { pack_id: packId }
+  });
 
   revalidateQuestionPacks(packId);
   redirect(`/settings/question-packs/${packId}?deleted=question`);

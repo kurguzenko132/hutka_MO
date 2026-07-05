@@ -62,8 +62,8 @@ function defaultStepByStage(lead: Lead) {
   const stage = normalizeStageName(lead.stage).toLowerCase();
 
   if (stage.includes('новый')) return 'Отправить первое сообщение и зафиксировать реакцию';
-  if (stage.includes('напис')) return 'Сделать follow-up и уточнить интерес';
-  if (stage.includes('ответ')) return 'Отправить диагностическую анкету из готового пака';
+  if (stage.includes('напис')) return 'Написать повторно и уточнить интерес';
+  if (stage.includes('ответ')) return 'Отправить диагностическую анкету из готовых вопросов';
   if (stage.includes('заинтерес')) return 'Назначить короткий созвон или следующий шаг';
   if (stage.includes('тест')) return 'Помочь пройти тестирование и собрать фидбек';
   if (stage.includes('пауза')) return 'Назначить дату возврата к контакту';
@@ -104,13 +104,13 @@ export function buildLeadNextAction(lead: Lead, tasks: LeadTask[]): LeadNextActi
   if (!nextDate) reasons.push('Не указана дата следующего контакта.');
   if (overdueTasks > 0) reasons.push(`Есть просроченные задачи: ${overdueTasks}.`);
   if (lead.score >= 75) reasons.push('Высокий приоритет — лучше обработать раньше остальных.');
-  if (['Ответил', 'Заинтересован'].includes(normalizeStageName(lead.stage))) reasons.push('Контакт уже проявил интерес — важно не затянуть follow-up.');
+  if (['Ответил', 'Заинтересован'].includes(normalizeStageName(lead.stage))) reasons.push('Контакт уже проявил интерес — важно не затянуть следующее действие.');
 
   if (typeof diff === 'number' && diff < 0) {
     return {
       status: 'overdue',
       tone: 'red',
-      title: 'Follow-up просрочен',
+      title: 'Просрочено действие',
       subtitle: `Нужно было вернуться ${Math.abs(diff)} дн. назад`,
       recommendedStep,
       recommendedDate: addDays(0),
@@ -127,7 +127,7 @@ export function buildLeadNextAction(lead: Lead, tasks: LeadTask[]): LeadNextActi
     return {
       status: 'today',
       tone: 'yellow',
-      title: 'Follow-up сегодня',
+      title: 'Нужно сделать сегодня',
       subtitle: 'Контакт нужно обработать сегодня',
       recommendedStep,
       recommendedDate: addDays(0),
@@ -183,7 +183,7 @@ export function buildLeadNextAction(lead: Lead, tasks: LeadTask[]): LeadNextActi
     recommendedDate,
     riskLabel: lead.score >= 75 ? 'Важный' : 'Норма',
     riskTone: lead.score >= 75 ? 'yellow' : 'green',
-    reasons: reasons.length ? reasons : ['Есть следующий шаг и дата follow-up.'],
+    reasons: reasons.length ? reasons : ['Есть следующий шаг и дата действия.'],
     openTasks,
     overdueTasks,
     daysUntilFollowUp: diff

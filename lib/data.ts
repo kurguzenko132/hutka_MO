@@ -1,6 +1,5 @@
 import {
   BarChart3,
-  Brain,
   CalendarCheck,
   CheckCircle2,
   ClipboardList,
@@ -15,9 +14,6 @@ import {
   Users,
   BellRing,
   Zap,
-  ShieldCheck,
-  Rocket,
-  ClipboardCheck,
   AlarmClockCheck
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -47,6 +43,7 @@ export type Lead = {
   refusalReason?: string;
   refusalComment?: string;
   refusedAt?: string;
+  createdAt?: string;
 };
 
 export type NavItem = {
@@ -58,20 +55,16 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { title: 'Главная', href: '/dashboard', icon: BarChart3 },
-  { title: 'Люди', href: '/people', icon: Users },
-  { title: 'Воронки', href: '/funnels', icon: Send },
-  { title: 'Опросники', href: '/surveys', icon: ClipboardList },
-  { title: 'Кампании', href: '/campaigns', icon: Zap },
+  { title: 'Контакты', href: '/people', icon: Users },
+  { title: 'Воронка', href: '/funnels', icon: Send },
+  { title: 'Что сделать', href: '/followups', icon: AlarmClockCheck },
   { title: 'Задачи', href: '/tasks', icon: CalendarCheck },
-  { title: 'Follow-up', href: '/followups', icon: AlarmClockCheck },
-  { title: 'Уведомления', href: '/notifications', icon: BellRing },
+  { title: 'Анкеты', href: '/surveys', icon: ClipboardList },
+  { title: 'Кампании', href: '/campaigns', icon: Zap },
   { title: 'Выводы', href: '/insights', icon: Sparkles },
   { title: 'География', href: '/geography', icon: MapPinned },
   { title: 'Отчеты', href: '/reports', icon: BarChart3 },
-  { title: 'Идеи', href: '/hypotheses', icon: Brain },
-  { title: 'Запуск', href: '/launch', icon: Rocket },
-  { title: 'Качество', href: '/quality', icon: ShieldCheck },
-  { title: 'Проверка', href: '/qa', icon: ClipboardCheck },
+  { title: 'Уведомления', href: '/notifications', icon: BellRing },
   { title: 'Настройки', href: '/settings', icon: CheckCircle2 }
 ];
 
@@ -94,7 +87,7 @@ export const funnel = [
 
 export const todayTasks = [
   { title: 'Написать новым контактам', count: 18 },
-  { title: 'Провести опросы', count: 7 },
+  { title: 'Провести анкеты', count: 7 },
   { title: 'Запустить тестирование', count: 5 },
   { title: 'Позвонить контактам', count: 4 },
   { title: 'Проверить обратную связь', count: 3 }
@@ -149,7 +142,7 @@ export const leads: Lead[] = [
     stage: 'Заинтересован',
     source: 'Telegram',
     priority: 'Средний',
-    nextStep: 'Отправить опрос',
+    nextStep: 'Отправить анкету',
     nextDate: '21.05.2025',
     tags: ['Салон', 'Есть администратор'],
     score: 62
@@ -200,8 +193,8 @@ export const leads: Lead[] = [
 
 export const activity = [
   { date: '21.05.2025 10:30', title: 'Назначен тест', text: 'Тест раннего доступа к карте мастеров' },
-  { date: '21.05.2025 09:15', title: 'Отправлено сообщение', text: 'Предложение пройти короткий опрос' },
-  { date: '20.05.2025 16:45', title: 'Ответила на опрос', text: 'Опрос потребностей мастеров' },
+  { date: '21.05.2025 09:15', title: 'Отправлено сообщение', text: 'Предложение пройти короткую анкету' },
+  { date: '20.05.2025 16:45', title: 'Ответила на анкету', text: 'Анкета потребностей мастеров' },
   { date: '19.05.2025 14:20', title: 'Написала в директ', text: 'Ответила на сторис' },
   { date: '18.05.2025 11:05', title: 'Найдена', text: 'Instagram / Reels' }
 ];

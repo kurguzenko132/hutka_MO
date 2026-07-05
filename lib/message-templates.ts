@@ -38,7 +38,7 @@ export const messageTemplateStatusOptions: Array<{ value: MessageTemplateStatus;
 export const messageTemplateCategoryOptions: Array<{ value: MessageTemplateCategory; label: string }> = [
   { value: 'first_touch', label: 'Первое касание' },
   { value: 'questionnaire', label: 'Анкета' },
-  { value: 'follow_up', label: 'Follow-up' },
+  { value: 'follow_up', label: 'Действие' },
   { value: 'pilot', label: 'Тестирование' },
   { value: 'refusal', label: 'Отказ / пауза' },
   { value: 'feedback', label: 'Фидбек' },
@@ -69,7 +69,7 @@ export const defaultMessageTemplates: MessageTemplate[] = [
   },
   {
     id: 'send-questionnaire',
-    title: 'Отправка персональной анкеты',
+    title: 'Отправка вопросов для контакта',
     shortTitle: 'Отправить анкету',
     audience: 'any',
     category: 'questionnaire',

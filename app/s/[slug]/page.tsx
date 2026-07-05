@@ -94,8 +94,8 @@ export default async function PublicSurveyPage({
   const errorMessages: Record<string, string> = {
     'save-failed': 'Не удалось сохранить ответ. Попробуйте еще раз.',
     required: 'Ответьте на обязательные вопросы и отправьте форму еще раз.',
-    'not-active': 'Этот опрос сейчас недоступен для ответов.',
-    'questions-not-found': 'В этом опросе пока нет активных вопросов.',
+    'not-active': 'Эта анкета сейчас недоступна для ответов.',
+    'questions-not-found': 'В этой анкете пока нет активных вопросов.',
     config: 'Форма временно недоступна: не настроен серверный ключ Supabase.',
     'too-long': 'Слишком длинный ответ. Сократите текст и попробуйте еще раз.'
   };
@@ -170,7 +170,7 @@ export default async function PublicSurveyPage({
             {survey.questions.length === 0 && (
               <Card>
                 <CardContent>
-                  <p className="text-sm font-semibold text-app-muted">В этом опросе пока нет вопросов.</p>
+                  <p className="text-sm font-semibold text-app-muted">В этой анкете пока нет вопросов.</p>
                 </CardContent>
               </Card>
             )}

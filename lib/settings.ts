@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { canonicalFunnelStages, normalizeContactTagName, normalizeStageName, orderStageNames } from '@/lib/stages';
+import { normalizeSourceName } from '@/lib/source-normalization';
 
 export type DirectoryItem = {
   id: string;
@@ -186,7 +187,7 @@ export async function getSettingsData(): Promise<SettingsData> {
 
     const sources = (sourcesResult.data ?? []).map((row) => ({
       id: String(row.id),
-      name: asString(row.name, 'Без названия'),
+      name: normalizeSourceName(asString(row.name, 'Без названия')),
       type: asString(row.type, 'manual'),
       usageCount: Array.isArray(row.leads) ? asNumber(row.leads[0]?.count, 0) : 0
     }));

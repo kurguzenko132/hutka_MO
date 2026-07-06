@@ -69,7 +69,14 @@ function getQuestionPayloads(formData: FormData) {
     order_index: number;
   }> = [];
 
-  for (let index = 1; index <= 8; index += 1) {
+  const questionIndexes = Array.from(formData.keys())
+    .map((key) => key.match(/^question_text_(\d+)$/)?.[1])
+    .filter((value): value is string => Boolean(value))
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
+
+  for (const index of questionIndexes) {
     const text = getText(formData, `question_text_${index}`);
     if (!text) continue;
 

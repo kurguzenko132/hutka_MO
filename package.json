@@ -1,6 +1,6 @@
 {
   "name": "hutka",
-  "version": "1.0.14-mvp",
+  "version": "1.0.15-mvp",
   "private": true,
   "engines": {
     "node": ">=22"

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, ClipboardList, Plus, Save } from 'lucide-react';
+import { ArrowLeft, ClipboardList, Save } from 'lucide-react';
 import { createSurveyAction } from '@/actions/surveys.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { SurveyQuestionBuilder } from '@/components/surveys/survey-question-builder';
 import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
@@ -14,15 +15,6 @@ const errorMessages: Record<string, string> = {
   'save-failed': 'Не удалось сохранить анкету. Проверь Supabase и попробуй снова.',
   'questions-save-failed': 'Анкета создана, но вопросы не сохранились.'
 };
-
-const starterQuestions = [
-  { text: 'Как вы сейчас ведете запись?', type: 'long_text', required: true, options: '' },
-  { text: 'Какая главная проблема в привлечении клиентов?', type: 'long_text', required: true, options: '' },
-  { text: 'Готовы ли протестировать карту мастеров?', type: 'yes_no', required: true, options: 'Да, Нет' },
-  { text: 'Что должно быть в приложении, чтобы вы реально им пользовались?', type: 'long_text', required: false, options: '' },
-  { text: '', type: 'short_text', required: false, options: '' },
-  { text: '', type: 'short_text', required: false, options: '' }
-];
 
 export default async function NewSurveyPage({ searchParams }: { searchParams?: Promise<{ error?: string }> }) {
   await requirePermission('manageSurveys', '/surveys?error=forbidden');
@@ -72,37 +64,8 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
             </div>
           </FormSection>
 
-          <FormSection title="Вопросы" subtitle="Заполни основные вопросы. Пустые строки не сохранятся.">
-            <div className="space-y-3">
-              {starterQuestions.map((question, index) => {
-                const number = index + 1;
-                return (
-                  <div key={number} className="rounded-2xl border border-app-line bg-slate-50 p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-sm font-black text-app-purple shadow-sm">{number}</span>
-                      <div className="flex-1 space-y-3">
-                        <Input name={`question_text_${number}`} defaultValue={question.text} placeholder="Текст вопроса" />
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <Select name={`question_type_${number}`} defaultValue={question.type}>
-                            <option value="short_text">Короткий ответ</option>
-                            <option value="long_text">Длинный ответ</option>
-                            <option value="single_choice">Один вариант</option>
-                            <option value="multiple_choice">Несколько вариантов</option>
-                            <option value="yes_no">Да / нет</option>
-                            <option value="rating">Оценка</option>
-                          </Select>
-                          <label className="flex h-10 items-center gap-2 rounded-xl border border-app-line bg-white px-3 text-sm font-semibold text-app-text">
-                            <input name={`question_required_${number}`} type="checkbox" defaultChecked={question.required} className="h-4 w-4 rounded border-app-line" />
-                            Обязательный
-                          </label>
-                        </div>
-                        <Textarea name={`question_options_${number}`} defaultValue={question.options} placeholder="Варианты для выбора через запятую или с новой строки" />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+          <FormSection title="Вопросы" subtitle="Добавляй столько вопросов, сколько нужно. Пустые строки не сохранятся.">
+            <SurveyQuestionBuilder />
           </FormSection>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -116,8 +79,7 @@ export default async function NewSurveyPage({ searchParams }: { searchParams?: P
           <h3 className="mt-4 text-lg font-black text-app-text">Что важно спросить</h3>
           <p className="mt-2 text-sm leading-6 text-app-muted">Анкета должна быстро показывать боль, текущий инструмент, готовность к тестированию и барьер перед использованием.</p>
           <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-semibold leading-6 text-app-muted">
-            <Plus className="mr-2 inline h-4 w-4 text-app-purple" />
-            В следующем этапе добавим редактирование и удаление вопросов.
+            Теперь при создании анкеты можно добавлять больше 6 вопросов и удалять лишние пустые поля.
           </div>
         </aside>
       </div>

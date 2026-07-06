@@ -1,17 +1,16 @@
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Plus, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Send, Trash2 } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { addSurveyQuestionAction, deleteSurveyAction, deleteSurveyQuestionAction } from '@/actions/surveys.actions';
-import { Field, FormSection } from '@/components/forms/form-section';
+import { deleteSurveyAction, deleteSurveyQuestionAction } from '@/actions/surveys.actions';
+import { FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
+import { AddSurveyQuestionForm } from '@/components/surveys/add-survey-question-form';
 import { getPublicSurveyUrl, getSurveyById, questionTypeLabel, statusLabel } from '@/lib/surveys';
 
 function statusTone(status: string) {
@@ -124,36 +123,7 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
         </div>
 
         <aside className="space-y-6">
-          {canManageSurveys && (
-            <form action={addSurveyQuestionAction}>
-              <input type="hidden" name="survey_id" value={survey.id} />
-              <FormSection title="Добавить вопрос" subtitle="Новый вопрос сразу появится в публичной форме.">
-                <div className="space-y-4">
-                  <Field label="Текст вопроса">
-                    <Input name="question_text" placeholder="Например: что мешает вам расти?" required />
-                  </Field>
-                  <Field label="Тип вопроса">
-                    <Select name="question_type" defaultValue="long_text">
-                      <option value="short_text">Короткий ответ</option>
-                      <option value="long_text">Длинный ответ</option>
-                      <option value="single_choice">Один вариант</option>
-                      <option value="multiple_choice">Несколько вариантов</option>
-                      <option value="yes_no">Да / нет</option>
-                      <option value="rating">Оценка</option>
-                    </Select>
-                  </Field>
-                  <Field label="Варианты" hint="Для выбора: через запятую или с новой строки.">
-                    <Textarea name="question_options" placeholder="Да, Нет, Возможно" />
-                  </Field>
-                  <label className="flex items-center gap-2 rounded-2xl border border-app-line bg-white p-3 text-sm font-semibold text-app-text">
-                    <input name="required" type="checkbox" className="h-4 w-4 rounded border-app-line" />
-                    Обязательный вопрос
-                  </label>
-                  <Button type="submit" className="w-full"><Plus className="h-4 w-4" />Добавить вопрос</Button>
-                </div>
-              </FormSection>
-            </form>
-          )}
+          {canManageSurveys && <AddSurveyQuestionForm surveyId={survey.id} />}
 
           <Card>
             <CardContent>

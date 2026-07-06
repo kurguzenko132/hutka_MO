@@ -36,12 +36,40 @@ function normalizeSlug(value: string) {
     .slice(0, 64) || `survey-${Date.now()}`;
 }
 
+const allowedQuestionTypes = new Set([
+  'short_text',
+  'long_text',
+  'single_choice',
+  'multiple_choice',
+  'yes_no',
+  'rating',
+  'number'
+]);
+
+const choiceQuestionTypes = new Set(['single_choice', 'multiple_choice']);
+
+function normalizeQuestionType(value: string) {
+  return allowedQuestionTypes.has(value) ? value : 'short_text';
+}
+
 function parseOptions(value: string) {
   return value
     .split(/\n|,/)
     .map((item) => item.trim())
     .filter(Boolean);
 }
+
+function getOptionsForQuestion(type: string, rawOptions: string) {
+  if (choiceQuestionTypes.has(type)) {
+    const options = parseOptions(rawOptions);
+    return options.length > 0 ? options : ['Вариант 1', 'Вариант 2'];
+  }
+
+  if (type === 'yes_no') return ['Да', 'Нет'];
+
+  return [];
+}
+
 
 async function ensureUniqueSlug(supabase: Awaited<ReturnType<typeof createClient>>, baseSlug: string) {
   let slug = baseSlug;
@@ -80,10 +108,12 @@ function getQuestionPayloads(formData: FormData) {
     const text = getText(formData, `question_text_${index}`);
     if (!text) continue;
 
+    const questionType = normalizeQuestionType(getText(formData, `question_type_${index}`));
+
     result.push({
       question_text: text,
-      question_type: getText(formData, `question_type_${index}`) || 'short_text',
-      options: parseOptions(getText(formData, `question_options_${index}`)),
+      question_type: questionType,
+      options: getOptionsForQuestion(questionType, getText(formData, `question_options_${index}`)),
       required: getText(formData, `question_required_${index}`) === 'on',
       order_index: result.length + 1
     });
@@ -158,11 +188,13 @@ export async function addSurveyQuestionAction(formData: FormData) {
     .select('id', { count: 'exact', head: true })
     .eq('survey_id', surveyId);
 
+  const questionType = normalizeQuestionType(getText(formData, 'question_type'));
+
   const { error } = await supabase.from('survey_questions').insert({
     survey_id: surveyId,
     question_text: text,
-    question_type: getText(formData, 'question_type') || 'short_text',
-    options: parseOptions(getText(formData, 'question_options')),
+    question_type: questionType,
+    options: getOptionsForQuestion(questionType, getText(formData, 'question_options')),
     required: getText(formData, 'required') === 'on',
     order_index: (count ?? 0) + 1
   });

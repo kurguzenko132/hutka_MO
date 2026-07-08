@@ -28,7 +28,7 @@ export function Topbar({
   const initials = getInitials(userName, 'H');
 
   return (
-    <header className="sticky top-0 z-30 border-b border-app-line bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 border-b border-app-line bg-white">
       <div className="flex h-16 min-w-0 items-center gap-3 px-4 sm:gap-4 lg:px-8">
         <div className="lg:hidden">
           <Logo compact />
@@ -39,7 +39,7 @@ export function Topbar({
           <Input name="q" className="pl-10 pr-16" placeholder="Поиск по контактам, компаниям, тегам..." />
           <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-app-line bg-slate-50 px-2 py-0.5 text-xs text-app-faint">Enter</span>
         </form>
-        <Link href="/notifications" className="relative shrink-0 rounded-xl border border-app-line p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" aria-label="Уведомления">
+        <Link prefetch={false} href="/notifications" className="relative shrink-0 rounded-xl border border-app-line p-2 text-app-muted transition hover:bg-purple-50 hover:text-app-purple" aria-label="Уведомления">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-app-red px-1 text-[10px] font-bold text-white">
@@ -49,7 +49,7 @@ export function Topbar({
         </Link>
         {can(role, 'manageContacts') && (
           <Button asChild className="hidden shrink-0 sm:inline-flex">
-            <Link href="/people/new">
+            <Link prefetch={false} href="/people/new">
               <Plus className="h-4 w-4" />
               Добавить контакт
             </Link>
@@ -57,7 +57,7 @@ export function Topbar({
         )}
         <div className="hidden min-w-0 items-center gap-2 xl:flex">
           <Badge tone={roleTone(role)}>{roleLabels[role]}</Badge>
-          <Link href="/profile" className="flex max-w-[240px] items-center gap-2 rounded-xl border border-app-line bg-white px-2.5 py-1.5 text-xs transition hover:border-purple-200 hover:bg-purple-50">
+          <Link prefetch={false} href="/profile" className="flex max-w-[240px] items-center gap-2 rounded-xl border border-app-line bg-white px-2.5 py-1.5 text-xs transition hover:border-purple-200 hover:bg-purple-50">
             {userAvatarUrl ? (
               <Image src={userAvatarUrl} alt="" width={28} height={28} unoptimized className="h-7 w-7 rounded-full object-cover" />
             ) : (

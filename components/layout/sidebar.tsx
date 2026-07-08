@@ -29,7 +29,7 @@ export function Sidebar({
   const initials = getInitials(userName, 'H');
 
   return (
-    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-app-line bg-white/80 px-4 py-5 backdrop-blur-xl lg:block">
+    <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-app-line bg-white px-4 py-5  lg:block">
       <div className="mb-8 px-2">
         <Logo />
       </div>
@@ -42,6 +42,7 @@ export function Sidebar({
           return (
             <Link
               key={item.href}
+              prefetch={false}
               href={item.href}
               className={cn(
                 'group flex min-w-0 items-center justify-between rounded-xl px-3 py-2.5 text-sm font-semibold transition',
@@ -59,6 +60,7 @@ export function Sidebar({
       </nav>
 
       <Link
+        prefetch={false}
         href="/profile"
         className={cn(
           'absolute bottom-5 left-4 right-4 rounded-2xl border border-app-line bg-gradient-to-br from-white to-purple-50 p-3 transition hover:border-purple-200 hover:shadow-card',

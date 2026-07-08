@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { AlertTriangle, BarChart3, CheckCircle2, Heart, PieChart, Users, Zap } from 'lucide-react';
-import { useMemo, useState, useTransition } from 'react';
+import { memo, useMemo, useState, useTransition } from 'react';
 import { moveLeadToStageMutationAction } from '@/actions/funnels.actions';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,7 +48,7 @@ function GraphBars({ items, empty = 'Данных пока нет.' }: { items: 
   const max = Math.max(...items.map((item) => item.value), 1);
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {items.map((item) => (
         <div key={item.name}>
           <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
@@ -137,13 +137,13 @@ function moveLead(columns: FunnelColumn[], leadId: string, fromStage: string, to
   });
 }
 
-function LeadCard({ lead, canDrag }: { lead: FunnelLead; canDrag: boolean }) {
+const LeadCard = memo(function LeadCard({ lead, canDrag }: { lead: FunnelLead; canDrag: boolean }) {
   return (
     <div
       draggable={canDrag}
       data-lead-id={lead.id}
       className={cn(
-        'rounded-xl border border-app-line bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-card',
+        'rounded-xl border border-app-line bg-white p-3 shadow-sm transition hover:border-purple-200',
         canDrag && 'cursor-grab active:cursor-grabbing'
       )}
     >
@@ -162,7 +162,7 @@ function LeadCard({ lead, canDrag }: { lead: FunnelLead; canDrag: boolean }) {
       </div>
     </div>
   );
-}
+});
 
 export function FunnelBoard({ board, canManageFunnels, campaignId }: { board: FunnelBoardData; canManageFunnels: boolean; campaignId?: string }) {
   const [columns, setColumns] = useState(board.columns);
@@ -335,7 +335,7 @@ export function FunnelBoard({ board, canManageFunnels, campaignId }: { board: Fu
               }}
               onDrop={() => handleDrop(column.name)}
               className={cn(
-                'min-h-[520px] w-[280px] shrink-0 rounded-2xl border border-app-line bg-slate-50/70 p-4',
+                'performance-contain min-h-[420px] w-[260px] shrink-0 rounded-2xl border border-app-line bg-slate-50/70 p-3',
                 dragState && 'border-purple-200 bg-purple-50/40'
               )}
             >
@@ -346,7 +346,7 @@ export function FunnelBoard({ board, canManageFunnels, campaignId }: { board: Fu
                 </div>
                 <Badge tone={column.color}>{column.leads.length}</Badge>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {column.leads.map((lead) => (
                   <div
                     key={lead.id}

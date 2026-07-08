@@ -24,7 +24,7 @@ export function EmptyState({
 }) {
   const defaultAction = actionLabel
     ? actionHref
-      ? <Button asChild><Link href={actionHref}>{actionLabel}</Link></Button>
+      ? <Button asChild><Link prefetch={false} href={actionHref}>{actionLabel}</Link></Button>
       : <Button>{actionLabel}</Button>
     : null;
 

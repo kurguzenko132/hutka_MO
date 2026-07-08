@@ -76,11 +76,11 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
         </p>
         <div className="mt-6 flex justify-center gap-2">
           <Button asChild variant="secondary">
-            <Link href="/people">Сбросить фильтры</Link>
+            <Link prefetch={false} href="/people">Сбросить фильтры</Link>
           </Button>
           {canManageContacts && (
             <Button asChild>
-              <Link href="/people/new">Добавить контакт</Link>
+              <Link prefetch={false} href="/people/new">Добавить контакт</Link>
             </Button>
           )}
         </div>
@@ -137,7 +137,7 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
                       ) : null}
                     </td>
                     <td className="px-5 py-4">
-                      <Link href={`/people/${lead.id}`} className="flex items-center gap-3">
+                      <Link prefetch={false} href={`/people/${lead.id}`} className="flex items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pink-200 to-purple-200 text-xs font-black text-purple-800">
                           {initials(lead.name)}
                         </div>

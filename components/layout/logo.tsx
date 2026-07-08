@@ -3,7 +3,7 @@ import Link from 'next/link';
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <Link href="/dashboard" className="flex items-center gap-3">
+    <Link prefetch={false} href="/dashboard" className="flex items-center gap-3">
       <Image src="/hutka-logo.svg" alt="Hutka" width={42} height={42} className="rounded-2xl" priority />
       {!compact && (
         <div>

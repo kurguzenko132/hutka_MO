@@ -31,7 +31,7 @@ export default async function DashboardPage() {
         actionHref={can(role, 'manageContacts') ? '/people/new' : undefined}
       />
 
-      <Card className="overflow-hidden border-purple-100 bg-gradient-to-br from-purple-50 via-white to-pink-50">
+      <Card className="overflow-hidden border-purple-100 bg-white">
         <CardContent className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-4">
             <div className="hidden rounded-3xl bg-white p-4 text-app-purple shadow-sm sm:block">
@@ -64,7 +64,7 @@ export default async function DashboardPage() {
       </div>
 
       {followups.summary.total > 0 && (
-        <Card className="border-amber-100 bg-gradient-to-br from-white to-amber-50/70">
+        <Card className="border-amber-100 bg-white">
           <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-4">
               <div className="rounded-2xl bg-amber-100 p-3 text-amber-700">
@@ -99,7 +99,7 @@ export default async function DashboardPage() {
       </div>
 
       {dashboard.refusals.total > 0 && (
-        <Card className="border-red-100 bg-gradient-to-br from-white to-red-50/50">
+        <Card className="border-red-100 bg-white">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Причины отказов</CardTitle>
             <Link href="/reports" className="text-xs font-bold text-app-purple">В отчет →</Link>
@@ -162,7 +162,7 @@ export default async function DashboardPage() {
               </div>
             ) : (
               dashboard.insights.slice(0, 3).map((insight) => (
-                <div key={insight} className="rounded-2xl border border-app-line bg-gradient-to-br from-white to-purple-50 p-4">
+                <div key={insight} className="rounded-2xl border border-app-line bg-white p-4">
                   <div className="flex gap-3">
                     <div className="rounded-xl bg-purple-50 p-2 text-app-purple">
                       <Sparkles className="h-4 w-4" />

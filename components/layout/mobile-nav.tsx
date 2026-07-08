@@ -58,7 +58,7 @@ export function MobileNav({
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true">
           <button
             type="button"
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-950/40 "
             aria-label="Закрыть меню"
             onClick={() => setOpen(false)}
           />
@@ -77,6 +77,7 @@ export function MobileNav({
 
             <div className="scrollbar-thin flex-1 overflow-y-auto px-4 py-4">
               <Link
+                prefetch={false}
                 href="/profile"
                 onClick={() => setOpen(false)}
                 className={cn(
@@ -107,6 +108,7 @@ export function MobileNav({
                   return (
                     <Link
                       key={item.href}
+                      prefetch={false}
                       href={item.href}
                       onClick={() => setOpen(false)}
                       className={cn(
@@ -130,7 +132,7 @@ export function MobileNav({
             {can(role, 'manageContacts') ? (
               <div className="border-t border-app-line p-4">
                 <Button asChild className="w-full" size="lg">
-                  <Link href="/people/new" onClick={() => setOpen(false)}>
+                  <Link prefetch={false} href="/people/new" onClick={() => setOpen(false)}>
                     <Plus className="h-4 w-4" />
                     Добавить контакт
                   </Link>
@@ -141,7 +143,7 @@ export function MobileNav({
         </div>
       ) : null}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-app-line bg-white/90 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_40px_rgba(17,24,39,0.08)] backdrop-blur-xl lg:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-app-line bg-white px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 shadow-[0_-12px_40px_rgba(17,24,39,0.08)]  lg:hidden">
         <div className="grid grid-cols-4 gap-1">
           {bottomItems.map((item) => {
             const Icon = item.icon;
@@ -151,6 +153,7 @@ export function MobileNav({
             return (
               <Link
                 key={item.href}
+                prefetch={false}
                 href={item.href}
                 className={cn(
                   'relative flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-black transition',

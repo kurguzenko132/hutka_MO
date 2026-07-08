@@ -18,16 +18,14 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   overflow-x: hidden;
 }
 
 body {
   min-height: 100vh;
   overflow-x: hidden;
-  background: radial-gradient(circle at top left, rgba(236, 72, 153, 0.08), transparent 34%),
-    radial-gradient(circle at top right, rgba(124, 58, 237, 0.07), transparent 28%),
-    var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: Inter, Manrope, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -56,11 +54,6 @@ body {
   border-color: rgba(124, 58, 237, 0.18);
 }
 
-@media (max-width: 1023px) {
-  body {
-    background-attachment: fixed;
-  }
-}
 
 button:focus-visible,
 a:focus-visible,
@@ -95,5 +88,50 @@ canvas {
 @media (max-width: 640px) {
   .mobile-stack-actions {
     width: 100%;
+  }
+}
+
+
+/* Performance profile: Hutka должен быть легким для ноутбуков и телефонов.
+   Убираем самые дорогие для GPU эффекты: backdrop-filter, длинные transition,
+   сложные hover-transform и тяжелые тени. */
+*,
+*::before,
+*::after {
+  scroll-behavior: auto !important;
+}
+
+.backdrop-blur,
+.backdrop-blur-sm,
+.backdrop-blur-md,
+.backdrop-blur-lg,
+.backdrop-blur-xl,
+.backdrop-blur-2xl,
+.backdrop-blur-3xl {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+[class*="transition"] {
+  transition-duration: 80ms !important;
+}
+
+[class*="hover:-translate"],
+.card-hover:hover {
+  transform: none !important;
+}
+
+.performance-contain {
+  content-visibility: auto;
+  contain-intrinsic-size: 320px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
   }
 }

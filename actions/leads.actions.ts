@@ -206,8 +206,10 @@ export async function createLeadAction(formData: FormData) {
     details: { source: normalizeSourceName(source), stage }
   });
 
+  // Keep cache invalidation narrow: dashboard/report pages will refresh on next navigation.
+  // Revalidating every analytics page after a contact create made the UI feel heavy.
   revalidatePath('/people');
-  revalidatePath('/dashboard');
+  revalidatePath('/funnels');
   redirect(`/people/${lead.id}`);
 }
 

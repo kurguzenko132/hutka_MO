@@ -4,7 +4,7 @@ import { createLeadAction } from '@/actions/leads.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
-import { getSettingsData } from '@/lib/settings';
+import { getLeadFormOptions } from '@/lib/lead-form-options';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -20,10 +20,10 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
   await requirePermission('manageContacts', '/people?error=forbidden');
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : undefined;
-  const settings = await getSettingsData();
-  const sources = settings.sources.map((source) => source.name);
-  const stages = settings.stages.map((stage) => stage.name);
-  const tags = settings.tags.map((tag) => tag.name);
+  const options = await getLeadFormOptions();
+  const sources = options.sources;
+  const stages = options.stages;
+  const tags = options.tags;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -44,7 +44,7 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
         <form action={createLeadAction} className="space-y-6">
           <FormSection title="Основная информация" subtitle="Минимально нужно имя, тип контакта, город и источник.">
             <div className="grid gap-4 md:grid-cols-2">
@@ -131,8 +131,8 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
         </form>
 
         <aside className="space-y-4">
-          <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-app-purple shadow-sm">
+          <div className="rounded-3xl border border-app-line bg-white p-5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-purple-50 text-app-purple">
               <Sparkles className="h-5 w-5" />
             </div>
             <h3 className="mt-4 text-lg font-black text-app-text">Как заполнять быстрее</h3>
@@ -140,10 +140,10 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
               На первом касании достаточно имени, ссылки, города и стадии. Остальное можно заполнить после ответа или анкеты.
             </p>
           </div>
-          <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
+          <div className="rounded-3xl border border-app-line bg-white p-5">
             <p className="text-sm font-black text-app-text">Рекомендуемые теги</p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {(tags.length ? tags.slice(0, 8) : ['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Заинтересован', 'Вернуться позже']).map((tag) => (
+              {(tags.length ? tags.slice(0, 5) : ['Нужны клиенты', 'Нет CRM', 'Пустые окна', 'Заинтересован', 'Вернуться позже']).map((tag) => (
                 <Badge key={tag} tone="purple">{tag}</Badge>
               ))}
             </div>

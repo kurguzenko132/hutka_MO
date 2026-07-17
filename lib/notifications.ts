@@ -387,6 +387,85 @@ export async function getNotificationCenterData(): Promise<NotificationCenterDat
 }
 
 export async function getUnreadNotificationCount(): Promise<number> {
-  const data = await getNotificationCenterData();
-  return data.stats.unread;
+  if (!isSupabaseConfigured()) return demoNotifications().stats.unread;
+
+  try {
+    const supabase = await createClient();
+    const user = await getCurrentUserContext();
+
+    const [tasksRes, answersRes, interactionsRes, hotLeadsRes, campaignsRes, readsRes] = await Promise.all([
+      supabase
+        .from('tasks')
+        .select('id')
+        .neq('status', 'done')
+        .neq('status', 'cancelled')
+        .not('due_date', 'is', null)
+        .lte('due_date', addDays(new Date(), 2).toISOString())
+        .order('due_date', { ascending: true })
+        .limit(20),
+      supabase
+        .from('survey_answers')
+        .select('id,response_group_id')
+        .order('created_at', { ascending: false })
+        .limit(80),
+      supabase
+        .from('lead_interactions')
+        .select('id')
+        .order('created_at', { ascending: false })
+        .limit(30),
+      supabase
+        .from('leads')
+        .select('id')
+        .gte('priority_score', 75)
+        .order('updated_at', { ascending: false })
+        .limit(15),
+      supabase
+        .from('view_campaign_performance')
+        .select('id,contacts,participants')
+        .eq('status', 'active')
+        .order('participants', { ascending: false })
+        .limit(10),
+      user?.profileId
+        ? supabase.from('notification_reads').select('event_key').eq('profile_id', user.profileId)
+        : Promise.resolve({ data: [], error: null })
+    ]);
+
+    const eventKeys: string[] = [];
+
+    for (const task of tasksRes.data ?? []) {
+      eventKeys.push(`task:${task.id}`);
+    }
+
+    const answerKeys = new Set<string>();
+    for (const answer of answersRes.data ?? []) {
+      const key = String(answer.response_group_id || answer.id);
+      if (answerKeys.has(key)) continue;
+      answerKeys.add(key);
+      eventKeys.push(`survey:${key}`);
+      if (answerKeys.size >= 20) break;
+    }
+
+    for (const interaction of (interactionsRes.data ?? []).slice(0, 18)) {
+      eventKeys.push(`interaction:${interaction.id}`);
+    }
+
+    for (const lead of hotLeadsRes.data ?? []) {
+      eventKeys.push(`hot:${lead.id}`);
+    }
+
+    for (const campaign of campaignsRes.data ?? []) {
+      if ((campaign.contacts ?? 0) === 0) continue;
+      eventKeys.push(`campaign:${campaign.id}:${campaign.contacts}:${campaign.participants}`);
+    }
+
+    const readKeys = new Set(
+      ((readsRes.data ?? []) as ReadRow[])
+        .map((row) => row.event_key)
+        .filter((key): key is string => Boolean(key))
+    );
+
+    return eventKeys.slice(0, 60).reduce((total, key) => total + Number(!readKeys.has(key)), 0);
+  } catch {
+    return 0;
+  }
 }

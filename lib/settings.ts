@@ -10,6 +10,7 @@ export type DirectoryItem = {
   color?: string;
   orderIndex?: number;
   usageCount?: number;
+  isVirtual?: boolean;
 };
 
 export type AppSettings = {
@@ -121,7 +122,8 @@ function normalizeStageDirectory(items: DirectoryItem[]) {
         type: 'master',
         color: stage.color,
         orderIndex: stage.orderIndex,
-        usageCount: 0
+        usageCount: 0,
+        isVirtual: true
       });
     }
   }

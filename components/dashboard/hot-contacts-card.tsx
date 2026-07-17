@@ -9,7 +9,7 @@ export function HotContactsCard({ contacts }: { contacts: DashboardHotContact[] 
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Заинтересованные контакты</CardTitle>
-        <Link href="/people?view=interested" className="text-xs font-bold text-app-purple">Все →</Link>
+        <Link prefetch={false} href="/people?view=interested" className="text-xs font-bold text-app-purple">Все →</Link>
       </CardHeader>
       <CardContent className="space-y-3">
         {contacts.length === 0 ? (
@@ -18,7 +18,7 @@ export function HotContactsCard({ contacts }: { contacts: DashboardHotContact[] 
           </div>
         ) : (
           contacts.map((contact) => (
-            <Link key={contact.id} href={contact.href} className="group block rounded-2xl border border-app-line p-4 transition hover:border-purple-200 hover:bg-purple-50/60">
+            <Link key={contact.id} prefetch={false} href={contact.href} className="group block rounded-2xl border border-app-line p-4 transition hover:border-purple-200 hover:bg-purple-50/60">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-sm font-black text-app-text">{contact.name}</p>

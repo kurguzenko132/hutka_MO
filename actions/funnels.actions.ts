@@ -6,7 +6,8 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
 import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
-import { recordActivityLog } from '@/lib/activity-log';
+import { recordActivityLog, writeActivityLog } from '@/lib/activity-log';
+import { deferSideEffects } from '@/lib/deferred-side-effects';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -14,6 +15,17 @@ function getText(formData: FormData, key: string) {
 
 function looksLikeUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
+function isMissingAtomicFunnelMove(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error) return false;
+  if (error.code === 'PGRST202' || error.code === '42883') return true;
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return message.includes('move_lead_to_stage') && (
+    message.includes('could not find')
+    || message.includes('does not exist')
+    || message.includes('schema cache')
+  );
 }
 
 async function ensureStageId(supabase: Awaited<ReturnType<typeof createClient>>, stageId: string, stageName: string) {
@@ -124,6 +136,7 @@ export async function moveLeadToStageAction(formData: FormData) {
 
 export async function moveLeadToStageMutationAction(input: {
   leadId: string;
+  stageId?: string;
   stageName: string;
   campaignId?: string;
   refusalReason?: string;
@@ -138,12 +151,41 @@ export async function moveLeadToStageMutationAction(input: {
   if (!isSupabaseConfigured()) return { ok: true, stageName: nextStageName };
 
   const supabase = await createClient();
-  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
-  if (leadError || !lead?.id) return { ok: false, error: 'lead-not-found' };
+  const requestedStageId = input.stageId?.trim() ?? '';
+  const atomicResult = await supabase.rpc('move_lead_to_stage', {
+    p_lead_id: leadId,
+    p_stage_id: looksLikeUuid(requestedStageId) ? requestedStageId : null,
+    p_stage_name: nextStageName,
+    p_refusal_reason: refusalReason || null,
+    p_campaign_id: input.campaignId?.trim() || null,
+    p_actor_profile_id: user.profileId
+  });
 
-  let nextStageId = '';
+  if (!atomicResult.error && atomicResult.data && typeof atomicResult.data === 'object' && !Array.isArray(atomicResult.data)) {
+    const result = atomicResult.data as Record<string, unknown>;
+    if (result.ok === true) {
+      return {
+        ok: true,
+        stageName: typeof result.stage_name === 'string' ? result.stage_name : nextStageName
+      };
+    }
+    if (result.ok === false && typeof result.error === 'string') {
+      return { ok: false, error: result.error };
+    }
+    return { ok: false, error: 'move-failed' };
+  }
+  if (atomicResult.error && !isMissingAtomicFunnelMove(atomicResult.error)) {
+    return { ok: false, error: 'move-failed' };
+  }
+  if (!atomicResult.error) {
+    return { ok: false, error: 'move-failed' };
+  }
+
+  let nextStageId = input.stageId?.trim() ?? '';
   try {
-    nextStageId = await ensureStageId(supabase, '', nextStageName);
+    if (!looksLikeUuid(nextStageId)) {
+      nextStageId = await ensureStageId(supabase, '', nextStageName);
+    }
   } catch {
     return { ok: false, error: 'stage-not-found' };
   }
@@ -154,6 +196,7 @@ export async function moveLeadToStageMutationAction(input: {
   };
 
   if (nextStageName === 'Отказ') {
+    updatePayload.refusal_reason_id = null;
     updatePayload.refusal_reason = refusalReason;
     updatePayload.refusal_comment = refusalReason;
     updatePayload.refused_at = new Date().toISOString();
@@ -164,35 +207,39 @@ export async function moveLeadToStageMutationAction(input: {
     updatePayload.refused_at = null;
   }
 
-  const { error } = await supabase.from('leads').update(updatePayload).eq('id', leadId);
+  const { data: lead, error } = await supabase
+    .from('leads')
+    .update(updatePayload)
+    .eq('id', leadId)
+    .select('id,name')
+    .maybeSingle();
   if (error) return { ok: false, error: 'move-failed' };
+  if (!lead?.id) return { ok: false, error: 'lead-not-found' };
 
   const testingText = nextStageName === 'Тестирует'
     ? 'Важное событие: контакт начал тестирование.'
     : `Контакт перемещен в стадию: ${nextStageName}`;
 
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'status_change',
-    channel: 'Hutka',
-    text: nextStageName === 'Отказ' ? `Контакт перемещен в отказ. Причина: ${refusalReason}` : testingText,
-    result: 'stage_updated'
-  });
+  deferSideEffects(
+    async () => {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'status_change',
+        channel: 'Hutka',
+        text: nextStageName === 'Отказ' ? `Контакт перемещен в отказ. Причина: ${refusalReason}` : testingText,
+        result: 'stage_updated',
+        created_by: user.profileId
+      });
+    },
+    async () => writeActivityLog({
+      userId: user.profileId,
+      action: 'перетащил контакт в воронке',
+      entityType: 'contact',
+      entityId: leadId,
+      entityTitle: String(lead.name ?? 'Контакт'),
+      details: { stage: nextStageName, campaign_id: input.campaignId || null, refusal_reason: refusalReason || null }
+    })
+  );
 
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'перетащил контакт в воронке',
-    entityType: 'contact',
-    entityId: leadId,
-    entityTitle: String(lead.name ?? 'Контакт'),
-    details: { stage: nextStageName, campaign_id: input.campaignId || null, refusal_reason: refusalReason || null }
-  });
-
-  revalidatePath('/funnels');
-  revalidatePath('/people');
-  revalidatePath(`/people/${leadId}`);
-  revalidatePath('/dashboard');
-  revalidatePath('/reports');
-  revalidatePath('/geography');
   return { ok: true, stageName: nextStageName };
 }

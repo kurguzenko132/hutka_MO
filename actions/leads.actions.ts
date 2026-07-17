@@ -8,8 +8,11 @@ import { leadTypeToDb, priorityToScore } from '@/lib/leads';
 import type { LeadType, Priority } from '@/lib/data';
 import { requirePermission } from '@/lib/permissions';
 import { getCanonicalStage, normalizeStageName } from '@/lib/stages';
-import { recordActivityLog } from '@/lib/activity-log';
+import { recordActivityLog, writeActivityLog } from '@/lib/activity-log';
 import { normalizeSourceName, sourceKey } from '@/lib/source-normalization';
+import { getSafeRedirectPath, withRedirectQuery } from '@/lib/auth';
+import { buildAppUrl } from '@/lib/app-url';
+import { deferSideEffects } from '@/lib/deferred-side-effects';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -55,10 +58,129 @@ async function ensureTagId(supabase: Awaited<ReturnType<typeof createClient>>, n
 }
 
 function getTags(formData: FormData) {
-  return getText(formData, 'tags')
-    .split(',')
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  return Array.from(new Set(
+    getText(formData, 'tags')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+  ));
+}
+
+type LeadSaveInput = {
+  leadId: string | null;
+  name: string;
+  type: string;
+  niche: string;
+  city: string;
+  phone: string;
+  telegram: string;
+  instagram: string;
+  email: string;
+  source: string;
+  stage: string;
+  stageOrder: number;
+  stageColor: string;
+  priorityScore: number;
+  notes: string;
+  nextStep: string;
+  nextContactDate: string;
+  tags: string[];
+};
+
+type AtomicLeadSaveResult =
+  | { status: 'success'; leadId: string }
+  | { status: 'business-error'; error: string; duplicateId?: string }
+  | { status: 'unavailable' }
+  | { status: 'failed' };
+
+function buildLeadSaveInput(formData: FormData, leadId: string | null): LeadSaveInput {
+  const type = (getText(formData, 'type') || 'Мастер') as LeadType;
+  const priority = (getText(formData, 'priority') || 'Средний') as Priority;
+  const stage = normalizeStageName(getText(formData, 'stage'));
+  const canonicalStage = getCanonicalStage(stage);
+
+  return {
+    leadId,
+    name: getText(formData, 'name'),
+    type: leadTypeToDb[type] ?? 'master',
+    niche: getText(formData, 'niche'),
+    city: getText(formData, 'city'),
+    phone: getText(formData, 'phone'),
+    telegram: getText(formData, 'telegram'),
+    instagram: getText(formData, 'instagram'),
+    email: getText(formData, 'email'),
+    source: getText(formData, 'source'),
+    stage,
+    stageOrder: canonicalStage.orderIndex,
+    stageColor: canonicalStage.color,
+    priorityScore: priorityToScore(priority),
+    notes: getText(formData, 'notes'),
+    nextStep: getText(formData, 'next_step'),
+    nextContactDate: getText(formData, 'next_contact_date'),
+    tags: getTags(formData)
+  };
+}
+
+function isMissingAtomicLeadSave(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error) return false;
+  if (error.code === 'PGRST202' || error.code === '42883') return true;
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return message.includes('save_lead_with_tags') && (
+    message.includes('could not find')
+    || message.includes('does not exist')
+    || message.includes('schema cache')
+  );
+}
+
+async function saveLeadWithTagsRpc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: LeadSaveInput,
+  actorProfileId: string | null
+): Promise<AtomicLeadSaveResult> {
+  const { data, error } = await supabase.rpc('save_lead_with_tags', {
+    p_lead_id: input.leadId,
+    p_name: input.name,
+    p_type: input.type,
+    p_niche: input.niche || null,
+    p_city: input.city || null,
+    p_phone: input.phone || null,
+    p_telegram: input.telegram || null,
+    p_instagram: input.instagram || null,
+    p_email: input.email || null,
+    p_source_name: input.source,
+    p_stage_name: input.stage,
+    p_stage_order: input.stageOrder,
+    p_stage_color: input.stageColor,
+    p_priority_score: input.priorityScore,
+    p_notes: input.notes || null,
+    p_next_step: input.nextStep || null,
+    p_next_contact_date: input.nextContactDate || null,
+    p_tags: input.tags,
+    p_actor_profile_id: actorProfileId
+  });
+
+  if (error) {
+    return isMissingAtomicLeadSave(error) ? { status: 'unavailable' } : { status: 'failed' };
+  }
+
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { status: 'failed' };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (result.ok === true && typeof result.lead_id === 'string') {
+    return { status: 'success', leadId: result.lead_id };
+  }
+
+  if (result.ok === false && typeof result.error === 'string') {
+    return {
+      status: 'business-error',
+      error: result.error,
+      duplicateId: typeof result.duplicate_id === 'string' ? result.duplicate_id : undefined
+    };
+  }
+
+  return { status: 'failed' };
 }
 
 function looksLikeUuid(value: string) {
@@ -82,21 +204,19 @@ async function findDuplicateLead(
     { column: 'telegram', value: fields.telegram, insensitive: true }
   ];
 
-  for (const check of checks) {
+  const results = await Promise.all(checks.map(async (check) => {
     const value = normalizeDuplicateValue(check.value ?? '');
-    if (!value) continue;
+    if (!value) return null;
 
     let query = supabase.from('leads').select('id, name').limit(1);
     query = check.insensitive ? query.ilike(check.column, value) : query.eq(check.column, check.value ?? value);
     if (excludeId) query = query.neq('id', excludeId);
 
     const { data } = await query.maybeSingle();
-    if (data?.id) {
-      return { id: String(data.id), name: String(data.name ?? 'Контакт') };
-    }
-  }
+    return data?.id ? { id: String(data.id), name: String(data.name ?? 'Контакт') } : null;
+  }));
 
-  return null;
+  return results.find((result) => result !== null) ?? null;
 }
 
 async function getExistingLeadId(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
@@ -120,14 +240,18 @@ function duplicateRedirect(basePath: string, duplicateId?: string) {
 }
 
 async function syncLeadTags(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string, tags: string[]) {
-  const { error: deleteError } = await supabase.from('lead_tags').delete().eq('lead_id', leadId);
+  const [deleteResult, tagIds] = await Promise.all([
+    supabase.from('lead_tags').delete().eq('lead_id', leadId),
+    Promise.all(tags.map((tag) => ensureTagId(supabase, tag)))
+  ]);
+  const deleteError = deleteResult.error;
   if (deleteError) throw deleteError;
+  if (tagIds.length === 0) return;
 
-  for (const tag of tags) {
-    const tagId = await ensureTagId(supabase, tag);
-    const { error: insertError } = await supabase.from('lead_tags').insert({ lead_id: leadId, tag_id: tagId });
-    if (insertError) throw insertError;
-  }
+  const { error: insertError } = await supabase.from('lead_tags').insert(
+    tagIds.map((tagId) => ({ lead_id: leadId, tag_id: tagId }))
+  );
+  if (insertError) throw insertError;
 }
 
 export async function createLeadAction(formData: FormData) {
@@ -136,46 +260,58 @@ export async function createLeadAction(formData: FormData) {
     redirect('/people?created=demo');
   }
 
-  const name = getText(formData, 'name');
-  if (!name) {
+  const input = buildLeadSaveInput(formData, null);
+  if (!input.name) {
     redirect('/people/new?error=missing-name');
   }
 
-  const type = (getText(formData, 'type') || 'Мастер') as LeadType;
-  const priority = (getText(formData, 'priority') || 'Средний') as Priority;
-  const source = getText(formData, 'source');
-  const stage = normalizeStageName(getText(formData, 'stage'));
-  const tags = getTags(formData);
-
   const supabase = await createClient();
+  const atomicResult = await saveLeadWithTagsRpc(supabase, input, user.profileId);
+  if (atomicResult.status === 'success') {
+    revalidatePath('/people');
+    revalidatePath('/funnels');
+    redirect(`/people/${atomicResult.leadId}?created=contact`);
+  }
+  if (atomicResult.status === 'business-error') {
+    if (atomicResult.error === 'duplicate-contact') {
+      duplicateRedirect('/people', atomicResult.duplicateId);
+    }
+    redirect(`/people/new?error=${encodeURIComponent(atomicResult.error)}`);
+  }
+  if (atomicResult.status === 'failed') {
+    redirect('/people/new?error=save-failed');
+  }
+
   const duplicate = await findDuplicateLead(supabase, {
-    email: getText(formData, 'email'),
-    phone: getText(formData, 'phone'),
-    instagram: getText(formData, 'instagram'),
-    telegram: getText(formData, 'telegram')
+    email: input.email,
+    phone: input.phone,
+    instagram: input.instagram,
+    telegram: input.telegram
   });
   if (duplicate) duplicateRedirect('/people', duplicate.id);
 
-  const sourceId = await ensureSourceId(supabase, source);
-  const stageId = await ensureStageId(supabase, stage);
+  const [sourceId, stageId] = await Promise.all([
+    ensureSourceId(supabase, input.source),
+    ensureStageId(supabase, input.stage)
+  ]);
 
   const { data: lead, error } = await supabase
     .from('leads')
     .insert({
-      name,
-      type: leadTypeToDb[type] ?? 'master',
-      niche: getText(formData, 'niche') || null,
-      city: getText(formData, 'city') || null,
-      phone: getText(formData, 'phone') || null,
-      telegram: getText(formData, 'telegram') || null,
-      instagram: getText(formData, 'instagram') || null,
-      email: getText(formData, 'email') || null,
+      name: input.name,
+      type: input.type,
+      niche: input.niche || null,
+      city: input.city || null,
+      phone: input.phone || null,
+      telegram: input.telegram || null,
+      instagram: input.instagram || null,
+      email: input.email || null,
       source_id: sourceId,
       stage_id: stageId,
-      priority_score: priorityToScore(priority),
-      notes: getText(formData, 'notes') || null,
-      next_step: getText(formData, 'next_step') || null,
-      next_contact_date: getText(formData, 'next_contact_date') || null
+      priority_score: input.priorityScore,
+      notes: input.notes || null,
+      next_step: input.nextStep || null,
+      next_contact_date: input.nextContactDate || null
     })
     .select('id')
     .single();
@@ -185,32 +321,34 @@ export async function createLeadAction(formData: FormData) {
   }
 
   try {
-    await syncLeadTags(supabase, lead.id, tags);
+    await syncLeadTags(supabase, lead.id, input.tags);
   } catch {
     redirect(`/people/${lead.id}?error=tags-save-failed`);
   }
 
-  await supabase.from('lead_interactions').insert({
-    lead_id: lead.id,
-    type: 'note',
-    channel: source || 'manual',
-    text: 'Контакт добавлен в Hutka',
-    result: 'created'
-  });
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'создал контакт',
-    entityType: 'contact',
-    entityId: lead.id,
-    entityTitle: name,
-    details: { source: normalizeSourceName(source), stage }
-  });
+  await Promise.all([
+    supabase.from('lead_interactions').insert({
+      lead_id: lead.id,
+      type: 'note',
+      channel: input.source || 'manual',
+      text: 'Контакт добавлен в Hutka',
+      result: 'created'
+    }),
+    recordActivityLog({
+      userId: user.profileId,
+      action: 'создал контакт',
+      entityType: 'contact',
+      entityId: lead.id,
+      entityTitle: input.name,
+      details: { source: normalizeSourceName(input.source), stage: input.stage }
+    })
+  ]);
 
   // Keep cache invalidation narrow: dashboard/report pages will refresh on next navigation.
   // Revalidating every analytics page after a contact create made the UI feel heavy.
   revalidatePath('/people');
   revalidatePath('/funnels');
-  redirect(`/people/${lead.id}`);
+  redirect(`/people/${lead.id}?created=contact`);
 }
 
 export async function updateLeadAction(formData: FormData) {
@@ -222,49 +360,66 @@ export async function updateLeadAction(formData: FormData) {
     redirect(`/people/${leadId}?updated=demo`);
   }
 
-  const name = getText(formData, 'name');
-  if (!name) {
+  const input = buildLeadSaveInput(formData, leadId);
+  if (!input.name) {
     redirect(`/people/${leadId}/edit?error=missing-name`);
   }
 
-  const type = (getText(formData, 'type') || 'Мастер') as LeadType;
-  const priority = (getText(formData, 'priority') || 'Средний') as Priority;
-  const source = getText(formData, 'source');
-  const stage = normalizeStageName(getText(formData, 'stage'));
-  const tags = getTags(formData);
-
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
+  const atomicResult = await saveLeadWithTagsRpc(supabase, input, user.profileId);
+  if (atomicResult.status === 'success') {
+    revalidatePath('/people');
+    revalidatePath(`/people/${leadId}`);
+    revalidatePath('/funnels');
+    redirect(`/people/${leadId}?updated=contact`);
+  }
+  if (atomicResult.status === 'business-error') {
+    if (atomicResult.error === 'duplicate-contact') {
+      duplicateRedirect(`/people/${leadId}/edit`, atomicResult.duplicateId);
+    }
+    if (atomicResult.error === 'contact-not-found') {
+      redirect('/people?error=contact-not-found');
+    }
+    redirect(`/people/${leadId}/edit?error=${encodeURIComponent(atomicResult.error)}`);
+  }
+  if (atomicResult.status === 'failed') {
+    redirect(`/people/${leadId}/edit?error=save-failed`);
+  }
 
-  const duplicate = await findDuplicateLead(supabase, {
-    email: getText(formData, 'email'),
-    phone: getText(formData, 'phone'),
-    instagram: getText(formData, 'instagram'),
-    telegram: getText(formData, 'telegram')
-  }, leadId);
+  const [existingLeadId, duplicate] = await Promise.all([
+    getExistingLeadId(supabase, leadId),
+    findDuplicateLead(supabase, {
+      email: input.email,
+      phone: input.phone,
+      instagram: input.instagram,
+      telegram: input.telegram
+    }, leadId)
+  ]);
+  if (!existingLeadId) redirect('/people?error=contact-not-found');
   if (duplicate) duplicateRedirect(`/people/${leadId}/edit`, duplicate.id);
 
-  const sourceId = await ensureSourceId(supabase, source);
-  const stageId = await ensureStageId(supabase, stage);
+  const [sourceId, stageId] = await Promise.all([
+    ensureSourceId(supabase, input.source),
+    ensureStageId(supabase, input.stage)
+  ]);
 
   const { error } = await supabase
     .from('leads')
     .update({
-      name,
-      type: leadTypeToDb[type] ?? 'master',
-      niche: getText(formData, 'niche') || null,
-      city: getText(formData, 'city') || null,
-      phone: getText(formData, 'phone') || null,
-      telegram: getText(formData, 'telegram') || null,
-      instagram: getText(formData, 'instagram') || null,
-      email: getText(formData, 'email') || null,
+      name: input.name,
+      type: input.type,
+      niche: input.niche || null,
+      city: input.city || null,
+      phone: input.phone || null,
+      telegram: input.telegram || null,
+      instagram: input.instagram || null,
+      email: input.email || null,
       source_id: sourceId,
       stage_id: stageId,
-      priority_score: priorityToScore(priority),
-      notes: getText(formData, 'notes') || null,
-      next_step: getText(formData, 'next_step') || null,
-      next_contact_date: getText(formData, 'next_contact_date') || null,
+      priority_score: input.priorityScore,
+      notes: input.notes || null,
+      next_step: input.nextStep || null,
+      next_contact_date: input.nextContactDate || null,
       updated_at: new Date().toISOString()
     })
     .eq('id', leadId);
@@ -274,30 +429,32 @@ export async function updateLeadAction(formData: FormData) {
   }
 
   try {
-    await syncLeadTags(supabase, leadId, tags);
+    await syncLeadTags(supabase, leadId, input.tags);
   } catch {
     redirect(`/people/${leadId}/edit?error=tags-save-failed`);
   }
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'status_change',
-    channel: 'Hutka',
-    text: `Контакт обновлен. Стадия: ${stage || 'не указана'}`,
-    result: 'updated'
-  });
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'изменил контакт',
-    entityType: 'contact',
-    entityId: leadId,
-    entityTitle: name,
-    details: {
-      stage,
-      source: normalizeSourceName(source),
-      next_step: getText(formData, 'next_step') || null,
-      next_contact_date: getText(formData, 'next_contact_date') || null
-    }
-  });
+  await Promise.all([
+    supabase.from('lead_interactions').insert({
+      lead_id: leadId,
+      type: 'status_change',
+      channel: 'Hutka',
+      text: `Контакт обновлен. Стадия: ${input.stage || 'не указана'}`,
+      result: 'updated'
+    }),
+    recordActivityLog({
+      userId: user.profileId,
+      action: 'изменил контакт',
+      entityType: 'contact',
+      entityId: leadId,
+      entityTitle: input.name,
+      details: {
+        stage: input.stage,
+        source: normalizeSourceName(input.source),
+        next_step: input.nextStep || null,
+        next_contact_date: input.nextContactDate || null
+      }
+    })
+  ]);
 
   revalidatePath('/people');
   revalidatePath(`/people/${leadId}`);
@@ -309,35 +466,113 @@ export async function updateLeadAction(formData: FormData) {
   redirect(`/people/${leadId}?updated=contact`);
 }
 
-export async function addLeadInteractionAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
-  const leadId = getText(formData, 'lead_id');
-  if (!leadId) redirect('/people');
+export type LeadInteractionMutationInput = {
+  leadId: string;
+  type?: string;
+  channel?: string;
+  text: string;
+  result?: string;
+};
 
-  const text = getText(formData, 'text');
-  if (!text) redirect(`/people/${leadId}?error=missing-interaction`);
+export type LeadInteractionMutationResult = {
+  ok: boolean;
+  error?: string;
+  interaction?: {
+    id: string;
+    type: string;
+    channel?: string;
+    text: string;
+    result?: string;
+    createdAt: string;
+  };
+};
 
+async function addLeadInteractionCore(
+  input: LeadInteractionMutationInput,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<LeadInteractionMutationResult> {
+  const leadId = input.leadId.trim();
+  const text = input.text.trim();
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!text) return { ok: false, error: 'missing-interaction' };
+
+  const type = input.type?.trim() || 'note';
+  const channel = input.channel?.trim() || 'Hutka';
+  const result = input.result?.trim() || '';
   if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?interaction=demo`);
+    return {
+      ok: true,
+      interaction: {
+        id: `demo-interaction-${Date.now()}`,
+        type,
+        channel,
+        text,
+        result: result || undefined,
+        createdAt: new Date().toISOString()
+      }
+    };
   }
 
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
-
-  const { error } = await supabase.from('lead_interactions').insert({
+  const { data, error } = await supabase.from('lead_interactions').insert({
     lead_id: leadId,
-    type: getText(formData, 'type') || 'note',
-    channel: getText(formData, 'channel') || 'Hutka',
+    type,
+    channel,
     text,
-    result: getText(formData, 'result') || null
-  });
+    result: result || null,
+    created_by: userId ?? null
+  }).select('id,type,channel,text,result,created_at').single();
 
-  if (error) {
-    redirect(`/people/${leadId}?error=interaction-failed`);
+  if (error || !data?.id) {
+    return { ok: false, error: error?.code === '23503' ? 'contact-not-found' : 'interaction-failed' };
   }
 
-  revalidatePath(`/people/${leadId}`);
+  await recordActivityLog({
+    userId,
+    action: 'добавил активность контакта',
+    entityType: 'contact',
+    entityId: leadId,
+    entityTitle: text.slice(0, 120),
+    details: { type, channel, result: result || null }
+  });
+
+  if (shouldRevalidate) revalidatePath(`/people/${leadId}`);
+  return {
+    ok: true,
+    interaction: {
+      id: String(data.id),
+      type: String(data.type ?? type),
+      channel: data.channel ? String(data.channel) : undefined,
+      text: String(data.text ?? text),
+      result: data.result ? String(data.result) : undefined,
+      createdAt: String(data.created_at ?? new Date().toISOString())
+    }
+  };
+}
+
+export async function addLeadInteractionMutationAction(
+  input: LeadInteractionMutationInput
+): Promise<LeadInteractionMutationResult> {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  return addLeadInteractionCore(input, user.profileId);
+}
+
+export async function addLeadInteractionAction(formData: FormData) {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  const leadId = getText(formData, 'lead_id');
+  const result = await addLeadInteractionCore({
+    leadId,
+    type: getText(formData, 'type'),
+    channel: getText(formData, 'channel'),
+    text: getText(formData, 'text'),
+    result: getText(formData, 'result')
+  }, user.profileId, true);
+
+  if (!result.ok) {
+    if (result.error === 'missing-lead' || result.error === 'contact-not-found') redirect('/people?error=contact-not-found');
+    redirect(`/people/${leadId}?error=${result.error ?? 'interaction-failed'}`);
+  }
   redirect(`/people/${leadId}`);
 }
 
@@ -346,6 +581,10 @@ function getLeadIds(formData: FormData) {
     .split(',')
     .map((id) => id.trim())
     .filter((id) => id && looksLikeUuid(id));
+}
+
+function getBulkReturnTo(formData: FormData) {
+  return getSafeRedirectPath(getText(formData, 'return_to'), '/people');
 }
 
 async function addBulkInteractions(
@@ -375,145 +614,247 @@ function revalidateLeadCollection() {
   revalidatePath('/geography');
 }
 
-export async function bulkChangeStageAction(formData: FormData) {
-  const user = await requirePermission('manageContacts', '/people?error=forbidden');
-  const leadIds = getLeadIds(formData);
-  const stage = normalizeStageName(getText(formData, 'stage'));
+export type BulkLeadMutationResult = {
+  ok: boolean;
+  count: number;
+  error?: string;
+};
 
-  if (leadIds.length === 0) redirect('/people?error=bulk-empty');
-  if (!stage) redirect('/people?error=missing-stage');
+function normalizeLeadMutationIds(leadIds: string[]) {
+  const uniqueIds = Array.from(new Set(leadIds.map((id) => id.trim()).filter(Boolean)));
+  return isSupabaseConfigured() ? uniqueIds.filter(looksLikeUuid) : uniqueIds;
+}
 
-  if (!isSupabaseConfigured()) {
-    redirect('/people?bulk=demo-stage');
-  }
+async function bulkChangeStageCore(
+  input: { leadIds: string[]; stage: string },
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<BulkLeadMutationResult> {
+  const leadIds = normalizeLeadMutationIds(input.leadIds);
+  const stage = normalizeStageName(input.stage);
+  if (leadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
+  if (!stage) return { ok: false, count: 0, error: 'missing-stage' };
+  if (!isSupabaseConfigured()) return { ok: true, count: leadIds.length };
 
   const supabase = await createClient();
-  const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
-  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
-
-  const stageId = await ensureStageId(supabase, stage);
+  const [existingLeadIds, stageId] = await Promise.all([
+    getExistingLeadIds(supabase, leadIds),
+    ensureStageId(supabase, stage)
+  ]);
+  if (existingLeadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
   const { error } = await supabase
     .from('leads')
     .update({ stage_id: stageId, updated_at: new Date().toISOString() })
     .in('id', existingLeadIds);
 
-  if (error) redirect('/people?error=bulk-stage-failed');
+  if (error) return { ok: false, count: 0, error: 'bulk-stage-failed' };
 
-  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: стадия изменена на «${stage}»`, 'bulk_stage_changed');
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'изменил стадию контакта',
-    entityType: 'contact',
-    entityTitle: 'Массовое изменение стадии',
-    details: { contacts: existingLeadIds.length, stage, bulk: true }
-  });
-  revalidateLeadCollection();
-  redirect(`/people?bulk=stage&count=${existingLeadIds.length}`);
+  await Promise.all([
+    addBulkInteractions(supabase, existingLeadIds, `Массовое действие: стадия изменена на «${stage}»`, 'bulk_stage_changed'),
+    recordActivityLog({
+      userId,
+      action: 'изменил стадию контакта',
+      entityType: 'contact',
+      entityTitle: 'Массовое изменение стадии',
+      details: { contacts: existingLeadIds.length, stage, bulk: true }
+    })
+  ]);
+  if (shouldRevalidate) revalidateLeadCollection();
+  return { ok: true, count: existingLeadIds.length };
 }
 
-export async function bulkAssignTagAction(formData: FormData) {
-  await requirePermission('manageContacts', '/people?error=forbidden');
-  const leadIds = getLeadIds(formData);
-  const tag = getText(formData, 'tag');
+export async function bulkChangeStageMutationAction(input: {
+  leadIds: string[];
+  stage: string;
+}): Promise<BulkLeadMutationResult> {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  return bulkChangeStageCore(input, user.profileId);
+}
 
-  if (leadIds.length === 0) redirect('/people?error=bulk-empty');
-  if (!tag) redirect('/people?error=missing-tag');
-
-  if (!isSupabaseConfigured()) {
-    redirect('/people?bulk=demo-tag');
-  }
+async function bulkAssignTagCore(
+  input: { leadIds: string[]; tag: string },
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<BulkLeadMutationResult> {
+  const leadIds = normalizeLeadMutationIds(input.leadIds);
+  const tag = input.tag.trim();
+  if (leadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
+  if (!tag) return { ok: false, count: 0, error: 'missing-tag' };
+  if (!isSupabaseConfigured()) return { ok: true, count: leadIds.length };
 
   const supabase = await createClient();
   const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
-  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+  if (existingLeadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
 
   const tagId = await ensureTagId(supabase, tag);
   const rows = existingLeadIds.map((leadId) => ({ lead_id: leadId, tag_id: tagId }));
   const { error } = await supabase.from('lead_tags').upsert(rows, { onConflict: 'lead_id,tag_id' });
 
-  if (error) redirect('/people?error=bulk-tag-failed');
+  if (error) return { ok: false, count: 0, error: 'bulk-tag-failed' };
 
-  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: добавлен тег «${tag}»`, 'bulk_tag_added');
-  revalidateLeadCollection();
-  redirect(`/people?bulk=tag&count=${existingLeadIds.length}`);
+  await Promise.all([
+    addBulkInteractions(supabase, existingLeadIds, `Массовое действие: добавлен тег «${tag}»`, 'bulk_tag_added'),
+    recordActivityLog({
+      userId,
+      action: 'изменил контакт',
+      entityType: 'contact',
+      entityTitle: 'Массовое добавление тега',
+      details: { contacts: existingLeadIds.length, tag, bulk: true }
+    })
+  ]);
+  if (shouldRevalidate) revalidateLeadCollection();
+  return { ok: true, count: existingLeadIds.length };
 }
 
-export async function bulkCreateTaskAction(formData: FormData) {
-  const user = await requirePermission('manageTasks', '/people?error=forbidden');
-  const leadIds = getLeadIds(formData);
-  const title = getText(formData, 'title');
+export async function bulkAssignTagMutationAction(input: {
+  leadIds: string[];
+  tag: string;
+}): Promise<BulkLeadMutationResult> {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  return bulkAssignTagCore(input, user.profileId);
+}
 
-  if (leadIds.length === 0) redirect('/people?error=bulk-empty');
-  if (!title) redirect('/people?error=missing-task-title');
-
-  if (!isSupabaseConfigured()) {
-    redirect('/people?bulk=demo-task');
-  }
+async function bulkCreateTaskCore(
+  input: { leadIds: string[]; title: string },
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<BulkLeadMutationResult> {
+  const leadIds = normalizeLeadMutationIds(input.leadIds);
+  const title = input.title.trim();
+  if (leadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
+  if (!title) return { ok: false, count: 0, error: 'missing-task-title' };
+  if (!isSupabaseConfigured()) return { ok: true, count: leadIds.length };
 
   const supabase = await createClient();
   const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
-  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+  if (existingLeadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
 
   const rows = existingLeadIds.map((leadId) => ({
     lead_id: leadId,
     title,
     description: 'Создано массовым действием из раздела «Люди».',
     priority: 'medium',
-    status: 'todo'
+    status: 'todo',
+    created_by: userId ?? null
   }));
   const { error } = await supabase.from('tasks').insert(rows);
 
-  if (error) redirect('/people?error=bulk-task-failed');
+  if (error) return { ok: false, count: 0, error: 'bulk-task-failed' };
 
-  await addBulkInteractions(supabase, existingLeadIds, `Массовое действие: создана задача «${title}»`, 'bulk_task_created');
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'создал задачу',
-    entityType: 'task',
-    entityTitle: title,
-    details: { contacts: existingLeadIds.length, bulk: true }
-  });
-  revalidateLeadCollection();
-  revalidatePath('/tasks');
-  revalidatePath('/followups');
-  redirect(`/people?bulk=task&count=${existingLeadIds.length}`);
+  await Promise.all([
+    addBulkInteractions(supabase, existingLeadIds, `Массовое действие: создана задача «${title}»`, 'bulk_task_created'),
+    recordActivityLog({
+      userId,
+      action: 'создал задачу',
+      entityType: 'task',
+      entityTitle: title,
+      details: { contacts: existingLeadIds.length, bulk: true }
+    })
+  ]);
+  if (shouldRevalidate) {
+    revalidateLeadCollection();
+    revalidatePath('/tasks');
+    revalidatePath('/followups');
+  }
+  return { ok: true, count: existingLeadIds.length };
 }
 
-export async function bulkAddToCampaignAction(formData: FormData) {
-  const user = await requirePermission('manageCampaigns', '/people?error=forbidden');
-  const leadIds = getLeadIds(formData);
-  const campaignId = getText(formData, 'campaign_id');
+export async function bulkCreateTaskMutationAction(input: {
+  leadIds: string[];
+  title: string;
+}): Promise<BulkLeadMutationResult> {
+  const user = await requirePermission('manageTasks', '/people?error=forbidden');
+  return bulkCreateTaskCore(input, user.profileId);
+}
 
-  if (leadIds.length === 0) redirect('/people?error=bulk-empty');
-  if (!campaignId) redirect('/people?error=missing-campaign');
-
-  if (!isSupabaseConfigured()) {
-    redirect('/people?bulk=demo-campaign');
-  }
+async function bulkAddToCampaignCore(
+  input: { leadIds: string[]; campaignId: string },
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<BulkLeadMutationResult> {
+  const leadIds = normalizeLeadMutationIds(input.leadIds);
+  const campaignId = input.campaignId.trim();
+  if (leadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
+  if (!campaignId) return { ok: false, count: 0, error: 'missing-campaign' };
+  if (!isSupabaseConfigured()) return { ok: true, count: leadIds.length };
 
   const supabase = await createClient();
   const existingLeadIds = await getExistingLeadIds(supabase, leadIds);
-  if (existingLeadIds.length === 0) redirect('/people?error=bulk-empty');
+  if (existingLeadIds.length === 0) return { ok: false, count: 0, error: 'bulk-empty' };
 
   const rows = existingLeadIds.map((leadId) => ({ campaign_id: campaignId, lead_id: leadId }));
   const { error } = await supabase.from('campaign_leads').upsert(rows, { onConflict: 'campaign_id,lead_id' });
 
-  if (error) redirect('/people?error=bulk-campaign-failed');
+  if (error) return { ok: false, count: 0, error: 'bulk-campaign-failed' };
 
-  await addBulkInteractions(supabase, existingLeadIds, 'Массовое действие: контакт добавлен в кампанию', 'bulk_campaign_attached');
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'добавил контакт в кампанию',
-    entityType: 'campaign',
-    entityId: campaignId,
-    entityTitle: 'Кампания',
-    details: { contacts: existingLeadIds.length, bulk: true }
-  });
-  revalidateLeadCollection();
-  revalidatePath('/campaigns');
-  revalidatePath(`/campaigns/${campaignId}`);
-  revalidatePath('/funnels');
-  redirect(`/people?bulk=campaign&count=${existingLeadIds.length}`);
+  await Promise.all([
+    addBulkInteractions(supabase, existingLeadIds, 'Массовое действие: контакт добавлен в кампанию', 'bulk_campaign_attached'),
+    recordActivityLog({
+      userId,
+      action: 'добавил контакт в кампанию',
+      entityType: 'campaign',
+      entityId: campaignId,
+      entityTitle: 'Кампания',
+      details: { contacts: existingLeadIds.length, bulk: true }
+    })
+  ]);
+  if (shouldRevalidate) {
+    revalidateLeadCollection();
+    revalidatePath('/campaigns');
+    revalidatePath(`/campaigns/${campaignId}`);
+    revalidatePath('/funnels');
+  }
+  return { ok: true, count: existingLeadIds.length };
+}
+
+export async function bulkAddToCampaignMutationAction(input: {
+  leadIds: string[];
+  campaignId: string;
+}): Promise<BulkLeadMutationResult> {
+  const user = await requirePermission('manageCampaigns', '/people?error=forbidden');
+  return bulkAddToCampaignCore(input, user.profileId);
+}
+
+export async function bulkChangeStageAction(formData: FormData) {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  const returnTo = getBulkReturnTo(formData);
+  const stage = normalizeStageName(getText(formData, 'stage'));
+  const result = await bulkChangeStageCore({ leadIds: getLeadIds(formData), stage }, user.profileId, true);
+  if (!result.ok) redirect(withRedirectQuery(returnTo, { error: result.error ?? 'bulk-stage-failed' }, '/people'));
+  redirect(withRedirectQuery(returnTo, { bulk: 'stage', count: result.count }, '/people'));
+}
+
+export async function bulkAssignTagAction(formData: FormData) {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  const returnTo = getBulkReturnTo(formData);
+  const result = await bulkAssignTagCore({
+    leadIds: getLeadIds(formData),
+    tag: getText(formData, 'tag')
+  }, user.profileId, true);
+  if (!result.ok) redirect(withRedirectQuery(returnTo, { error: result.error ?? 'bulk-tag-failed' }, '/people'));
+  redirect(withRedirectQuery(returnTo, { bulk: 'tag', count: result.count }, '/people'));
+}
+
+export async function bulkCreateTaskAction(formData: FormData) {
+  const user = await requirePermission('manageTasks', '/people?error=forbidden');
+  const returnTo = getBulkReturnTo(formData);
+  const result = await bulkCreateTaskCore({
+    leadIds: getLeadIds(formData),
+    title: getText(formData, 'title')
+  }, user.profileId, true);
+  if (!result.ok) redirect(withRedirectQuery(returnTo, { error: result.error ?? 'bulk-task-failed' }, '/people'));
+  redirect(withRedirectQuery(returnTo, { bulk: 'task', count: result.count }, '/people'));
+}
+
+export async function bulkAddToCampaignAction(formData: FormData) {
+  const user = await requirePermission('manageCampaigns', '/people?error=forbidden');
+  const returnTo = getBulkReturnTo(formData);
+  const result = await bulkAddToCampaignCore({
+    leadIds: getLeadIds(formData),
+    campaignId: getText(formData, 'campaign_id')
+  }, user.profileId, true);
+  if (!result.ok) redirect(withRedirectQuery(returnTo, { error: result.error ?? 'bulk-campaign-failed' }, '/people'));
+  redirect(withRedirectQuery(returnTo, { bulk: 'campaign', count: result.count }, '/people'));
 }
 
 export async function updateLeadStageFromProfileAction(formData: FormData) {
@@ -592,102 +933,252 @@ export async function updateLeadStageFromProfileAction(formData: FormData) {
   redirect(`/people/${leadId}?updated=stage`);
 }
 
-export async function updateLeadFollowUpAction(formData: FormData) {
-  const user = await requirePermission('manageContacts', '/people?error=forbidden');
-  const leadId = getText(formData, 'lead_id');
-  const nextStep = getText(formData, 'next_step');
-  const nextContactDate = getText(formData, 'next_contact_date');
-  const comment = getText(formData, 'comment') || getText(formData, 'description');
+export type LeadFollowUpMutationInput = {
+  leadId: string;
+  nextStep: string;
+  nextContactDate?: string;
+  comment?: string;
+};
 
-  if (!leadId) redirect('/people?error=missing-lead');
-  if (!nextStep) redirect(`/people/${leadId}?error=missing-next-action`);
+export type LeadFollowUpMutationResult = {
+  ok: boolean;
+  error?: string;
+  taskId?: string;
+  created?: boolean;
+};
 
+type AtomicLeadFollowUpResult =
+  | { status: 'success'; taskId: string; created: boolean }
+  | { status: 'business-error'; error: string }
+  | { status: 'unavailable' }
+  | { status: 'failed' };
+
+function isMissingAtomicLeadFollowUp(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error) return false;
+  if (error.code === 'PGRST202' || error.code === '42883') return true;
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return message.includes('schedule_lead_action') && (
+    message.includes('could not find')
+    || message.includes('does not exist')
+    || message.includes('schema cache')
+  );
+}
+
+async function scheduleLeadActionRpc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    leadId: string;
+    nextStep: string;
+    nextContactDate: string;
+    comment: string;
+    actorProfileId: string | null;
+  }
+): Promise<AtomicLeadFollowUpResult> {
+  const { data, error } = await supabase.rpc('schedule_lead_action', {
+    p_lead_id: input.leadId,
+    p_next_step: input.nextStep,
+    p_next_contact_date: input.nextContactDate || null,
+    p_comment: input.comment || null,
+    p_actor_profile_id: input.actorProfileId
+  });
+
+  if (error) {
+    return isMissingAtomicLeadFollowUp(error) ? { status: 'unavailable' } : { status: 'failed' };
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { status: 'failed' };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (result.ok === true && typeof result.task_id === 'string') {
+    return {
+      status: 'success',
+      taskId: result.task_id,
+      created: result.created === true
+    };
+  }
+  if (result.ok === false && typeof result.error === 'string') {
+    return { status: 'business-error', error: result.error };
+  }
+  return { status: 'failed' };
+}
+
+async function updateLeadFollowUpCore(
+  input: LeadFollowUpMutationInput,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<LeadFollowUpMutationResult> {
+  const leadId = input.leadId.trim();
+  const nextStep = input.nextStep.trim();
+  const nextContactDate = input.nextContactDate?.trim() ?? '';
+  const comment = input.comment?.trim() ?? '';
+
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!nextStep) return { ok: false, error: 'missing-next-action' };
   if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?action=demo`);
+    return { ok: true, taskId: 'demo-next-action', created: true };
   }
 
   const supabase = await createClient();
-  const { data: lead, error: leadError } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
-  if (leadError || !lead?.id) redirect('/people?error=contact-not-found');
+  const atomicResult = await scheduleLeadActionRpc(supabase, {
+    leadId,
+    nextStep,
+    nextContactDate,
+    comment,
+    actorProfileId: userId ?? null
+  });
+  if (atomicResult.status === 'success') {
+    if (shouldRevalidate) {
+      revalidatePath(`/people/${leadId}`);
+      revalidatePath('/people');
+      revalidatePath('/dashboard');
+      revalidatePath('/tasks');
+      revalidatePath('/followups');
+      revalidatePath('/notifications');
+    }
+    return {
+      ok: true,
+      taskId: atomicResult.taskId,
+      created: atomicResult.created
+    };
+  }
+  if (atomicResult.status === 'business-error') {
+    return { ok: false, error: atomicResult.error };
+  }
+  if (atomicResult.status === 'failed') {
+    return { ok: false, error: 'followup-update-failed' };
+  }
 
-  const { error } = await supabase
-    .from('leads')
-    .update({
-      next_step: nextStep || null,
-      next_contact_date: nextContactDate || null,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', leadId);
+  const [leadResult, existingTaskResult] = await Promise.all([
+    supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle(),
+    supabase
+      .from('tasks')
+      .select('id')
+      .eq('lead_id', leadId)
+      .in('status', ['todo', 'in_progress'])
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+  ]);
+  const { data: lead, error: leadError } = leadResult;
+  if (leadError || !lead?.id) return { ok: false, error: 'contact-not-found' };
+  if (existingTaskResult.error) return { ok: false, error: 'task-save-failed' };
 
-  if (error) redirect(`/people/${leadId}?error=followup-update-failed`);
-
-  const { data: existingTask } = await supabase
-    .from('tasks')
-    .select('id')
-    .eq('lead_id', leadId)
-    .in('status', ['todo', 'in_progress'])
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
+  const existingTask = existingTaskResult.data;
   const hadExistingTask = Boolean(existingTask?.id);
   let taskId = existingTask?.id ? String(existingTask.id) : '';
   if (taskId) {
-    const { error: taskUpdateError } = await supabase
-      .from('tasks')
-      .update({
-        title: nextStep,
-        description: comment || null,
-        due_date: nextContactDate || null,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', taskId);
-    if (taskUpdateError) redirect(`/people/${leadId}?error=task-save-failed`);
+    const [leadUpdateResult, taskUpdateResult] = await Promise.all([
+      supabase
+        .from('leads')
+        .update({
+          next_step: nextStep || null,
+          next_contact_date: nextContactDate || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', leadId),
+      supabase
+        .from('tasks')
+        .update({
+          title: nextStep,
+          description: comment || null,
+          due_date: nextContactDate || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId)
+    ]);
+    if (leadUpdateResult.error) return { ok: false, error: 'followup-update-failed' };
+    if (taskUpdateResult.error) return { ok: false, error: 'task-save-failed' };
   } else {
-    const { data: task, error: taskCreateError } = await supabase
-      .from('tasks')
-      .insert({
-        lead_id: leadId,
-        title: nextStep,
-        description: comment || null,
-        due_date: nextContactDate || null,
-        priority: 'none',
-        status: 'todo',
-        created_by: user.profileId
-      })
-      .select('id')
-      .single();
-    if (taskCreateError || !task?.id) redirect(`/people/${leadId}?error=task-save-failed`);
+    const [leadUpdateResult, taskCreateResult] = await Promise.all([
+      supabase
+        .from('leads')
+        .update({
+          next_step: nextStep || null,
+          next_contact_date: nextContactDate || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', leadId),
+      supabase
+        .from('tasks')
+        .insert({
+          lead_id: leadId,
+          title: nextStep,
+          description: comment || null,
+          due_date: nextContactDate || null,
+          priority: 'none',
+          status: 'todo',
+          created_by: userId ?? null
+        })
+        .select('id')
+        .single()
+    ]);
+    if (leadUpdateResult.error) return { ok: false, error: 'followup-update-failed' };
+    const { data: task, error: taskCreateError } = taskCreateResult;
+    if (taskCreateError || !task?.id) return { ok: false, error: 'task-save-failed' };
     taskId = String(task.id);
   }
 
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'note',
-    channel: 'Hutka',
-    text: `Запланировано действие: ${nextStep}${nextContactDate ? ` · дата ${nextContactDate}` : ''}${comment ? ` · ${comment}` : ''}`,
-    result: 'next_action_planned'
-  });
-  await recordActivityLog({
-    userId: user.profileId,
-    action: hadExistingTask ? 'изменил задачу' : 'создал задачу',
-    entityType: 'task',
-    entityId: taskId,
-    entityTitle: nextStep,
-    details: {
-      contact_id: leadId,
-      contact: String(lead.name ?? 'Контакт'),
-      due_date: nextContactDate || null,
-      from_next_action: true
-    }
-  });
+  deferSideEffects(
+    async () => {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'note',
+        channel: 'Hutka',
+        text: `Запланировано действие: ${nextStep}${nextContactDate ? ` · дата ${nextContactDate}` : ''}${comment ? ` · ${comment}` : ''}`,
+        result: 'next_action_planned'
+      });
+    },
+    async () => writeActivityLog({
+      userId,
+      action: hadExistingTask ? 'изменил задачу' : 'создал задачу',
+      entityType: 'task',
+      entityId: taskId,
+      entityTitle: nextStep,
+      details: {
+        contact_id: leadId,
+        contact: String(lead.name ?? 'Контакт'),
+        due_date: nextContactDate || null,
+        from_next_action: true
+      }
+    })
+  );
 
-  revalidatePath(`/people/${leadId}`);
-  revalidatePath('/people');
-  revalidatePath('/dashboard');
-  revalidatePath('/tasks');
-  revalidatePath('/followups');
-  revalidatePath('/notifications');
+  if (shouldRevalidate) {
+    revalidatePath(`/people/${leadId}`);
+    revalidatePath('/people');
+    revalidatePath('/dashboard');
+    revalidatePath('/tasks');
+    revalidatePath('/followups');
+    revalidatePath('/notifications');
+  }
+
+  return { ok: true, taskId, created: !hadExistingTask };
+}
+
+export async function updateLeadFollowUpMutationAction(
+  input: LeadFollowUpMutationInput
+): Promise<LeadFollowUpMutationResult> {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  return updateLeadFollowUpCore(input, user.profileId);
+}
+
+export async function updateLeadFollowUpAction(formData: FormData) {
+  const user = await requirePermission('manageContacts', '/people?error=forbidden');
+  const leadId = getText(formData, 'lead_id');
+  const result = await updateLeadFollowUpCore({
+    leadId,
+    nextStep: getText(formData, 'next_step'),
+    nextContactDate: getText(formData, 'next_contact_date'),
+    comment: getText(formData, 'comment') || getText(formData, 'description')
+  }, user.profileId, true);
+
+  if (!result.ok) {
+    if (result.error === 'missing-lead') redirect('/people?error=missing-lead');
+    if (result.error === 'contact-not-found') redirect('/people?error=contact-not-found');
+    redirect(`/people/${leadId}?error=${result.error ?? 'followup-update-failed'}`);
+  }
+
   redirect(`/people/${leadId}?updated=next-action`);
 }
 
@@ -752,38 +1243,82 @@ export async function attachLeadToCampaignFromProfileAction(formData: FormData) 
   redirect(`/people/${leadId}?attached=campaign`);
 }
 
-export async function attachLeadToInsightFromProfileAction(formData: FormData) {
-  await requirePermission('manageInsights', '/people?error=forbidden');
-  const { leadId, relationId: insightId } = await requireLeadRelationInputs(formData, 'insight_id');
+export type LeadRelationMutationResult = {
+  ok: boolean;
+  error?: string;
+  title?: string;
+  url?: string;
+};
 
-  if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?attached=demo-insight`);
-  }
+async function attachLeadToInsightCore(
+  leadIdValue: string,
+  insightIdValue: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<LeadRelationMutationResult> {
+  const leadId = leadIdValue.trim();
+  const insightId = insightIdValue.trim();
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!insightId) return { ok: false, error: 'missing-relation' };
+  if (!isSupabaseConfigured()) return { ok: true, title: 'Демо-вывод' };
 
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
+  const [insightResult, relationResult] = await Promise.all([
+    supabase.from('insights').select('id,title').eq('id', insightId).maybeSingle(),
+    supabase
+      .from('insight_leads')
+      .upsert({ insight_id: insightId, lead_id: leadId }, { onConflict: 'insight_id,lead_id' })
+  ]);
 
-  const { data: insight } = await supabase.from('insights').select('title').eq('id', insightId).maybeSingle();
+  const insight = insightResult.data;
+  if (insightResult.error || !insight?.id) return { ok: false, error: 'insight-not-found' };
+  if (relationResult.error) return { ok: false, error: 'insight-attach-failed' };
   const insightTitle = insight?.title ? String(insight.title) : 'вывод';
 
-  const { error } = await supabase
-    .from('insight_leads')
-    .upsert({ insight_id: insightId, lead_id: leadId }, { onConflict: 'insight_id,lead_id' });
+  await Promise.all([
+    supabase.from('lead_interactions').insert({
+      lead_id: leadId,
+      type: 'note',
+      channel: 'Hutka',
+      text: `Контакт связан с выводом «${insightTitle}»`,
+      result: 'insight_attached',
+      created_by: userId || null
+    }),
+    recordActivityLog({
+      userId,
+      action: 'связал контакт с выводом',
+      entityType: 'insight',
+      entityId: insightId,
+      entityTitle: insightTitle,
+      details: { contact_id: leadId }
+    })
+  ]);
 
-  if (error) redirect(`/people/${leadId}?error=insight-attach-failed`);
+  if (shouldRevalidate) {
+    revalidateLeadRelationPages(leadId);
+    revalidatePath('/insights');
+    revalidatePath(`/insights/${insightId}`);
+  }
+  return { ok: true, title: insightTitle };
+}
 
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'note',
-    channel: 'Hutka',
-    text: `Контакт связан с выводом «${insightTitle}»`,
-    result: 'insight_attached'
-  });
+export async function attachLeadToInsightMutationAction(input: {
+  leadId: string;
+  insightId: string;
+}): Promise<LeadRelationMutationResult> {
+  const user = await requirePermission('manageInsights', '/people?error=forbidden');
+  return attachLeadToInsightCore(input.leadId, input.insightId, user.profileId);
+}
 
-  revalidateLeadRelationPages(leadId);
-  revalidatePath('/insights');
-  revalidatePath(`/insights/${insightId}`);
+export async function attachLeadToInsightFromProfileAction(formData: FormData) {
+  const user = await requirePermission('manageInsights', '/people?error=forbidden');
+  const { leadId, relationId: insightId } = await requireLeadRelationInputs(formData, 'insight_id');
+  const result = await attachLeadToInsightCore(leadId, insightId, user.profileId, true);
+
+  if (!result.ok) {
+    if (result.error === 'contact-not-found') redirect('/people?error=contact-not-found');
+    redirect(`/people/${leadId}?error=${result.error ?? 'insight-attach-failed'}`);
+  }
   redirect(`/people/${leadId}?attached=insight`);
 }
 
@@ -822,41 +1357,76 @@ export async function attachLeadToHypothesisFromProfileAction(formData: FormData
   redirect(`/people/${leadId}?attached=hypothesis`);
 }
 
-export async function createLeadSurveyInviteAction(formData: FormData) {
-  await requirePermission('manageSurveys', '/people?error=forbidden');
-  const { leadId, relationId: surveyId } = await requireLeadRelationInputs(formData, 'survey_id');
-
+async function createLeadSurveyInviteCore(
+  leadIdValue: string,
+  surveyIdValue: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<LeadRelationMutationResult> {
+  const leadId = leadIdValue.trim();
+  const surveyId = surveyIdValue.trim();
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!surveyId) return { ok: false, error: 'missing-relation' };
   if (!isSupabaseConfigured()) {
-    redirect(`/people/${leadId}?survey=demo`);
+    return { ok: true, title: 'Демо-анкета', url: '/s/demo-masters' };
   }
 
   const supabase = await createClient();
-  const existingLeadId = await getExistingLeadId(supabase, leadId);
-  if (!existingLeadId) redirect('/people?error=contact-not-found');
-
   const { data: survey, error: surveyError } = await supabase
     .from('surveys')
-    .select('title, slug')
+    .select('id,title,slug')
     .eq('id', surveyId)
     .maybeSingle();
 
-  if (surveyError || !survey?.slug) redirect(`/people/${leadId}?error=survey-not-found`);
+  if (surveyError || !survey?.id || !survey.slug) return { ok: false, error: 'survey-not-found' };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
-  const surveyUrl = `${appUrl ?? ''}/s/${survey.slug}`;
+  const surveyUrl = buildAppUrl(`/s/${survey.slug}`);
   const surveyTitle = survey.title ? String(survey.title) : 'анкета';
 
-  await supabase.from('lead_interactions').insert({
+  const { error: interactionError } = await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'survey_sent',
     channel: 'Hutka',
     text: `Создана ссылка на анкету «${surveyTitle}»: ${surveyUrl}`,
-    result: 'survey_link_created'
+    result: 'survey_link_created',
+    created_by: userId || null
+  });
+  if (interactionError) return { ok: false, error: 'survey-link-create-failed' };
+
+  await recordActivityLog({
+    userId,
+    action: 'создал ссылку на анкету',
+    entityType: 'survey',
+    entityId: surveyId,
+    entityTitle: surveyTitle,
+    details: { contact_id: leadId, url: surveyUrl }
   });
 
-  revalidateLeadRelationPages(leadId);
-  revalidatePath('/surveys');
-  revalidatePath(`/surveys/${surveyId}`);
+  if (shouldRevalidate) {
+    revalidateLeadRelationPages(leadId);
+    revalidatePath('/surveys');
+    revalidatePath(`/surveys/${surveyId}`);
+  }
+  return { ok: true, title: surveyTitle, url: surveyUrl };
+}
+
+export async function createLeadSurveyInviteMutationAction(input: {
+  leadId: string;
+  surveyId: string;
+}): Promise<LeadRelationMutationResult> {
+  const user = await requirePermission('manageSurveys', '/people?error=forbidden');
+  return createLeadSurveyInviteCore(input.leadId, input.surveyId, user.profileId);
+}
+
+export async function createLeadSurveyInviteAction(formData: FormData) {
+  const user = await requirePermission('manageSurveys', '/people?error=forbidden');
+  const { leadId, relationId: surveyId } = await requireLeadRelationInputs(formData, 'survey_id');
+  const result = await createLeadSurveyInviteCore(leadId, surveyId, user.profileId, true);
+
+  if (!result.ok) {
+    if (result.error === 'contact-not-found') redirect('/people?error=contact-not-found');
+    redirect(`/people/${leadId}?error=${result.error ?? 'survey-link-create-failed'}`);
+  }
   redirect(`/people/${leadId}?survey=link-created`);
 }
 
@@ -872,11 +1442,14 @@ export async function deleteLeadAction(formData: FormData) {
   }
 
   const supabase = await createClient();
-  const { data: lead } = await supabase.from('leads').select('id,name').eq('id', leadId).maybeSingle();
-  if (!lead?.id) redirect('/people?error=contact-not-found');
-
-  const { error } = await supabase.from('leads').delete().eq('id', leadId);
+  const { data: lead, error } = await supabase
+    .from('leads')
+    .delete()
+    .eq('id', leadId)
+    .select('id,name')
+    .maybeSingle();
   if (error) redirect(`/people/${leadId}?error=delete-failed`);
+  if (!lead?.id) redirect('/people?error=contact-not-found');
   await recordActivityLog({
     userId: user.profileId,
     action: 'удалил контакт',

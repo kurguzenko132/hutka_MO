@@ -2,11 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 import { requirePermission } from '@/lib/permissions';
-import { recordActivityLog } from '@/lib/activity-log';
+import { recordActivityLog, writeActivityLog } from '@/lib/activity-log';
 import {
   answerLength,
   getLimitedText,
@@ -14,6 +15,7 @@ import {
   hasPublicFormHoneypot,
   publicFormLimits
 } from '@/lib/public-form-validation';
+import type { SurveyQuestion } from '@/lib/surveys';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -81,11 +83,6 @@ async function ensureUniqueSlug(supabase: Awaited<ReturnType<typeof createClient
     slug = `${baseSlug}-${counter}`;
     counter += 1;
   }
-}
-
-async function surveyExists(supabase: Awaited<ReturnType<typeof createClient>>, surveyId: string) {
-  const { data, error } = await supabase.from('surveys').select('id').eq('id', surveyId).maybeSingle();
-  return !error && Boolean(data?.id);
 }
 
 function getQuestionPayloads(formData: FormData) {
@@ -169,40 +166,132 @@ export async function createSurveyAction(formData: FormData) {
   redirect(`/surveys/${survey.id}`);
 }
 
-export async function addSurveyQuestionAction(formData: FormData) {
-  await requirePermission('manageSurveys', '/surveys?error=forbidden');
-  const surveyId = getText(formData, 'survey_id');
-  const text = getText(formData, 'question_text');
-  if (!surveyId) redirect('/surveys');
-  if (!text) redirect(`/surveys/${surveyId}?error=missing-question`);
+export type SurveyQuestionMutationInput = {
+  surveyId: string;
+  text: string;
+  type: string;
+  options: string[];
+  required: boolean;
+  orderIndex?: number;
+};
 
+export type SurveyQuestionMutationResult = {
+  ok: boolean;
+  error?: string;
+  question?: SurveyQuestion;
+};
+
+async function addSurveyQuestionCore(
+  input: SurveyQuestionMutationInput,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<SurveyQuestionMutationResult> {
+  const surveyId = input.surveyId.trim();
+  const text = input.text.trim();
+  if (!surveyId) return { ok: false, error: 'missing-survey' };
+  if (!text) return { ok: false, error: 'missing-question' };
+
+  const questionType = normalizeQuestionType(input.type.trim());
+  const options = getOptionsForQuestion(questionType, input.options.join('\n'));
   if (!isSupabaseConfigured()) {
-    redirect(`/surveys/${surveyId}?question=demo`);
+    return {
+      ok: true,
+      question: {
+        id: `demo-question-${Date.now()}`,
+        text,
+        type: questionType,
+        options,
+        required: input.required,
+        orderIndex: Number.isFinite(input.orderIndex) ? Number(input.orderIndex) : 1
+      }
+    };
   }
 
   const supabase = await createClient();
-  if (!(await surveyExists(supabase, surveyId))) redirect('/surveys?error=survey-not-found');
+  const requestedOrder = Number.isFinite(input.orderIndex) && Number(input.orderIndex) > 0
+    ? Math.floor(Number(input.orderIndex))
+    : null;
+  const countResult = requestedOrder
+    ? null
+    : await supabase
+      .from('survey_questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('survey_id', surveyId);
 
-  const { count } = await supabase
+  const orderIndex = requestedOrder ?? ((countResult?.count ?? 0) + 1);
+  const { data, error } = await supabase
     .from('survey_questions')
-    .select('id', { count: 'exact', head: true })
-    .eq('survey_id', surveyId);
+    .insert({
+      survey_id: surveyId,
+      question_text: text,
+      question_type: questionType,
+      options,
+      required: input.required,
+      order_index: orderIndex
+    })
+    .select('id,question_text,question_type,options,required,order_index')
+    .single();
 
-  const questionType = normalizeQuestionType(getText(formData, 'question_type'));
+  if (error || !data) {
+    return { ok: false, error: error?.code === '23503' ? 'survey-not-found' : 'question-save-failed' };
+  }
 
-  const { error } = await supabase.from('survey_questions').insert({
-    survey_id: surveyId,
-    question_text: text,
-    question_type: questionType,
-    options: getOptionsForQuestion(questionType, getText(formData, 'question_options')),
-    required: getText(formData, 'required') === 'on',
-    order_index: (count ?? 0) + 1
+  after(async () => {
+    try {
+      await writeActivityLog({
+        userId,
+        action: 'создал вопрос анкеты',
+        entityType: 'survey_question',
+        entityId: String(data.id),
+        entityTitle: text,
+        details: { survey_id: surveyId, question_type: questionType }
+      });
+    } catch {
+      // Основной вопрос уже сохранен; служебный лог не должен задерживать интерфейс.
+    }
   });
 
-  if (error) redirect(`/surveys/${surveyId}?error=question-save-failed`);
+  if (shouldRevalidate) {
+    revalidatePath('/surveys');
+    revalidatePath(`/surveys/${surveyId}`);
+  }
 
-  revalidatePath('/surveys');
-  revalidatePath(`/surveys/${surveyId}`);
+  return {
+    ok: true,
+    question: {
+      id: String(data.id),
+      text: String(data.question_text ?? text),
+      type: String(data.question_type ?? questionType),
+      options: Array.isArray(data.options) ? data.options.map(String) : options,
+      required: Boolean(data.required),
+      orderIndex: Number(data.order_index ?? orderIndex)
+    }
+  };
+}
+
+export async function addSurveyQuestionMutationAction(
+  input: SurveyQuestionMutationInput
+): Promise<SurveyQuestionMutationResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  return addSurveyQuestionCore(input, user.profileId);
+}
+
+export async function addSurveyQuestionAction(formData: FormData) {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const surveyId = getText(formData, 'survey_id');
+  const result = await addSurveyQuestionCore({
+    surveyId,
+    text: getText(formData, 'question_text'),
+    type: getText(formData, 'question_type'),
+    options: parseOptions(getText(formData, 'question_options')),
+    required: getText(formData, 'required') === 'on'
+  }, user.profileId, true);
+
+  if (!result.ok) {
+    if (result.error === 'missing-survey') redirect('/surveys');
+    if (result.error === 'survey-not-found') redirect('/surveys?error=survey-not-found');
+    redirect(`/surveys/${surveyId}?error=${result.error ?? 'question-save-failed'}`);
+  }
   redirect(`/surveys/${surveyId}`);
 }
 
@@ -291,17 +380,23 @@ export async function submitSurveyResponseAction(formData: FormData) {
     if (error) redirect(`/s/${slug}?error=save-failed`);
   }
 
-  await supabase.from('activity_logs').insert({
-    user_id: null,
-    action: 'получил ответ на анкету',
-    entity_type: 'survey',
-    entity_id: surveyId,
-    entity_title: slug,
-    details: {
-      response_group_id: responseGroupId,
-      answers: rows.length,
-      respondent_name: respondentName || null,
-      respondent_contact: respondentContact || null
+  after(async () => {
+    try {
+      await supabase.from('activity_logs').insert({
+        user_id: null,
+        action: 'получил ответ на анкету',
+        entity_type: 'survey',
+        entity_id: surveyId,
+        entity_title: slug,
+        details: {
+          response_group_id: responseGroupId,
+          answers: rows.length,
+          respondent_name: respondentName || null,
+          respondent_contact: respondentContact || null
+        }
+      });
+    } catch {
+      // Ответ уже сохранен; служебный лог не должен задерживать или ломать публичную форму.
     }
   });
 
@@ -311,22 +406,102 @@ export async function submitSurveyResponseAction(formData: FormData) {
 }
 
 export async function deleteSurveyAction(formData: FormData) {
-  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
   const surveyId = getText(formData, 'survey_id');
   const confirmation = getText(formData, 'confirmation');
-  if (!surveyId) redirect('/surveys?error=missing-survey');
-  if (confirmation !== 'УДАЛИТЬ') redirect(`/surveys/${surveyId}?error=confirmation-required`);
-
-  if (!isSupabaseConfigured()) {
-    redirect('/surveys?deleted=demo');
+  const result = await deleteSurveyMutation(surveyId, confirmation);
+  if (!result.ok) {
+    if (result.error === 'missing-survey' || result.error === 'survey-not-found') redirect('/surveys?error=survey-not-found');
+    redirect(`/surveys/${surveyId}?error=${result.error ?? 'delete-failed'}`);
   }
+  revalidatePath('/surveys');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/surveys?deleted=survey');
+}
+
+export type SurveyMetadataMutationInput = {
+  id: string;
+  title: string;
+  type: string;
+  description?: string;
+  status: string;
+};
+
+export type SurveyMetadataMutationResult = {
+  ok: boolean;
+  error?: 'demo' | 'missing-survey' | 'title-required' | 'update-failed' | 'delete-failed' | 'survey-not-found' | 'confirmation-required';
+  item?: {
+    title: string;
+    type: string;
+    description?: string;
+    status: 'draft' | 'active' | 'archived';
+  };
+};
+
+export async function updateSurveyMetadataMutation(input: SurveyMetadataMutationInput): Promise<SurveyMetadataMutationResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const surveyId = input.id.trim();
+  const title = input.title.trim();
+  if (!surveyId) return { ok: false, error: 'missing-survey' };
+  if (!title) return { ok: false, error: 'title-required' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
+
+  const status = ['draft', 'active', 'archived'].includes(input.status)
+    ? input.status as 'draft' | 'active' | 'archived'
+    : 'draft';
+  const type = input.type.trim() || 'Общий';
+  const description = input.description?.trim() || '';
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('surveys')
+    .update({
+      title,
+      type,
+      description: description || null,
+      status
+    })
+    .eq('id', surveyId)
+    .select('id,title,type,description,status')
+    .maybeSingle();
+
+  if (error) return { ok: false, error: 'update-failed' };
+  if (!data?.id) return { ok: false, error: 'survey-not-found' };
+
+  await recordActivityLog({
+    userId: user.profileId,
+    action: 'изменил анкету',
+    entityType: 'survey',
+    entityId: surveyId,
+    entityTitle: title,
+    details: { status, type }
+  });
+  return {
+    ok: true,
+    item: {
+      title: String(data.title ?? title),
+      type: String(data.type ?? type),
+      description: data.description ? String(data.description) : undefined,
+      status: String(data.status ?? status) as 'draft' | 'active' | 'archived'
+    }
+  };
+}
+
+export async function deleteSurveyMutation(surveyIdValue: string, confirmation: string): Promise<SurveyMetadataMutationResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const surveyId = surveyIdValue.trim();
+  if (!surveyId) return { ok: false, error: 'missing-survey' };
+  if (confirmation !== 'УДАЛИТЬ') return { ok: false, error: 'confirmation-required' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
 
   const supabase = await createClient();
-  const { data: survey } = await supabase.from('surveys').select('id,title').eq('id', surveyId).maybeSingle();
-  if (!survey?.id) redirect('/surveys?error=survey-not-found');
-
-  const { error } = await supabase.from('surveys').delete().eq('id', surveyId);
-  if (error) redirect(`/surveys/${surveyId}?error=delete-failed`);
+  const { data: survey, error } = await supabase
+    .from('surveys')
+    .delete()
+    .eq('id', surveyId)
+    .select('id,title')
+    .maybeSingle();
+  if (error) return { ok: false, error: 'delete-failed' };
+  if (!survey?.id) return { ok: false, error: 'survey-not-found' };
 
   await recordActivityLog({
     userId: user.profileId,
@@ -336,47 +511,75 @@ export async function deleteSurveyAction(formData: FormData) {
     entityTitle: String(survey.title ?? 'Анкета')
   });
 
-  revalidatePath('/surveys');
-  revalidatePath('/dashboard');
-  revalidatePath('/reports');
-  redirect('/surveys?deleted=survey');
+  return { ok: true };
+}
+
+async function deleteSurveyQuestionCore(
+  surveyIdValue: string,
+  questionIdValue: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<SurveyQuestionMutationResult> {
+  const surveyId = surveyIdValue.trim();
+  const questionId = questionIdValue.trim();
+  if (!surveyId || !questionId) return { ok: false, error: 'missing-question' };
+  if (!isSupabaseConfigured()) return { ok: true };
+
+  const supabase = await createClient();
+  const { data: question, error } = await supabase
+    .from('survey_questions')
+    .delete()
+    .eq('id', questionId)
+    .eq('survey_id', surveyId)
+    .select('id,question_text')
+    .maybeSingle();
+
+  if (error) return { ok: false, error: 'question-delete-failed' };
+  if (!question?.id) return { ok: false, error: 'question-not-found' };
+
+  after(async () => {
+    try {
+      await writeActivityLog({
+        userId,
+        action: 'удалил вопрос анкеты',
+        entityType: 'survey_question',
+        entityId: questionId,
+        entityTitle: String(question.question_text ?? 'Вопрос анкеты'),
+        details: { survey_id: surveyId }
+      });
+    } catch {
+      // Основной вопрос уже удален; служебный лог не должен задерживать интерфейс.
+    }
+  });
+
+  if (shouldRevalidate) {
+    revalidatePath('/surveys');
+    revalidatePath(`/surveys/${surveyId}`);
+  }
+  return { ok: true };
+}
+
+export async function deleteSurveyQuestionMutationAction(input: {
+  surveyId: string;
+  questionId: string;
+}): Promise<SurveyQuestionMutationResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  return deleteSurveyQuestionCore(input.surveyId, input.questionId, user.profileId);
 }
 
 export async function deleteSurveyQuestionAction(formData: FormData) {
   const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
   const surveyId = getText(formData, 'survey_id');
-  const questionId = getText(formData, 'question_id');
-  if (!surveyId || !questionId) redirect('/surveys?error=missing-question');
+  const result = await deleteSurveyQuestionCore(
+    surveyId,
+    getText(formData, 'question_id'),
+    user.profileId,
+    true
+  );
 
-  if (!isSupabaseConfigured()) {
-    redirect(`/surveys/${surveyId}?question=demo-delete`);
+  if (!result.ok) {
+    if (result.error === 'missing-question') redirect('/surveys?error=missing-question');
+    redirect(`/surveys/${surveyId}?error=${result.error ?? 'question-delete-failed'}`);
   }
-
-  const supabase = await createClient();
-  if (!(await surveyExists(supabase, surveyId))) redirect('/surveys?error=survey-not-found');
-
-  const { data: question, error: questionError } = await supabase
-    .from('survey_questions')
-    .select('id,question_text')
-    .eq('id', questionId)
-    .eq('survey_id', surveyId)
-    .maybeSingle();
-
-  if (questionError || !question?.id) redirect(`/surveys/${surveyId}?error=question-not-found`);
-
-  const { error } = await supabase.from('survey_questions').delete().eq('id', questionId).eq('survey_id', surveyId);
-  if (error) redirect(`/surveys/${surveyId}?error=question-delete-failed`);
-
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'удалил вопрос анкеты',
-    entityType: 'survey_question',
-    entityId: questionId,
-    entityTitle: String(question.question_text ?? 'Вопрос анкеты'),
-    details: { survey_id: surveyId }
-  });
-
-  revalidatePath('/surveys');
-  revalidatePath(`/surveys/${surveyId}`);
   redirect(`/surveys/${surveyId}?deleted=question`);
 }

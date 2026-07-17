@@ -168,7 +168,7 @@ export default async function ReportsPage() {
           <Textarea readOnly value={report.teamText} className="min-h-72 resize-none font-mono text-xs leading-6" />
           <div className="flex flex-wrap gap-3">
             <CopyReportButton text={report.teamText} />
-            <Link href="/campaigns" className="inline-flex h-10 items-center justify-center rounded-xl border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
+            <Link prefetch={false} href="/campaigns" className="inline-flex h-10 items-center justify-center rounded-xl border border-app-line bg-white px-4 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
               Открыть кампании
             </Link>
           </div>
@@ -238,7 +238,7 @@ function HighlightCard({ icon, title, items, empty }: { icon: ReactNode; title: 
             </div>
           );
 
-          return item.href ? <Link key={item.id} href={item.href}>{content}</Link> : <div key={item.id}>{content}</div>;
+          return item.href ? <Link key={item.id} prefetch={false} href={item.href}>{content}</Link> : <div key={item.id}>{content}</div>;
         })}
       </CardContent>
     </Card>

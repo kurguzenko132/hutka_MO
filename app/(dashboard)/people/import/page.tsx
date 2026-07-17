@@ -5,6 +5,7 @@ import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -73,13 +74,13 @@ export default async function ImportContactsPage({ searchParams }: ImportPagePro
               </Field>
               <div className="flex flex-wrap gap-2">
                 <Button asChild variant="secondary">
-                  <Link href="/people/import/template">
+                  <Link prefetch={false} href="/people/import/template">
                     <Download className="h-4 w-4" />
                     Скачать шаблон
                   </Link>
                 </Button>
                 <Button asChild variant="ghost">
-                  <Link href="/people/export">
+                  <Link prefetch={false} href="/people/export">
                     <FileSpreadsheet className="h-4 w-4" />
                     Посмотреть формат экспорта
                   </Link>
@@ -123,10 +124,10 @@ export default async function ImportContactsPage({ searchParams }: ImportPagePro
             <Button asChild variant="secondary">
               <Link href="/people">Отмена</Link>
             </Button>
-            <Button type="submit">
+            <SubmitButton>
               <Upload className="h-4 w-4" />
               Импортировать контакты
-            </Button>
+            </SubmitButton>
           </div>
         </form>
 

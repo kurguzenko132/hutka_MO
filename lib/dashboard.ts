@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { channels, funnel as mockFunnel, kpis as mockKpis, leads as mockLeads, niches, todayTasks } from '@/lib/data';
-import { getTasks, type TaskListItem } from '@/lib/tasks';
+import { getTaskPreview, type TaskListItem } from '@/lib/tasks';
 import { getDashboardInsights } from '@/lib/insights';
-import { getDashboardHypotheses, type HypothesisListItem } from '@/lib/hypotheses';
 import { getRefusalAnalytics, type RefusalAnalytics } from '@/lib/refusals';
 import { isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
@@ -54,8 +53,11 @@ export type DashboardData = {
   hotContacts: DashboardHotContact[];
   recentActivities: DashboardActivity[];
   insights: string[];
-  hypotheses: HypothesisListItem[];
   refusals: RefusalAnalytics;
+  actions: {
+    total: number;
+    urgent: number;
+  };
   focus: string;
 };
 
@@ -183,7 +185,7 @@ function buildFocus({ needAction, interested, testing }: { needAction: number; i
   return 'Добавь первые контакты, запусти анкету и собери первые выводы по beauty-рынку.';
 }
 
-function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
+function demoDashboardData(insights: string[], refusals: RefusalAnalytics): DashboardData {
   const demoTasks: TaskListItem[] = todayTasks.map((task, index) => ({
     id: `demo-dashboard-task-${index}`,
     title: task.title,
@@ -219,13 +221,16 @@ function demoDashboardData(insights: string[], hypotheses: HypothesisListItem[],
       { id: 'demo-a3', title: 'Новый контакт', text: 'Добавлен салон Beauty Line из офлайн-канала', date: 'Вчера, 18:10', href: '/people/beauty-line' }
     ],
     insights,
-    hypotheses,
     refusals,
+    actions: {
+      total: 3,
+      urgent: 1
+    },
     focus: 'В demo-режиме: добавь реальные контакты и подключи Supabase, чтобы dashboard начал считать запуск по твоим данным.'
   };
 }
 
-function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[], refusals: RefusalAnalytics): DashboardData {
+function emptyDashboardData(insights: string[], refusals: RefusalAnalytics): DashboardData {
   return {
     demoMode: false,
     periodLabel: new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
@@ -242,27 +247,32 @@ function emptyDashboardData(insights: string[], hypotheses: HypothesisListItem[]
     hotContacts: [],
     recentActivities: [],
     insights,
-    hypotheses,
     refusals,
+    actions: {
+      total: 0,
+      urgent: 0
+    },
     focus: 'Добавь первые контакты, запусти анкету и собери первые выводы по beauty-рынку.'
   };
 }
 
 export async function getDashboardData(): Promise<DashboardData> {
-  const [insights, hypotheses, refusals] = await Promise.all([getDashboardInsights(), getDashboardHypotheses(), getRefusalAnalytics()]);
+  const supportDataPromise = Promise.all([getDashboardInsights(), getRefusalAnalytics()]);
 
   if (!isSupabaseConfigured()) {
-    return demoDashboardData(insights, hypotheses, refusals);
+    const [insights, refusals] = await supportDataPromise;
+    return demoDashboardData(insights, refusals);
   }
 
   try {
     const supabase = await createClient();
-    const [overviewRes, stagesRes, sourcesRes, nichesRes, tasks, hotRes, activitiesRes] = await Promise.all([
+    const [[insights, refusals], overviewRes, stagesRes, sourcesRes, nichesRes, tasks, hotRes, activitiesRes] = await Promise.all([
+      supportDataPromise,
       supabase.from('view_report_overview').select('*').maybeSingle(),
       supabase.from('view_funnel_stage_summary').select('name,contacts').order('order_index', { ascending: true }),
       supabase.from('view_report_source_distribution').select('source,contacts').limit(5),
       supabase.from('view_report_niche_distribution').select('niche,contacts').limit(5),
-      getTasks({ status: 'active' }),
+      getTaskPreview(5),
       supabase
         .from('leads')
         .select('id,name,type,niche,city,priority_score,funnel_stages(name)')
@@ -326,15 +336,19 @@ export async function getDashboardData(): Promise<DashboardData> {
       funnel,
       channels: widthItems(((sourcesRes.data ?? []) as DistributionRow[]).map((row) => ({ name: row.source ?? 'Не указан', value: row.contacts ?? 0 }))),
       niches: widthItems(((nichesRes.data ?? []) as DistributionRow[]).map((row) => ({ name: row.niche ?? 'Не указана', value: row.contacts ?? 0 }))),
-      todayTasks: tasks.slice(0, 5),
+      todayTasks: tasks,
       hotContacts,
       recentActivities,
       insights,
-      hypotheses,
       refusals,
+      actions: {
+        total: needAction,
+        urgent: overdue
+      },
       focus: buildFocus({ needAction, interested, testing })
     };
   } catch {
-    return emptyDashboardData(insights, hypotheses, refusals);
+    const [insights, refusals] = await supportDataPromise;
+    return emptyDashboardData(insights, refusals);
   }
 }

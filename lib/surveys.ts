@@ -1,6 +1,8 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
+import { buildAppUrl } from '@/lib/app-url';
 
 export type SurveyStatus = 'draft' | 'active' | 'archived';
 
@@ -47,6 +49,12 @@ export type SurveyResponseGroup = {
 export type SurveyDetail = SurveyListItem & {
   questions: SurveyQuestion[];
   responses: SurveyResponseGroup[];
+  responsePage: {
+    currentPage: number;
+    pageCount: number;
+    pageSize: number;
+    total: number;
+  };
 };
 
 const demoSurveys: SurveyListItem[] = [
@@ -178,15 +186,53 @@ function mapQuestion(row: Record<string, unknown>): SurveyQuestion {
   };
 }
 
-export function getPublicSurveyUrl(slug: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
-  return appUrl ? `${appUrl}/s/${slug}` : `/s/${slug}`;
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
-export async function getSurveys(): Promise<SurveyListItem[]> {
+function parseSurveyResponsePage(value: unknown) {
+  const payload = payloadRecord(value);
+  if (!payload) return null;
+
+  const responses = (Array.isArray(payload.responses) ? payload.responses : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item): SurveyResponseGroup => ({
+      id: String(item.id),
+      respondentName: item.respondent_name ? String(item.respondent_name) : undefined,
+      respondentContact: item.respondent_contact ? String(item.respondent_contact) : undefined,
+      createdAt: formatDateTime(item.created_at ? String(item.created_at) : null),
+      answers: (Array.isArray(item.answers) ? item.answers : [])
+        .map((answer) => payloadRecord(answer))
+        .filter((answer): answer is Record<string, unknown> => Boolean(answer))
+        .map((answer) => ({
+          question: String(answer.question ?? 'Вопрос'),
+          answer: answerToText(answer.answer)
+        }))
+    }));
+
+  const total = Number(payload.total ?? 0);
+  return {
+    responses,
+    total: Number.isFinite(total) ? Math.max(0, total) : 0
+  };
+}
+
+export function getPublicSurveyUrl(slug: string) {
+  return buildAppUrl(`/s/${slug}`);
+}
+
+export const getSurveys = cache(async (): Promise<SurveyListItem[]> => {
   if (!isSupabaseConfigured()) return demoSurveys;
 
   const supabase = await createClient();
+  const summaryResult = await supabase.rpc('get_survey_summaries');
+  if (!summaryResult.error && Array.isArray(summaryResult.data)) {
+    return summaryResult.data.map((row) => mapSurvey(row as Record<string, unknown>));
+  }
+
   const { data, error } = await supabase
     .from('surveys')
     .select('id,title,type,description,status,slug,created_at,survey_questions(id),survey_answers(id)')
@@ -200,7 +246,7 @@ export async function getSurveys(): Promise<SurveyListItem[]> {
     const answers = Array.isArray(record.survey_answers) ? record.survey_answers.length : 0;
     return mapSurvey({ ...record, questions_count: questions, answers_count: answers });
   });
-}
+});
 
 
 export async function getSurveyOptions(): Promise<SurveyOption[]> {
@@ -214,7 +260,14 @@ export async function getSurveyOptions(): Promise<SurveyOption[]> {
   }));
 }
 
-export async function getSurveyById(id: string): Promise<SurveyDetail | null> {
+export async function getSurveyById(
+  id: string,
+  requestedPage = 1,
+  requestedPageSize = 20
+): Promise<SurveyDetail | null> {
+  const pageSize = Math.min(Math.max(Math.floor(requestedPageSize) || 20, 1), 100);
+  const page = Math.max(Math.floor(requestedPage) || 1, 1);
+
   if (!isSupabaseConfigured()) {
     const survey = demoSurveys.find((item) => item.id === id) ?? demoSurveys[0];
     return {
@@ -231,7 +284,8 @@ export async function getSurveyById(id: string): Promise<SurveyDetail | null> {
             { question: 'Какая главная проблема сейчас?', answer: 'Не хватает стабильного потока клиентов' }
           ]
         }
-      ]
+      ],
+      responsePage: { currentPage: 1, pageCount: 1, pageSize, total: 1 }
     };
   }
 
@@ -244,62 +298,110 @@ export async function getSurveyById(id: string): Promise<SurveyDetail | null> {
 
   if (surveyError || !surveyRow) return null;
 
-  const { data: questionRows } = await supabase
-    .from('survey_questions')
-    .select('id,question_text,question_type,options,required,order_index')
-    .eq('survey_id', id)
-    .order('order_index', { ascending: true });
-
-  const { data: answerRows } = await supabase
-    .from('survey_answers')
-    .select('id,response_group_id,respondent_name,respondent_contact,answer,created_at,survey_questions(question_text)')
-    .eq('survey_id', id)
-    .order('created_at', { ascending: false });
+  const [{ data: questionRows }, firstResponseResult] = await Promise.all([
+    supabase
+      .from('survey_questions')
+      .select('id,question_text,question_type,options,required,order_index')
+      .eq('survey_id', id)
+      .order('order_index', { ascending: true }),
+    supabase.rpc('get_survey_response_page', {
+      p_survey_id: id,
+      p_offset: (page - 1) * pageSize,
+      p_limit: pageSize
+    })
+  ]);
 
   const questions = (questionRows ?? []).map((row) => mapQuestion(row as Record<string, unknown>));
-  const groups = new Map<string, SurveyResponseGroup>();
+  let responsePage = firstResponseResult.error ? null : parseSurveyResponsePage(firstResponseResult.data);
+  let currentPage = page;
 
-  (answerRows ?? []).forEach((row) => {
-    const record = row as Record<string, unknown>;
-    const groupId = String(record.response_group_id ?? record.id);
-    const questionObject = record.survey_questions as { question_text?: unknown } | { question_text?: unknown }[] | undefined;
-    const questionText = Array.isArray(questionObject)
-      ? String(questionObject[0]?.question_text ?? 'Вопрос')
-      : String(questionObject?.question_text ?? 'Вопрос');
-
-    if (!groups.has(groupId)) {
-      groups.set(groupId, {
-        id: groupId,
-        respondentName: record.respondent_name ? String(record.respondent_name) : undefined,
-        respondentContact: record.respondent_contact ? String(record.respondent_contact) : undefined,
-        createdAt: formatDateTime(record.created_at ? String(record.created_at) : null),
-        answers: []
+  if (responsePage) {
+    const pageCount = Math.max(1, Math.ceil(responsePage.total / pageSize));
+    currentPage = Math.min(page, pageCount);
+    if (currentPage !== page) {
+      const finalResult = await supabase.rpc('get_survey_response_page', {
+        p_survey_id: id,
+        p_offset: (currentPage - 1) * pageSize,
+        p_limit: pageSize
       });
+      if (!finalResult.error) {
+        responsePage = parseSurveyResponsePage(finalResult.data) ?? responsePage;
+      }
     }
+  }
 
-    groups.get(groupId)?.answers.push({
-      question: questionText,
-      answer: answerToText(record.answer)
+  if (!responsePage) {
+    const { data: answerRows } = await supabase
+      .from('survey_answers')
+      .select('id,response_group_id,respondent_name,respondent_contact,answer,created_at,survey_questions(question_text)')
+      .eq('survey_id', id)
+      .order('created_at', { ascending: false });
+    const groups = new Map<string, SurveyResponseGroup>();
+
+    (answerRows ?? []).forEach((row) => {
+      const record = row as Record<string, unknown>;
+      const groupId = String(record.response_group_id ?? record.id);
+      const questionObject = record.survey_questions as { question_text?: unknown } | { question_text?: unknown }[] | undefined;
+      const questionText = Array.isArray(questionObject)
+        ? String(questionObject[0]?.question_text ?? 'Вопрос')
+        : String(questionObject?.question_text ?? 'Вопрос');
+
+      if (!groups.has(groupId)) {
+        groups.set(groupId, {
+          id: groupId,
+          respondentName: record.respondent_name ? String(record.respondent_name) : undefined,
+          respondentContact: record.respondent_contact ? String(record.respondent_contact) : undefined,
+          createdAt: formatDateTime(record.created_at ? String(record.created_at) : null),
+          answers: []
+        });
+      }
+
+      groups.get(groupId)?.answers.push({
+        question: questionText,
+        answer: answerToText(record.answer)
+      });
     });
-  });
+
+    const allResponses = Array.from(groups.values());
+    const pageCount = Math.max(1, Math.ceil(allResponses.length / pageSize));
+    currentPage = Math.min(page, pageCount);
+    responsePage = {
+      total: allResponses.length,
+      responses: allResponses.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    };
+  }
+
+  const pageCount = Math.max(1, Math.ceil(responsePage.total / pageSize));
 
   const survey = mapSurvey({
     ...(surveyRow as Record<string, unknown>),
     questions_count: questions.length,
-    answers_count: answerRows?.length ?? 0
+    answers_count: responsePage.total
   });
 
   return {
     ...survey,
     questions,
-    responses: Array.from(groups.values())
+    responses: responsePage.responses,
+    responsePage: {
+      currentPage,
+      pageCount,
+      pageSize,
+      total: responsePage.total
+    }
   };
 }
 
 export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null> {
   if (!isSupabaseConfigured()) {
     const survey = demoSurveys.find((item) => item.slug === slug) ?? demoSurveys[0];
-    return { ...survey, status: 'active', questions: demoQuestions, responses: [] };
+    return {
+      ...survey,
+      status: 'active',
+      questions: demoQuestions,
+      responses: [],
+      responsePage: { currentPage: 1, pageCount: 1, pageSize: 20, total: 0 }
+    };
   }
 
   if (!isSupabaseServiceConfigured()) return null;
@@ -332,6 +434,7 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
   return {
     ...survey,
     questions,
-    responses: []
+    responses: [],
+    responsePage: { currentPage: 1, pageCount: 1, pageSize: 20, total: 0 }
   };
 }

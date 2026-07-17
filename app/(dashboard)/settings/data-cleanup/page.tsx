@@ -3,6 +3,7 @@ import { AlertTriangle, ArrowLeft, DatabaseZap, Trash2 } from 'lucide-react';
 import { resetWorkspaceDataAction } from '@/actions/data-cleanup.actions';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -82,10 +83,10 @@ export default async function DataCleanupPage({ searchParams }: { searchParams?:
               <p>Действие нельзя отменить из интерфейса. Перед полной очисткой лучше сделать export через /backup/export или сохранить дамп Supabase.</p>
             </div>
 
-            <Button type="submit" variant="danger" className="w-full md:w-auto">
+            <SubmitButton variant="danger" className="w-full md:w-auto">
               <Trash2 className="h-4 w-4" />
               Очистить базу
-            </Button>
+            </SubmitButton>
           </form>
         </CardContent>
       </Card>

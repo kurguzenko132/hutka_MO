@@ -64,10 +64,10 @@ export default async function SurveysPage() {
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button asChild className="flex-1">
-                  <Link href={`/surveys/${survey.id}`}>Открыть</Link>
+                  <Link prefetch={false} href={`/surveys/${survey.id}`}>Открыть</Link>
                 </Button>
                 <Button asChild variant="secondary" className="flex-1">
-                  <Link href={`/s/${survey.slug}`} target="_blank">
+                  <Link prefetch={false} href={`/s/${survey.slug}`} target="_blank">
                     <ExternalLink className="h-4 w-4" />
                     Форма
                   </Link>

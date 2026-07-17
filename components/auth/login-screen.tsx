@@ -1,18 +1,15 @@
 import Image from 'next/image';
 import { ArrowRight, LockKeyhole } from 'lucide-react';
 import { signInAction } from '@/actions/auth.actions';
-import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 
 export function LoginScreen({ error, nextPath = '/dashboard' }: { error?: string; nextPath?: string }) {
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
-      <div className="absolute left-[-120px] top-[-120px] h-96 w-96 rounded-full bg-pink-200/40 blur-3xl" />
-      <div className="absolute right-[-120px] top-24 h-[460px] w-[460px] rounded-full bg-purple-200/50 blur-3xl" />
-
+    <main className="flex min-h-screen items-center justify-center bg-app-bg px-4 py-8 sm:px-6 lg:px-8">
       <section className="relative w-full max-w-md">
-        <Card className="border-purple-100 bg-white/90 shadow-2xl shadow-purple-900/10 backdrop-blur-xl">
+        <Card className="border-purple-100 bg-white shadow-card">
           <CardContent className="space-y-6 p-8">
             <div className="text-center">
               <Image src="/hutka-logo.svg" alt="Hutka" width={72} height={72} className="mx-auto rounded-3xl" priority />
@@ -35,11 +32,11 @@ export function LoginScreen({ error, nextPath = '/dashboard' }: { error?: string
                 <span className="mb-2 block text-sm font-bold text-app-text">Пароль</span>
                 <Input name="password" type="password" placeholder="Введите пароль" required />
               </label>
-              <Button className="w-full" size="lg" type="submit">
+              <SubmitButton className="w-full" size="lg">
                 <LockKeyhole className="h-4 w-4" />
                 Войти
                 <ArrowRight className="h-4 w-4" />
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>

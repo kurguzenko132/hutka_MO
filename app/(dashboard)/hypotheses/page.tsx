@@ -19,7 +19,7 @@ export default async function HypothesesPage() {
 
       <div className="grid gap-4">
         {hypotheses.map((item) => (
-          <Link key={item.id} href={`/hypotheses/${item.id}`}>
+          <Link prefetch={false} key={item.id} href={`/hypotheses/${item.id}`}>
             <Card className="card-hover">
               <CardContent>
                 <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">

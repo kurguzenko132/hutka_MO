@@ -1,29 +1,38 @@
 import Link from 'next/link';
-import { ArrowLeft, ExternalLink, Send, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { notFound } from 'next/navigation';
-import { deleteSurveyAction, deleteSurveyQuestionAction } from '@/actions/surveys.actions';
 import { FormSection } from '@/components/forms/form-section';
-import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
-import { AddSurveyQuestionForm } from '@/components/surveys/add-survey-question-form';
-import { getPublicSurveyUrl, getSurveyById, questionTypeLabel, statusLabel } from '@/lib/surveys';
+import {
+  AddSurveyQuestionForm,
+  SurveyQuestionList,
+  SurveyQuestionsProvider
+} from '@/components/surveys/add-survey-question-form';
+import {
+  SurveyMetadataHeader,
+  SurveyMetadataProvider,
+  SurveyMetadataSummary,
+  SurveyMetadataWorkspace,
+  SurveyDeleteWorkspace
+} from '@/components/surveys/survey-metadata-workspace';
+import { getPublicSurveyUrl, getSurveyById } from '@/lib/surveys';
 
-function statusTone(status: string) {
-  if (status === 'active') return 'green';
-  if (status === 'draft') return 'yellow';
-  return 'gray';
-}
-
-export default async function SurveyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, currentUser] = await Promise.all([params, getCurrentUserContext()]);
+export default async function SurveyDetailPage({
+  params,
+  searchParams
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ page?: string }>;
+}) {
+  const [{ id }, query, currentUser] = await Promise.all([params, searchParams, getCurrentUserContext()]);
+  const requestedPage = Math.max(Number.parseInt(query?.page ?? '1', 10) || 1, 1);
   const currentRole = currentUser?.role ?? 'viewer';
   const canManageSurveys = can(currentRole, 'manageSurveys');
-  const survey = await getSurveyById(id);
+  const survey = await getSurveyById(id, requestedPage);
   if (!survey) notFound();
 
   const publicUrl = getPublicSurveyUrl(survey.slug);
@@ -34,65 +43,14 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
         <Link href="/surveys"><ArrowLeft className="h-4 w-4" />Назад</Link>
       </Button>
 
-      <PageHeader title={survey.title} subtitle={survey.description || 'Анкета без описания'} />
+      <SurveyMetadataProvider initialSurvey={{ id: survey.id, title: survey.title, type: survey.type, description: survey.description, status: survey.status }}>
+        <SurveyMetadataHeader />
+        <SurveyQuestionsProvider surveyId={survey.id} initialQuestions={survey.questions}>
+        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+          <div className="space-y-6">
+            <SurveyMetadataSummary publicUrl={publicUrl} slug={survey.slug} answersCount={survey.answersCount} />
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <Card>
-            <CardContent className="space-y-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge tone={statusTone(survey.status)}>{statusLabel(survey.status)}</Badge>
-                <Badge tone="purple">{survey.type}</Badge>
-                <Badge tone="blue">{survey.questionsCount} вопросов</Badge>
-                <Badge tone="green">{survey.answersCount} ответов</Badge>
-              </div>
-              <div className="rounded-2xl border border-app-line bg-slate-50 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-app-muted">Публичная ссылка</p>
-                <p className="mt-2 break-all text-sm font-semibold text-app-text">{publicUrl}</p>
-                <Button asChild variant="secondary" className="mt-3">
-                  <Link href={`/s/${survey.slug}`} target="_blank"><ExternalLink className="h-4 w-4" />Открыть форму</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <FormSection title="Вопросы анкеты">
-            <div className="space-y-3">
-              {survey.questions.length === 0 && (
-                <p className="rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-app-muted">
-                  {canManageSurveys ? 'Пока вопросов нет. Добавь первый вопрос справа.' : 'Пока вопросов нет.'}
-                </p>
-              )}
-              {survey.questions.map((question, index) => (
-                <div key={question.id} className="rounded-2xl border border-app-line bg-white p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-sm font-black text-app-purple">{index + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-black text-app-text">{question.text}</p>
-                        {question.required && <Badge tone="red">Обязательный</Badge>}
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <p className="text-sm text-app-muted">{questionTypeLabel(question.type)}</p>
-                        {canManageSurveys && (
-                          <form action={deleteSurveyQuestionAction}>
-                            <input type="hidden" name="survey_id" value={survey.id} />
-                            <input type="hidden" name="question_id" value={question.id} />
-                            <Button type="submit" size="sm" variant="ghost" className="text-red-600 hover:bg-red-50 hover:text-red-700"><Trash2 className="h-3.5 w-3.5" />Удалить вопрос</Button>
-                          </form>
-                        )}
-                      </div>
-                      {question.options.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {question.options.map((option) => <Badge key={option} tone="gray">{option}</Badge>)}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </FormSection>
+            <SurveyQuestionList canManageSurveys={canManageSurveys} />
 
           <FormSection title="Ответы">
             <div className="space-y-4">
@@ -118,12 +76,52 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
                   </div>
                 </div>
               ))}
+              {survey.responsePage.total > 0 && (
+                <div className="flex flex-col gap-3 border-t border-app-line pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm font-semibold text-app-muted">
+                    Показано {(survey.responsePage.currentPage - 1) * survey.responsePage.pageSize + 1}–
+                    {Math.min(survey.responsePage.currentPage * survey.responsePage.pageSize, survey.responsePage.total)} из {survey.responsePage.total}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {survey.responsePage.currentPage > 1 ? (
+                      <Button asChild size="sm" variant="secondary">
+                        <Link prefetch={false} href={`/surveys/${survey.id}?page=${survey.responsePage.currentPage - 1}`}>
+                          <ChevronLeft className="h-4 w-4" />
+                          Предыдущая
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="secondary" disabled>
+                        <ChevronLeft className="h-4 w-4" />
+                        Предыдущая
+                      </Button>
+                    )}
+                    <span className="px-2 text-sm font-bold text-app-text">
+                      {survey.responsePage.currentPage} / {survey.responsePage.pageCount}
+                    </span>
+                    {survey.responsePage.currentPage < survey.responsePage.pageCount ? (
+                      <Button asChild size="sm" variant="secondary">
+                        <Link prefetch={false} href={`/surveys/${survey.id}?page=${survey.responsePage.currentPage + 1}`}>
+                          Следующая
+                          <ChevronRight className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button type="button" size="sm" variant="secondary" disabled>
+                        Следующая
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </FormSection>
-        </div>
+          </div>
 
-        <aside className="space-y-6">
-          {canManageSurveys && <AddSurveyQuestionForm surveyId={survey.id} />}
+          <aside className="space-y-6">
+            {canManageSurveys && <SurveyMetadataWorkspace />}
+            {canManageSurveys && <AddSurveyQuestionForm surveyId={survey.id} />}
 
           <Card>
             <CardContent>
@@ -133,17 +131,11 @@ export default async function SurveyDetailPage({ params }: { params: Promise<{ i
             </CardContent>
           </Card>
 
-          {canManageSurveys && (
-            <form action={deleteSurveyAction}>
-              <input type="hidden" name="survey_id" value={survey.id} />
-              <FormSection title="Удалить анкету" subtitle="Удалится анкета, вопросы и ответы. Публичная ссылка перестанет работать.">
-                <Input name="confirmation" placeholder="Напиши: УДАЛИТЬ" required />
-                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить анкету</Button>
-              </FormSection>
-            </form>
-          )}
-        </aside>
-      </div>
+          {canManageSurveys && <SurveyDeleteWorkspace />}
+          </aside>
+        </div>
+        </SurveyQuestionsProvider>
+      </SurveyMetadataProvider>
     </div>
   );
 }

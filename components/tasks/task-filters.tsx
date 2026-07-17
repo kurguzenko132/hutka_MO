@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import Form from 'next/form';
 import { FilterX, Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -32,7 +34,7 @@ export function TaskFiltersPanel({
 
   return (
     <Card className="p-4">
-      <form className="space-y-4" action="/tasks">
+      <Form className="space-y-4" action="/tasks" prefetch={false}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-7">
           <label className="space-y-1.5 md:col-span-2 xl:col-span-2">
             <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Поиск</span>
@@ -104,18 +106,18 @@ export function TaskFiltersPanel({
             {active > 0 && <span className="ml-2 rounded-full bg-purple-50 px-3 py-1 font-semibold text-app-purple">Фильтров: {active}</span>}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" variant="secondary">Применить</Button>
+            <SubmitButton variant="secondary">Применить</SubmitButton>
             <Button asChild variant="ghost">
-              <Link href="/tasks"><FilterX className="h-4 w-4" />Сбросить</Link>
+              <Link prefetch={false} href="/tasks"><FilterX className="h-4 w-4" />Сбросить</Link>
             </Button>
             {can(role, 'manageTasks') && (
               <Button asChild>
-                <Link href="/tasks/new"><Plus className="h-4 w-4" />Создать задачу</Link>
+                <Link prefetch={false} href="/tasks/new"><Plus className="h-4 w-4" />Создать задачу</Link>
               </Button>
             )}
           </div>
         </div>
-      </form>
+      </Form>
     </Card>
   );
 }

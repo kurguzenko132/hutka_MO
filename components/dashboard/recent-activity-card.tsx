@@ -33,7 +33,7 @@ export function RecentActivityCard({ activities }: { activities: DashboardActivi
                 </div>
               );
 
-              return item.href ? <Link key={item.id} href={item.href}>{content}</Link> : <div key={item.id}>{content}</div>;
+              return item.href ? <Link key={item.id} prefetch={false} href={item.href}>{content}</Link> : <div key={item.id}>{content}</div>;
             })}
           </div>
         )}

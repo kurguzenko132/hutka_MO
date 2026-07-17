@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { MessageTemplate } from '@/lib/message-templates';
+import type { MessageTemplate } from '@/lib/message-template-shared';
 
 export type MessageTemplateLead = {
   name: string;

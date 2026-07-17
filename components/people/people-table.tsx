@@ -1,8 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { CheckSquare, MoreVertical, Square, Tag, UsersRound } from 'lucide-react';
-import { bulkAddToCampaignAction, bulkAssignTagAction, bulkChangeStageAction, bulkCreateTaskAction } from '@/actions/leads.actions';
+import { AlertTriangle, Check, CheckSquare, ChevronLeft, ChevronRight, LoaderCircle, MoreVertical, Square, Tag, UsersRound } from 'lucide-react';
+import {
+  bulkAddToCampaignMutationAction,
+  bulkAssignTagMutationAction,
+  bulkChangeStageMutationAction,
+  bulkCreateTaskMutationAction
+} from '@/actions/leads.actions';
 import { Badge, type BadgeTone } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -13,10 +18,16 @@ import type { CampaignOption } from '@/lib/campaigns';
 import { can, type UserRole } from '@/lib/roles';
 import { stageTone as getStageTone } from '@/lib/stages';
 import { cn } from '@/lib/utils';
-import { useMemo, useState } from 'react';
+import { useState, type FormEvent } from 'react';
 
 type PeopleTableProps = {
   items: Lead[];
+  totalItems: number;
+  pageSize: number;
+  currentPage: number;
+  pageCount: number;
+  previousHref?: string;
+  nextHref?: string;
   role?: UserRole;
   stages?: string[];
   tags?: string[];
@@ -36,17 +47,29 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-function selectedValue(ids: string[]) {
-  return ids.join(',');
-}
-
-export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], campaigns = [] }: PeopleTableProps) {
+export function PeopleTable({
+  items,
+  totalItems,
+  pageSize,
+  currentPage,
+  pageCount,
+  previousHref,
+  nextHref,
+  role = 'viewer',
+  stages = [],
+  tags = [],
+  campaigns = []
+}: PeopleTableProps) {
+  const [rows, setRows] = useState(items);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [notice, setNotice] = useState('');
+  const [noticeError, setNoticeError] = useState(false);
+  const [pendingAction, setPendingAction] = useState('');
   const canManageContacts = can(role, 'manageContacts');
   const canManageTasks = can(role, 'manageTasks');
   const canManageCampaigns = can(role, 'manageCampaigns');
 
-  const visibleIds = useMemo(() => items.map((item) => item.id), [items]);
+  const visibleIds = rows.map((item) => item.id);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
   const hasSelection = selectedIds.length > 0;
 
@@ -64,7 +87,109 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
     setSelectedIds((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   }
 
-  if (items.length === 0) {
+  async function changeStage(stage: string) {
+    if (!stage || pendingAction || selectedIds.length === 0) return false;
+    const previousRows = rows;
+    const selectedSet = new Set(selectedIds);
+    setPendingAction('stage');
+    setNotice('Обновляю стадию...');
+    setNoticeError(false);
+    setRows((current) => current.map((lead) => selectedSet.has(lead.id) ? { ...lead, stage } : lead));
+
+    try {
+      const result = await bulkChangeStageMutationAction({ leadIds: selectedIds, stage });
+      if (!result.ok) {
+        setRows(previousRows);
+        setNotice('Не удалось изменить стадию. Изменение отменено.');
+        setNoticeError(true);
+        return false;
+      }
+      setNotice(`Стадия обновлена для контактов: ${result.count}.`);
+      setSelectedIds([]);
+      return true;
+    } catch {
+      setRows(previousRows);
+      setNotice('Не удалось связаться с сервером. Изменение отменено.');
+      setNoticeError(true);
+      return false;
+    } finally {
+      setPendingAction('');
+    }
+  }
+
+  async function assignTag(tag: string) {
+    if (!tag || pendingAction || selectedIds.length === 0) return false;
+    setPendingAction('tag');
+    setNotice('Добавляю тег...');
+    setNoticeError(false);
+    try {
+      const result = await bulkAssignTagMutationAction({ leadIds: selectedIds, tag });
+      if (!result.ok) {
+        setNotice('Не удалось добавить тег.');
+        setNoticeError(true);
+        return false;
+      }
+      setNotice(`Тег добавлен контактам: ${result.count}.`);
+      setSelectedIds([]);
+      return true;
+    } catch {
+      setNotice('Не удалось связаться с сервером.');
+      setNoticeError(true);
+      return false;
+    } finally {
+      setPendingAction('');
+    }
+  }
+
+  async function createTasks(title: string) {
+    if (!title || pendingAction || selectedIds.length === 0) return false;
+    setPendingAction('task');
+    setNotice('Создаю задачи...');
+    setNoticeError(false);
+    try {
+      const result = await bulkCreateTaskMutationAction({ leadIds: selectedIds, title });
+      if (!result.ok) {
+        setNotice('Не удалось создать задачи.');
+        setNoticeError(true);
+        return false;
+      }
+      setNotice(`Создано задач: ${result.count}.`);
+      setSelectedIds([]);
+      return true;
+    } catch {
+      setNotice('Не удалось связаться с сервером.');
+      setNoticeError(true);
+      return false;
+    } finally {
+      setPendingAction('');
+    }
+  }
+
+  async function addToCampaign(campaignId: string) {
+    if (!campaignId || pendingAction || selectedIds.length === 0) return false;
+    setPendingAction('campaign');
+    setNotice('Добавляю контакты в кампанию...');
+    setNoticeError(false);
+    try {
+      const result = await bulkAddToCampaignMutationAction({ leadIds: selectedIds, campaignId });
+      if (!result.ok) {
+        setNotice('Не удалось добавить контакты в кампанию.');
+        setNoticeError(true);
+        return false;
+      }
+      setNotice(`Добавлено контактов в кампанию: ${result.count}.`);
+      setSelectedIds([]);
+      return true;
+    } catch {
+      setNotice('Не удалось связаться с сервером.');
+      setNoticeError(true);
+      return false;
+    } finally {
+      setPendingAction('');
+    }
+  }
+
+  if (rows.length === 0) {
     return (
       <Card className="p-10 text-center">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-purple-50 text-app-purple">
@@ -90,6 +215,17 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
 
   return (
     <div className="space-y-4">
+      {notice && (
+        <div
+          aria-live="polite"
+          className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold ${
+            noticeError ? 'border-red-100 bg-red-50 text-red-700' : 'border-emerald-100 bg-emerald-50 text-emerald-700'
+          }`}
+        >
+          {noticeError ? <AlertTriangle className="h-4 w-4 shrink-0" /> : <Check className="h-4 w-4 shrink-0" />}
+          <span>{notice}</span>
+        </div>
+      )}
       {canManageContacts && (
         <BulkActionsBar
           selectedIds={selectedIds}
@@ -98,7 +234,12 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
           campaigns={campaigns}
           canManageTasks={canManageTasks}
           canManageCampaigns={canManageCampaigns}
+          pendingAction={pendingAction}
           onClear={() => setSelectedIds([])}
+          onChangeStage={changeStage}
+          onAssignTag={assignTag}
+          onCreateTasks={createTasks}
+          onAddToCampaign={addToCampaign}
         />
       )}
 
@@ -124,7 +265,7 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
               </tr>
             </thead>
             <tbody className="divide-y divide-app-line">
-              {items.map((lead) => {
+              {rows.map((lead) => {
                 const checked = selectedIds.includes(lead.id);
 
                 return (
@@ -165,8 +306,26 @@ export function PeopleTable({ items, role = 'viewer', stages = [], tags = [], ca
           </table>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-app-line px-5 py-4 text-sm text-app-muted">
-          <span>Показано: {items.length}</span>
-          <span className="text-xs">{hasSelection ? `Выбрано: ${selectedIds.length}` : 'Выбери контакты, чтобы применить массовые действия.'}</span>
+          <span>
+            Показано {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalItems)} из {totalItems}
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="mr-2 text-xs">{hasSelection ? `Выбрано: ${selectedIds.length}` : `Страница ${currentPage} из ${pageCount}`}</span>
+            {previousHref ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link prefetch={false} href={previousHref} aria-label="Предыдущая страница"><ChevronLeft className="h-4 w-4" /></Link>
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" disabled aria-label="Предыдущая страница"><ChevronLeft className="h-4 w-4" /></Button>
+            )}
+            {nextHref ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link prefetch={false} href={nextHref} aria-label="Следующая страница"><ChevronRight className="h-4 w-4" /></Link>
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" disabled aria-label="Следующая страница"><ChevronRight className="h-4 w-4" /></Button>
+            )}
+          </div>
         </div>
       </Card>
     </div>
@@ -180,7 +339,12 @@ function BulkActionsBar({
   campaigns,
   canManageTasks,
   canManageCampaigns,
-  onClear
+  pendingAction,
+  onClear,
+  onChangeStage,
+  onAssignTag,
+  onCreateTasks,
+  onAddToCampaign
 }: {
   selectedIds: string[];
   stages: string[];
@@ -188,10 +352,39 @@ function BulkActionsBar({
   campaigns: CampaignOption[];
   canManageTasks: boolean;
   canManageCampaigns: boolean;
+  pendingAction: string;
   onClear: () => void;
+  onChangeStage: (stage: string) => Promise<boolean>;
+  onAssignTag: (tag: string) => Promise<boolean>;
+  onCreateTasks: (title: string) => Promise<boolean>;
+  onAddToCampaign: (campaignId: string) => Promise<boolean>;
 }) {
-  const ids = selectedValue(selectedIds);
+  const [stage, setStage] = useState('');
+  const [tag, setTag] = useState('');
+  const [title, setTitle] = useState('');
+  const [campaignId, setCampaignId] = useState('');
   const disabled = selectedIds.length === 0;
+  const busy = Boolean(pendingAction);
+
+  async function submitStage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (await onChangeStage(stage)) setStage('');
+  }
+
+  async function submitTag(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (await onAssignTag(tag)) setTag('');
+  }
+
+  async function submitTask(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (await onCreateTasks(title)) setTitle('');
+  }
+
+  async function submitCampaign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (await onAddToCampaign(campaignId)) setCampaignId('');
+  }
 
   return (
     <Card className={cn('p-4 transition', disabled ? 'border-dashed bg-slate-50/70' : 'border-purple-200 bg-purple-50/40')}>
@@ -209,48 +402,56 @@ function BulkActionsBar({
         </div>
 
         <div className="grid min-w-0 flex-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <form action={bulkChangeStageAction} className="flex flex-col gap-2 sm:flex-row">
-            <input type="hidden" name="lead_ids" value={ids} />
-            <Select name="stage" disabled={disabled} defaultValue="">
+          <form onSubmit={(event) => void submitStage(event)} className="flex flex-col gap-2 sm:flex-row">
+            <Select value={stage} onChange={(event) => setStage(event.target.value)} disabled={disabled || busy}>
               <option value="">Сменить стадию</option>
               {stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
             </Select>
-            <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Применить</Button>
+            <Button type="submit" variant="secondary" disabled={disabled || busy || !stage} className="w-full sm:w-auto">
+              {pendingAction === 'stage' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              Применить
+            </Button>
           </form>
 
-          <form action={bulkAssignTagAction} className="flex flex-col gap-2 sm:flex-row">
-            <input type="hidden" name="lead_ids" value={ids} />
+          <form onSubmit={(event) => void submitTag(event)} className="flex flex-col gap-2 sm:flex-row">
             <div className="relative flex-1">
               <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-app-faint" />
-              <Input name="tag" list="bulk-tags" placeholder="Добавить тег" disabled={disabled} className="pl-9" />
+              <Input value={tag} onChange={(event) => setTag(event.target.value)} list="bulk-tags" placeholder="Добавить тег" disabled={disabled || busy} className="pl-9" />
               <datalist id="bulk-tags">
                 {tags.map((tagName) => <option key={tagName} value={tagName} />)}
               </datalist>
             </div>
-            <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Тег</Button>
+            <Button type="submit" variant="secondary" disabled={disabled || busy || !tag.trim()} className="w-full sm:w-auto">
+              {pendingAction === 'tag' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+              Тег
+            </Button>
           </form>
 
           {canManageTasks && (
-            <form action={bulkCreateTaskAction} className="flex flex-col gap-2 sm:flex-row">
-              <input type="hidden" name="lead_ids" value={ids} />
-              <Input name="title" placeholder="Задача для выбранных" disabled={disabled} />
-              <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Создать</Button>
+            <form onSubmit={(event) => void submitTask(event)} className="flex flex-col gap-2 sm:flex-row">
+              <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Задача для выбранных" disabled={disabled || busy} />
+              <Button type="submit" variant="secondary" disabled={disabled || busy || !title.trim()} className="w-full sm:w-auto">
+                {pendingAction === 'task' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                Создать
+              </Button>
             </form>
           )}
 
           {canManageCampaigns && (
-            <form action={bulkAddToCampaignAction} className="flex flex-col gap-2 sm:flex-row">
-              <input type="hidden" name="lead_ids" value={ids} />
-              <Select name="campaign_id" disabled={disabled} defaultValue="">
+            <form onSubmit={(event) => void submitCampaign(event)} className="flex flex-col gap-2 sm:flex-row">
+              <Select value={campaignId} onChange={(event) => setCampaignId(event.target.value)} disabled={disabled || busy}>
                 <option value="">Добавить в кампанию</option>
                 {campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}
               </Select>
-              <Button type="submit" variant="secondary" disabled={disabled} className="w-full sm:w-auto">Добавить</Button>
+              <Button type="submit" variant="secondary" disabled={disabled || busy || !campaignId} className="w-full sm:w-auto">
+                {pendingAction === 'campaign' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+                Добавить
+              </Button>
             </form>
           )}
         </div>
 
-        <Button type="button" variant="ghost" disabled={disabled} onClick={onClear}>Очистить</Button>
+        <Button type="button" variant="ghost" disabled={disabled || busy} onClick={onClear}>Очистить</Button>
       </div>
     </Card>
   );

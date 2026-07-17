@@ -39,7 +39,7 @@ export default async function CampaignsPage() {
                   </div>
                 </div>
                 <Button asChild variant="secondary">
-                  <Link href={`/campaigns/${campaign.id}`}>Открыть <ArrowRight className="h-4 w-4" /></Link>
+                  <Link prefetch={false} href={`/campaigns/${campaign.id}`}>Открыть <ArrowRight className="h-4 w-4" /></Link>
                 </Button>
               </div>
 

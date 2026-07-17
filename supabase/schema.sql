@@ -1735,3 +1735,3139 @@ create policy "Workspace editors can delete task_assignees"
   on public.task_assignees
   for delete to authenticated
   using (public.current_profile_role() in ('admin', 'marketer'));
+
+-- Step 42: indexes for the most frequent workspace reads and actions
+create index if not exists leads_source_id_idx
+  on public.leads(source_id);
+create index if not exists leads_created_at_idx
+  on public.leads(created_at desc);
+create index if not exists leads_name_idx
+  on public.leads(name);
+create index if not exists leads_priority_updated_idx
+  on public.leads(priority_score desc, updated_at desc);
+create index if not exists leads_next_contact_date_idx
+  on public.leads(next_contact_date)
+  where next_contact_date is not null;
+create index if not exists leads_city_idx
+  on public.leads(city)
+  where city is not null and city <> '';
+create index if not exists leads_niche_idx
+  on public.leads(niche)
+  where niche is not null and niche <> '';
+
+create index if not exists lead_interactions_lead_created_idx
+  on public.lead_interactions(lead_id, created_at desc);
+
+create index if not exists tasks_open_due_date_idx
+  on public.tasks(due_date)
+  where status in ('todo', 'in_progress') and due_date is not null;
+create index if not exists tasks_open_lead_created_idx
+  on public.tasks(lead_id, created_at desc)
+  where status in ('todo', 'in_progress');
+
+create index if not exists survey_answers_created_at_idx
+  on public.survey_answers(created_at desc);
+create index if not exists survey_answers_survey_created_idx
+  on public.survey_answers(survey_id, created_at desc);
+create index if not exists survey_questions_survey_order_idx
+  on public.survey_questions(survey_id, order_index);
+create index if not exists survey_answers_response_group_idx
+  on public.survey_answers(response_group_id)
+  where response_group_id is not null;
+
+create index if not exists lead_questionnaires_status_created_idx
+  on public.lead_questionnaires(status, created_at desc);
+
+-- Step 43: database pagination and metadata for the contact directory
+create or replace function public.hutka_normalize_stage_name(input text)
+returns text
+language sql
+immutable
+as $$
+  select case lower(replace(trim(coalesce(input, '')), 'ё', 'е'))
+    when 'найден' then 'Новый'
+    when 'найдено' then 'Новый'
+    when 'новый' then 'Новый'
+    when 'новая' then 'Новый'
+    when 'написал' then 'Написали'
+    when 'написали' then 'Написали'
+    when 'написана' then 'Написали'
+    when 'ответил' then 'Ответил'
+    when 'ответила' then 'Ответил'
+    when 'ответили' then 'Ответил'
+    when 'заинтересован' then 'Заинтересован'
+    when 'заинтересована' then 'Заинтересован'
+    when 'опрос' then 'Заинтересован'
+    when 'анкета' then 'Заинтересован'
+    when 'готов к пилоту' then 'Заинтересован'
+    when 'горячий контакт' then 'Заинтересован'
+    when 'горячий лид' then 'Заинтересован'
+    when 'тест' then 'Тестирует'
+    when 'тестирует' then 'Тестирует'
+    when 'тестирование' then 'Тестирует'
+    when 'активен' then 'Тестирует'
+    when 'активна' then 'Тестирует'
+    when 'активный участник' then 'Тестирует'
+    when 'тестер' then 'Тестирует'
+    when 'пилот' then 'Тестирует'
+    when 'готов тестировать' then 'Тестирует'
+    when 'готова тестировать' then 'Тестирует'
+    when 'пауза' then 'Пауза'
+    when 'вернуться позже' then 'Пауза'
+    when 'отложен' then 'Пауза'
+    when 'отложена' then 'Пауза'
+    when 'отказ' then 'Отказ'
+    when 'отказы' then 'Отказ'
+    when 'lost' then 'Отказ'
+    when 'rejected' then 'Отказ'
+    else coalesce(nullif(trim(input), ''), 'Новый')
+  end;
+$$;
+
+create or replace function public.get_lead_directory_page(
+  p_q text default null,
+  p_type text default null,
+  p_city text default null,
+  p_niche text default null,
+  p_stage text default null,
+  p_source text default null,
+  p_priority text default null,
+  p_tag text default null,
+  p_view text default null,
+  p_offset integer default 0,
+  p_limit integer default 50
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with base as materialized (
+    select
+      l.id,
+      l.name,
+      l.type,
+      case l.type
+        when 'salon' then 'Салон'
+        when 'client' then 'Клиент'
+        when 'partner' then 'Партнер'
+        else 'Мастер'
+      end as type_label,
+      l.niche,
+      l.city,
+      l.phone,
+      l.telegram,
+      l.instagram,
+      l.email,
+      l.priority_score,
+      case
+        when coalesce(l.priority_score, 0) >= 75 then 'Высокий'
+        when coalesce(l.priority_score, 0) >= 45 then 'Средний'
+        else 'Низкий'
+      end as priority_label,
+      l.notes,
+      l.next_step,
+      l.next_contact_date,
+      l.refusal_reason,
+      l.refusal_comment,
+      l.refused_at,
+      l.created_at,
+      s.name as source_name,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      rr.name as refusal_reason_name,
+      coalesce(tag_data.tags, array[]::text[]) as tags,
+      coalesce(tag_data.interested_tag, false) as interested_tag,
+      coalesce(tag_data.testing_tag, false) as testing_tag,
+      coalesce(tag_data.return_tag, false) as return_tag
+    from public.leads l
+    left join public.sources s on s.id = l.source_id
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+    left join lateral (
+      select
+        coalesce(array_agg(distinct t.name order by t.name) filter (where nullif(trim(t.name), '') is not null), array[]::text[]) as tags,
+        coalesce(bool_or(lower(replace(trim(t.name), 'ё', 'е')) in (
+          'заинтересован', 'горячий контакт', 'горячий лид', 'готов к пилоту'
+        )), false) as interested_tag,
+        coalesce(bool_or(lower(replace(trim(t.name), 'ё', 'е')) in (
+          'тестирует', 'тестирование', 'тестер', 'пилот', 'готов тестировать', 'готова тестировать'
+        )), false) as testing_tag,
+        coalesce(bool_or(
+          lower(replace(trim(t.name), 'ё', 'е')) like '%вернуться%'
+          or lower(replace(trim(t.name), 'ё', 'е')) like '%пауза%'
+        ), false) as return_tag
+      from public.lead_tags lt
+      join public.tags t on t.id = lt.tag_id
+      where lt.lead_id = l.id
+    ) tag_data on true
+  ),
+  filtered as materialized (
+    select *
+    from base b
+    where
+      (
+        nullif(trim(p_type), '') is null
+        or lower(b.type_label) = lower(trim(p_type))
+        or b.type = lower(trim(p_type))
+      )
+      and (
+        nullif(trim(p_city), '') is null
+        or (
+          lower(trim(p_city)) = lower('Не указан')
+          and nullif(trim(coalesce(b.city, '')), '') is null
+        )
+        or lower(trim(coalesce(b.city, ''))) = lower(trim(p_city))
+      )
+      and (
+        nullif(trim(p_niche), '') is null
+        or (
+          lower(trim(p_niche)) = lower('Не указана')
+          and nullif(trim(coalesce(b.niche, '')), '') is null
+        )
+        or lower(trim(coalesce(b.niche, ''))) = lower(trim(p_niche))
+      )
+      and (
+        nullif(trim(p_stage), '') is null
+        or b.stage_name = public.hutka_normalize_stage_name(p_stage)
+      )
+      and (
+        nullif(trim(p_source), '') is null
+        or (
+          lower(trim(p_source)) = lower('Не указан')
+          and nullif(trim(coalesce(b.source_name, '')), '') is null
+        )
+        or lower(trim(coalesce(b.source_name, ''))) = lower(trim(p_source))
+      )
+      and (
+        nullif(trim(p_priority), '') is null
+        or lower(b.priority_label) = lower(trim(p_priority))
+      )
+      and (
+        nullif(trim(p_tag), '') is null
+        or exists (
+          select 1
+          from unnest(b.tags) as selected_tag(name)
+          where lower(trim(selected_tag.name)) = lower(trim(p_tag))
+        )
+      )
+      and (
+        nullif(trim(p_q), '') is null
+        or concat_ws(
+          ' ',
+          b.name,
+          b.type_label,
+          coalesce(nullif(trim(b.niche), ''), 'Не указана'),
+          coalesce(nullif(trim(b.city), ''), 'Не указан'),
+          b.stage_name,
+          coalesce(nullif(trim(b.source_name), ''), 'Не указан'),
+          b.priority_label,
+          coalesce(nullif(trim(b.next_step), ''), 'Связаться'),
+          b.instagram,
+          b.telegram,
+          b.phone,
+          b.email,
+          b.notes,
+          array_to_string(b.tags, ' ')
+        ) ilike '%' || trim(p_q) || '%'
+      )
+      and (
+        nullif(trim(p_view), '') is null
+        or lower(trim(p_view)) = 'all'
+        or lower(trim(p_view)) not in (
+          'all', 'interested', 'hot', 'testing', 'pilot', 'need-write', 'followup',
+          'unanswered', 'paused', 'refusals', 'no-next-step'
+        )
+        or (
+          lower(trim(p_view)) in ('interested', 'hot')
+          and (b.stage_name = 'Заинтересован' or coalesce(b.priority_score, 0) >= 75 or b.interested_tag)
+        )
+        or (
+          lower(trim(p_view)) in ('testing', 'pilot')
+          and (b.stage_name = 'Тестирует' or b.testing_tag)
+        )
+        or (
+          lower(trim(p_view)) in ('need-write', 'followup')
+          and b.stage_name not in ('Отказ', 'Тестирует')
+          and (
+            b.next_contact_date < date_trunc('day', now()) + interval '1 day'
+            or b.return_tag
+          )
+        )
+        or (
+          lower(trim(p_view)) = 'unanswered'
+          and b.stage_name in ('Новый', 'Написали')
+        )
+        or (
+          lower(trim(p_view)) = 'paused'
+          and (b.stage_name = 'Пауза' or b.return_tag)
+        )
+        or (
+          lower(trim(p_view)) = 'refusals'
+          and (
+            b.stage_name = 'Отказ'
+            or nullif(trim(coalesce(b.refusal_reason, b.refusal_reason_name, '')), '') is not null
+          )
+        )
+        or (
+          lower(trim(p_view)) = 'no-next-step'
+          and b.stage_name not in ('Отказ', 'Тестирует')
+          and (
+            nullif(trim(coalesce(b.next_step, '')), '') is null
+            or lower(trim(b.next_step)) in ('связаться', '—')
+            or b.next_contact_date is null
+          )
+        )
+      )
+  ),
+  paged as (
+    select *
+    from filtered
+    order by created_at desc nulls last, id desc
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 50), 1), 200)
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from filtered),
+    'items', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', p.id,
+          'name', p.name,
+          'type', p.type,
+          'niche', p.niche,
+          'city', p.city,
+          'phone', p.phone,
+          'telegram', p.telegram,
+          'instagram', p.instagram,
+          'email', p.email,
+          'priority_score', p.priority_score,
+          'notes', p.notes,
+          'next_step', p.next_step,
+          'next_contact_date', p.next_contact_date,
+          'refusal_reason', p.refusal_reason,
+          'refusal_comment', p.refusal_comment,
+          'refused_at', p.refused_at,
+          'created_at', p.created_at,
+          'sources', case when p.source_name is null then null else jsonb_build_object('name', p.source_name) end,
+          'funnel_stages', jsonb_build_object('name', p.stage_name),
+          'refusal_reasons', case when p.refusal_reason_name is null then null else jsonb_build_object('name', p.refusal_reason_name) end,
+          'lead_tags', coalesce((
+            select jsonb_agg(jsonb_build_object('tags', jsonb_build_object('name', tag_item.name)))
+            from unnest(p.tags) as tag_item(name)
+          ), '[]'::jsonb)
+        )
+        order by p.created_at desc nulls last, p.id desc
+      )
+      from paged p
+    ), '[]'::jsonb)
+  );
+$$;
+
+create or replace function public.get_lead_directory_meta()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with base as materialized (
+    select
+      case l.type
+        when 'salon' then 'Салон'
+        when 'client' then 'Клиент'
+        when 'partner' then 'Партнер'
+        else 'Мастер'
+      end as type_label,
+      coalesce(nullif(trim(l.city), ''), 'Не указан') as city_label,
+      coalesce(nullif(trim(l.niche), ''), 'Не указана') as niche_label,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      coalesce(nullif(trim(s.name), ''), 'Не указан') as source_name,
+      case
+        when coalesce(l.priority_score, 0) >= 75 then 'Высокий'
+        when coalesce(l.priority_score, 0) >= 45 then 'Средний'
+        else 'Низкий'
+      end as priority_label,
+      l.priority_score,
+      l.next_step,
+      l.next_contact_date,
+      l.refusal_reason,
+      rr.name as refusal_reason_name,
+      coalesce(tag_data.tags, array[]::text[]) as tags,
+      coalesce(tag_data.interested_tag, false) as interested_tag,
+      coalesce(tag_data.testing_tag, false) as testing_tag,
+      coalesce(tag_data.return_tag, false) as return_tag
+    from public.leads l
+    left join public.sources s on s.id = l.source_id
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+    left join lateral (
+      select
+        coalesce(array_agg(distinct t.name order by t.name) filter (where nullif(trim(t.name), '') is not null), array[]::text[]) as tags,
+        coalesce(bool_or(lower(replace(trim(t.name), 'ё', 'е')) in (
+          'заинтересован', 'горячий контакт', 'горячий лид', 'готов к пилоту'
+        )), false) as interested_tag,
+        coalesce(bool_or(lower(replace(trim(t.name), 'ё', 'е')) in (
+          'тестирует', 'тестирование', 'тестер', 'пилот', 'готов тестировать', 'готова тестировать'
+        )), false) as testing_tag,
+        coalesce(bool_or(
+          lower(replace(trim(t.name), 'ё', 'е')) like '%вернуться%'
+          or lower(replace(trim(t.name), 'ё', 'е')) like '%пауза%'
+        ), false) as return_tag
+      from public.lead_tags lt
+      join public.tags t on t.id = lt.tag_id
+      where lt.lead_id = l.id
+    ) tag_data on true
+  )
+  select jsonb_build_object(
+    'total', count(*),
+    'types', coalesce((
+      select jsonb_agg(value order by value)
+      from (select distinct type_label as value from base) values_list
+    ), '[]'::jsonb),
+    'cities', coalesce((
+      select jsonb_agg(value order by value)
+      from (select distinct city_label as value from base) values_list
+    ), '[]'::jsonb),
+    'niches', coalesce((
+      select jsonb_agg(value order by value)
+      from (select distinct niche_label as value from base) values_list
+    ), '[]'::jsonb),
+    'stages', coalesce((
+      select jsonb_agg(value order by order_index, value)
+      from (
+        select distinct
+          stage_name as value,
+          case stage_name
+            when 'Новый' then 1
+            when 'Написали' then 2
+            when 'Ответил' then 3
+            when 'Заинтересован' then 4
+            when 'Тестирует' then 5
+            when 'Пауза' then 6
+            when 'Отказ' then 7
+            else 99
+          end as order_index
+        from base
+      ) values_list
+    ), '[]'::jsonb),
+    'sources', coalesce((
+      select jsonb_agg(value order by value)
+      from (select distinct source_name as value from base) values_list
+    ), '[]'::jsonb),
+    'priorities', coalesce((
+      select jsonb_agg(value order by order_index)
+      from (
+        select distinct
+          priority_label as value,
+          case priority_label when 'Высокий' then 1 when 'Средний' then 2 else 3 end as order_index
+        from base
+      ) values_list
+    ), '[]'::jsonb),
+    'tags', coalesce((
+      select jsonb_agg(value order by value)
+      from (
+        select distinct tag_item.name as value
+        from base
+        cross join lateral unnest(base.tags) as tag_item(name)
+        where nullif(trim(tag_item.name), '') is not null
+      ) values_list
+    ), '[]'::jsonb),
+    'smart_counts', jsonb_build_object(
+      'all', count(*),
+      'interested', count(*) filter (
+        where stage_name = 'Заинтересован' or coalesce(priority_score, 0) >= 75 or interested_tag
+      ),
+      'testing', count(*) filter (
+        where stage_name = 'Тестирует' or testing_tag
+      ),
+      'need-write', count(*) filter (
+        where stage_name not in ('Отказ', 'Тестирует')
+          and (
+            next_contact_date < date_trunc('day', now()) + interval '1 day'
+            or return_tag
+          )
+      ),
+      'unanswered', count(*) filter (
+        where stage_name in ('Новый', 'Написали')
+      ),
+      'paused', count(*) filter (
+        where stage_name = 'Пауза' or return_tag
+      ),
+      'refusals', count(*) filter (
+        where stage_name = 'Отказ'
+          or nullif(trim(coalesce(refusal_reason, refusal_reason_name, '')), '') is not null
+      ),
+      'no-next-step', count(*) filter (
+        where stage_name not in ('Отказ', 'Тестирует')
+          and (
+            nullif(trim(coalesce(next_step, '')), '') is null
+            or lower(trim(next_step)) in ('связаться', '—')
+            or next_contact_date is null
+          )
+      )
+    )
+  )
+  from base;
+$$;
+
+revoke all on function public.hutka_normalize_stage_name(text) from public;
+revoke all on function public.get_lead_directory_page(text, text, text, text, text, text, text, text, text, integer, integer) from public;
+revoke all on function public.get_lead_directory_meta() from public;
+
+grant execute on function public.hutka_normalize_stage_name(text) to authenticated, service_role;
+grant execute on function public.get_lead_directory_page(text, text, text, text, text, text, text, text, text, integer, integer) to authenticated, service_role;
+grant execute on function public.get_lead_directory_meta() to authenticated, service_role;
+
+-- Step 44: atomic task creation from the "What to do" workspace
+create index if not exists tasks_open_lead_title_idx
+  on public.tasks(lead_id, title)
+  where status in ('todo', 'in_progress');
+
+create or replace function public.create_followup_task(
+  p_lead_id uuid,
+  p_title text,
+  p_description text default null,
+  p_due_date timestamptz default null,
+  p_priority text default 'medium',
+  p_created_by uuid default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  existing_task_id uuid;
+  new_task_id uuid;
+  normalized_title text := nullif(trim(p_title), '');
+  normalized_priority text := case
+    when p_priority in ('none', 'low', 'medium', 'high', 'urgent') then p_priority
+    else 'medium'
+  end;
+begin
+  if p_lead_id is null then
+    return jsonb_build_object('ok', false, 'error', 'missing-lead');
+  end if;
+
+  if normalized_title is null then
+    return jsonb_build_object('ok', false, 'error', 'missing-followup-data');
+  end if;
+
+  if not exists (
+    select 1
+    from public.leads
+    where id = p_lead_id
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'lead-not-found');
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtext(p_lead_id::text),
+    hashtext(lower(normalized_title))
+  );
+
+  select id
+  into existing_task_id
+  from public.tasks
+  where lead_id = p_lead_id
+    and title = normalized_title
+    and status in ('todo', 'in_progress')
+  order by created_at desc
+  limit 1;
+
+  if existing_task_id is not null then
+    return jsonb_build_object(
+      'ok', true,
+      'created', false,
+      'task_id', existing_task_id
+    );
+  end if;
+
+  insert into public.tasks (
+    lead_id,
+    title,
+    description,
+    due_date,
+    priority,
+    status,
+    created_by
+  )
+  values (
+    p_lead_id,
+    normalized_title,
+    nullif(trim(coalesce(p_description, '')), ''),
+    p_due_date,
+    normalized_priority,
+    'todo',
+    p_created_by
+  )
+  returning id into new_task_id;
+
+  insert into public.lead_interactions (
+    lead_id,
+    type,
+    channel,
+    text,
+    result,
+    created_by
+  )
+  values (
+    p_lead_id,
+    'note',
+    'Hutka',
+    'Автоматически создана задача по рекомендации: ' || normalized_title,
+    'auto_followup_task_created',
+    p_created_by
+  );
+
+  return jsonb_build_object(
+    'ok', true,
+    'created', true,
+    'task_id', new_task_id
+  );
+exception
+  when others then
+    return jsonb_build_object(
+      'ok', false,
+      'error', 'followup-task-failed'
+    );
+end;
+$$;
+
+revoke all on function public.create_followup_task(uuid, text, text, timestamptz, text, uuid) from public;
+grant execute on function public.create_followup_task(uuid, text, text, timestamptz, text, uuid) to authenticated, service_role;
+
+-- Step 45: database pagination and exact counters for the task workspace
+create or replace function public.get_task_directory_page(
+  p_q text default null,
+  p_status text default 'active',
+  p_priority text default null,
+  p_due text default null,
+  p_lead_id text default null,
+  p_profile_id text default null,
+  p_offset integer default 0,
+  p_limit integer default 40
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with base as materialized (
+    select
+      t.id,
+      t.title,
+      t.description,
+      t.due_date,
+      t.priority,
+      t.status,
+      t.created_at,
+      l.id as lead_id,
+      l.name as lead_name,
+      coalesce(assignee_data.assignees, '[]'::jsonb) as assignees,
+      coalesce(assignee_data.search_text, '') as assignee_search
+    from public.tasks t
+    left join public.leads l on l.id = t.lead_id
+    left join lateral (
+      select
+        jsonb_agg(
+          jsonb_build_object(
+            'role', ta.role,
+            'profiles', jsonb_build_object(
+              'id', p.id,
+              'full_name', p.full_name,
+              'email', p.email,
+              'job_title', p.job_title,
+              'avatar_url', p.avatar_url
+            )
+          )
+          order by
+            case ta.role when 'responsible' then 1 when 'executor' then 2 else 3 end,
+            coalesce(nullif(trim(p.full_name), ''), p.email)
+        ) as assignees,
+        string_agg(
+          concat_ws(' ', p.full_name, p.email, p.job_title, ta.role),
+          ' '
+        ) as search_text
+      from public.task_assignees ta
+      join public.profiles p on p.id = ta.profile_id
+      where ta.task_id = t.id
+    ) assignee_data on true
+  ),
+  filtered as materialized (
+    select *
+    from base b
+    where
+      (
+        nullif(trim(p_status), '') is null
+        or (
+          lower(trim(p_status)) = 'active'
+          and b.status in ('todo', 'in_progress')
+        )
+        or (
+          lower(trim(p_status)) <> 'active'
+          and b.status = lower(trim(p_status))
+        )
+      )
+      and (
+        nullif(trim(p_priority), '') is null
+        or b.priority = lower(trim(p_priority))
+      )
+      and (
+        nullif(trim(p_lead_id), '') is null
+        or b.lead_id::text = trim(p_lead_id)
+      )
+      and (
+        nullif(trim(p_profile_id), '') is null
+        or exists (
+          select 1
+          from public.task_assignees selected_assignee
+          where selected_assignee.task_id = b.id
+            and selected_assignee.profile_id::text = trim(p_profile_id)
+        )
+      )
+      and (
+        nullif(trim(p_due), '') is null
+        or (
+          lower(trim(p_due)) = 'overdue'
+          and b.due_date < date_trunc('day', now())
+        )
+        or (
+          lower(trim(p_due)) = 'today'
+          and b.due_date >= date_trunc('day', now())
+          and b.due_date < date_trunc('day', now()) + interval '1 day'
+        )
+        or (
+          lower(trim(p_due)) = 'week'
+          and b.due_date >= date_trunc('day', now()) + interval '1 day'
+          and b.due_date < date_trunc('day', now()) + interval '7 days'
+        )
+        or (
+          lower(trim(p_due)) = 'later'
+          and b.due_date >= date_trunc('day', now()) + interval '7 days'
+        )
+        or (
+          lower(trim(p_due)) = 'no_date'
+          and b.due_date is null
+        )
+      )
+      and (
+        nullif(trim(p_q), '') is null
+        or concat_ws(
+          ' ',
+          b.title,
+          b.description,
+          b.lead_name,
+          b.priority,
+          b.status,
+          b.assignee_search
+        ) ilike '%' || trim(p_q) || '%'
+      )
+  ),
+  paged as (
+    select *
+    from filtered
+    order by due_date asc nulls last, created_at desc, id desc
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 40), 1), 100)
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from filtered),
+    'summary', (
+      select jsonb_build_object(
+        'total', count(*),
+        'overdue', count(*) filter (
+          where status in ('todo', 'in_progress')
+            and due_date < date_trunc('day', now())
+        ),
+        'today', count(*) filter (
+          where status in ('todo', 'in_progress')
+            and due_date >= date_trunc('day', now())
+            and due_date < date_trunc('day', now()) + interval '1 day'
+        ),
+        'urgent', count(*) filter (where priority = 'urgent'),
+        'done', count(*) filter (where status = 'done')
+      )
+      from filtered
+    ),
+    'items', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', p.id,
+          'title', p.title,
+          'description', p.description,
+          'due_date', p.due_date,
+          'priority', p.priority,
+          'status', p.status,
+          'created_at', p.created_at,
+          'leads', case
+            when p.lead_id is null then null
+            else jsonb_build_object('id', p.lead_id, 'name', p.lead_name)
+          end,
+          'assignees', p.assignees
+        )
+        order by p.due_date asc nulls last, p.created_at desc, p.id desc
+      )
+      from paged p
+    ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_task_directory_page(text, text, text, text, text, text, integer, integer) from public;
+grant execute on function public.get_task_directory_page(text, text, text, text, text, text, integer, integer) to authenticated, service_role;
+
+-- Step 46: compact aggregates for campaign and survey lists
+create or replace function public.get_campaign_summaries()
+returns table (
+  id uuid,
+  name text,
+  goal text,
+  channel text,
+  city text,
+  niche text,
+  budget numeric,
+  offer_text text,
+  status text,
+  start_date date,
+  end_date date,
+  result_notes text,
+  created_at timestamptz,
+  contacts_count bigint,
+  responses_count bigint,
+  interested_count bigint,
+  testing_count bigint,
+  refused_count bigint
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select
+    c.id,
+    c.name,
+    c.goal,
+    c.channel,
+    c.city,
+    c.niche,
+    c.budget,
+    c.offer_text,
+    c.status,
+    c.start_date,
+    c.end_date,
+    c.result_notes,
+    c.created_at,
+    count(distinct cl.lead_id) as contacts_count,
+    count(distinct cl.lead_id) filter (
+      where public.hutka_normalize_stage_name(fs.name) in ('Ответил', 'Заинтересован', 'Тестирует')
+    ) as responses_count,
+    count(distinct cl.lead_id) filter (
+      where public.hutka_normalize_stage_name(fs.name) in ('Заинтересован', 'Тестирует')
+    ) as interested_count,
+    count(distinct cl.lead_id) filter (
+      where public.hutka_normalize_stage_name(fs.name) = 'Тестирует'
+    ) as testing_count,
+    count(distinct cl.lead_id) filter (
+      where public.hutka_normalize_stage_name(fs.name) = 'Отказ'
+    ) as refused_count
+  from public.campaigns c
+  left join public.campaign_leads cl on cl.campaign_id = c.id
+  left join public.leads l on l.id = cl.lead_id
+  left join public.funnel_stages fs on fs.id = l.stage_id
+  group by c.id
+  order by c.created_at desc;
+$$;
+
+create or replace function public.get_survey_summaries()
+returns table (
+  id uuid,
+  title text,
+  type text,
+  description text,
+  status text,
+  slug text,
+  created_at timestamptz,
+  questions_count bigint,
+  answers_count bigint
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select
+    s.id,
+    s.title,
+    s.type,
+    s.description,
+    s.status,
+    s.slug,
+    s.created_at,
+    coalesce(question_counts.total, 0) as questions_count,
+    coalesce(answer_counts.total, 0) as answers_count
+  from public.surveys s
+  left join lateral (
+    select count(*) as total
+    from public.survey_questions sq
+    where sq.survey_id = s.id
+  ) question_counts on true
+  left join lateral (
+    select count(distinct coalesce(sa.response_group_id, sa.id)) as total
+    from public.survey_answers sa
+    where sa.survey_id = s.id
+  ) answer_counts on true
+  order by s.created_at desc;
+$$;
+
+revoke all on function public.get_campaign_summaries() from public;
+revoke all on function public.get_survey_summaries() from public;
+
+grant execute on function public.get_campaign_summaries() to authenticated, service_role;
+grant execute on function public.get_survey_summaries() to authenticated, service_role;
+
+-- Step 47: database classification and pagination for "What to do"
+create index if not exists lead_questionnaires_lead_status_created_idx
+  on public.lead_questionnaires(lead_id, status, created_at desc);
+
+create or replace function public.get_followup_recommendations_page(
+  p_reason text default null,
+  p_offset integer default 0,
+  p_limit integer default 40,
+  p_bulk_limit integer default 10
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with base as materialized (
+    select
+      l.id,
+      l.name,
+      l.niche,
+      l.city,
+      l.priority_score,
+      l.next_step,
+      l.next_contact_date,
+      l.created_at,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      exists (
+        select 1
+        from public.tasks open_task
+        where open_task.lead_id = l.id
+          and open_task.status in ('todo', 'in_progress')
+      ) as has_open_task,
+      coalesce(activity.last_activity, l.created_at) as last_activity,
+      unanswered.questionnaire_id,
+      unanswered.questionnaire_title
+    from public.leads l
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join lateral (
+      select max(li.created_at) as last_activity
+      from public.lead_interactions li
+      where li.lead_id = l.id
+    ) activity on true
+    left join lateral (
+      select
+        questionnaire.id as questionnaire_id,
+        questionnaire.title as questionnaire_title
+      from public.lead_questionnaires questionnaire
+      where questionnaire.lead_id = l.id
+        and questionnaire.status = 'active'
+        and not exists (
+          select 1
+          from public.lead_questionnaire_answers answer
+          where answer.questionnaire_id = questionnaire.id
+        )
+      order by questionnaire.created_at desc
+      limit 1
+    ) unanswered on true
+    where public.hutka_normalize_stage_name(fs.name) <> 'Отказ'
+  ),
+  reasoned as materialized (
+    select
+      b.*,
+      case
+        when b.next_contact_date < date_trunc('day', now()) then 'overdue_followup'
+        when b.next_contact_date >= date_trunc('day', now())
+          and b.next_contact_date < date_trunc('day', now()) + interval '1 day'
+          then 'today_followup'
+        when coalesce(b.priority_score, 0) >= 75 and not b.has_open_task
+          then 'hot_without_task'
+        when b.questionnaire_id is not null and not b.has_open_task
+          then 'unanswered_questionnaire'
+        when (
+          nullif(trim(coalesce(b.next_step, '')), '') is null
+          or b.next_contact_date is null
+        ) and not b.has_open_task
+          then 'missing_next_action'
+        when b.stage_name in ('Новый', 'Написали', 'Ответил', 'Заинтересован')
+          and b.last_activity < date_trunc('day', now()) - interval '7 days'
+          and not b.has_open_task
+          then 'stale_stage'
+        else null
+      end as reason
+    from base b
+  ),
+  classified as materialized (
+    select
+      r.*,
+      case
+        when r.reason = 'overdue_followup' then 0
+        when r.reason = 'today_followup' and coalesce(r.priority_score, 0) >= 75 then 0
+        when r.reason in ('today_followup', 'hot_without_task') then 1
+        when r.reason in ('missing_next_action', 'stale_stage') and coalesce(r.priority_score, 0) >= 60 then 1
+        else 2
+      end as priority_weight
+    from reasoned r
+    where r.reason is not null
+  ),
+  filtered as materialized (
+    select *
+    from classified c
+    where nullif(trim(p_reason), '') is null
+      or c.reason = trim(p_reason)
+  ),
+  paged as (
+    select *
+    from filtered
+    order by priority_weight, priority_score desc nulls last, created_at desc, id
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 40), 1), 100)
+  ),
+  bulk_page as (
+    select *
+    from classified
+    where not has_open_task
+    order by priority_weight, priority_score desc nulls last, created_at desc, id
+    limit least(greatest(coalesce(p_bulk_limit, 10), 1), 25)
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from filtered),
+    'summary', (
+      select jsonb_build_object(
+        'total', count(*),
+        'urgent', count(*) filter (where priority_weight = 0),
+        'overdue', count(*) filter (where reason = 'overdue_followup'),
+        'today', count(*) filter (where reason = 'today_followup'),
+        'hot', count(*) filter (where reason = 'hot_without_task'),
+        'questionnaires', count(*) filter (where reason = 'unanswered_questionnaire'),
+        'without_tasks', count(*) filter (where not has_open_task)
+      )
+      from classified
+    ),
+    'items', coalesce((
+      select jsonb_agg(
+        to_jsonb(p) - 'priority_weight'
+        order by p.priority_weight, p.priority_score desc nulls last, p.created_at desc, p.id
+      )
+      from paged p
+    ), '[]'::jsonb),
+    'bulk_items', coalesce((
+      select jsonb_agg(
+        to_jsonb(b) - 'priority_weight'
+        order by b.priority_weight, b.priority_score desc nulls last, b.created_at desc, b.id
+      )
+      from bulk_page b
+    ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_followup_recommendations_page(text, integer, integer, integer) from public;
+grant execute on function public.get_followup_recommendations_page(text, integer, integer, integer) to authenticated, service_role;
+
+-- Step 48: exact funnel aggregates with bounded cards per stage
+create index if not exists leads_stage_updated_idx
+  on public.leads(stage_id, updated_at desc);
+
+create or replace function public.get_funnel_board_page(
+  p_campaign_id uuid default null,
+  p_limit_per_stage integer default 40
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with filtered as materialized (
+    select
+      l.id,
+      l.name,
+      l.type,
+      l.niche,
+      l.city,
+      l.priority_score,
+      l.next_step,
+      l.updated_at,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      s.name as source_name,
+      coalesce(nullif(trim(rr.name), ''), nullif(trim(l.refusal_reason), '')) as refusal_reason_name
+    from public.leads l
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.sources s on s.id = l.source_id
+    left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+    where
+      p_campaign_id is null
+      or exists (
+        select 1
+        from public.campaign_leads cl
+        where cl.campaign_id = p_campaign_id
+          and cl.lead_id = l.id
+      )
+  ),
+  ranked as materialized (
+    select
+      f.*,
+      row_number() over (
+        partition by f.stage_name
+        order by f.updated_at desc nulls last, f.id
+      ) as stage_row_number
+    from filtered f
+  ),
+  stage_counts as materialized (
+    select
+      f.stage_name,
+      count(*) as contacts,
+      count(*) filter (
+        where coalesce(f.priority_score, 0) >= 75
+          or f.stage_name = 'Заинтересован'
+      ) as hot_contacts,
+      count(*) filter (where f.stage_name = 'Тестирует') as ready_contacts
+    from filtered f
+    group by f.stage_name
+  ),
+  limited_items as materialized (
+    select r.*
+    from ranked r
+    where r.stage_row_number <= least(greatest(coalesce(p_limit_per_stage, 40), 1), 100)
+  ),
+  refusal_counts as materialized (
+    select
+      coalesce(f.refusal_reason_name, 'Причина не указана') as reason,
+      count(*) as contacts
+    from filtered f
+    where f.stage_name = 'Отказ'
+    group by coalesce(f.refusal_reason_name, 'Причина не указана')
+  )
+  select jsonb_build_object(
+    'items',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', item.id,
+            'name', item.name,
+            'type', item.type,
+            'niche', item.niche,
+            'city', item.city,
+            'priority_score', item.priority_score,
+            'next_step', item.next_step,
+            'stage_name', item.stage_name,
+            'source_name', item.source_name,
+            'refusal_reason_name', item.refusal_reason_name,
+            'tags', coalesce((
+              select jsonb_agg(tag.name order by tag.name)
+              from public.lead_tags lead_tag
+              join public.tags tag on tag.id = lead_tag.tag_id
+              where lead_tag.lead_id = item.id
+            ), '[]'::jsonb)
+          )
+          order by item.stage_name, item.updated_at desc nulls last, item.id
+        )
+        from limited_items item
+      ), '[]'::jsonb),
+    'stage_counts',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'stage_name', stage_count.stage_name,
+            'contacts', stage_count.contacts,
+            'hot_contacts', stage_count.hot_contacts,
+            'ready_contacts', stage_count.ready_contacts
+          )
+          order by stage_count.stage_name
+        )
+        from stage_counts stage_count
+      ), '[]'::jsonb),
+    'summary',
+      (
+        select jsonb_build_object(
+          'total', count(*),
+          'replied', count(*) filter (
+            where f.stage_name in ('Ответил', 'Заинтересован', 'Тестирует')
+          ),
+          'hot', count(*) filter (
+            where coalesce(f.priority_score, 0) >= 75
+              or f.stage_name = 'Заинтересован'
+          ),
+          'ready', count(*) filter (where f.stage_name = 'Тестирует'),
+          'refused', count(*) filter (where f.stage_name = 'Отказ'),
+          'need_action', count(*) filter (
+            where nullif(trim(coalesce(f.next_step, '')), '') is null
+              or trim(f.next_step) = 'Связаться'
+          )
+        )
+        from filtered f
+      ),
+    'refusal_reasons',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'name', refusal.reason,
+            'value', refusal.contacts
+          )
+          order by refusal.contacts desc, refusal.reason
+        )
+        from refusal_counts refusal
+      ), '[]'::jsonb)
+  );
+$$;
+
+create or replace function public.get_funnel_stage_page(
+  p_stage_name text,
+  p_campaign_id uuid default null,
+  p_offset integer default 0,
+  p_limit integer default 40
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with filtered as materialized (
+    select
+      l.id,
+      l.name,
+      l.type,
+      l.niche,
+      l.city,
+      l.priority_score,
+      l.next_step,
+      l.updated_at,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      s.name as source_name,
+      coalesce(nullif(trim(rr.name), ''), nullif(trim(l.refusal_reason), '')) as refusal_reason_name
+    from public.leads l
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.sources s on s.id = l.source_id
+    left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+    where public.hutka_normalize_stage_name(fs.name) = public.hutka_normalize_stage_name(p_stage_name)
+      and (
+        p_campaign_id is null
+        or exists (
+          select 1
+          from public.campaign_leads cl
+          where cl.campaign_id = p_campaign_id
+            and cl.lead_id = l.id
+        )
+      )
+  ),
+  page_items as materialized (
+    select f.*
+    from filtered f
+    order by f.updated_at desc nulls last, f.id
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 40), 1), 100)
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from filtered),
+    'items',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', item.id,
+            'name', item.name,
+            'type', item.type,
+            'niche', item.niche,
+            'city', item.city,
+            'priority_score', item.priority_score,
+            'next_step', item.next_step,
+            'stage_name', item.stage_name,
+            'source_name', item.source_name,
+            'refusal_reason_name', item.refusal_reason_name,
+            'tags', coalesce((
+              select jsonb_agg(tag.name order by tag.name)
+              from public.lead_tags lead_tag
+              join public.tags tag on tag.id = lead_tag.tag_id
+              where lead_tag.lead_id = item.id
+            ), '[]'::jsonb)
+          )
+          order by item.updated_at desc nulls last, item.id
+        )
+        from page_items item
+      ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_funnel_board_page(uuid, integer) from public;
+revoke all on function public.get_funnel_stage_page(text, uuid, integer, integer) from public;
+grant execute on function public.get_funnel_board_page(uuid, integer) to authenticated, service_role;
+grant execute on function public.get_funnel_stage_page(text, uuid, integer, integer) to authenticated, service_role;
+
+-- Step 49: compact report and refusal aggregates
+create or replace function public.get_report_lead_aggregates()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with base as materialized (
+    select
+      l.id,
+      l.created_at,
+      coalesce(nullif(trim(l.niche), ''), 'Не указана') as niche,
+      coalesce(nullif(trim(s.name), ''), 'Не указан') as source_name,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      coalesce(l.priority_score, 0) as priority_score
+    from public.leads l
+    left join public.sources s on s.id = l.source_id
+    left join public.funnel_stages fs on fs.id = l.stage_id
+  ),
+  week_buckets as materialized (
+    select
+      date_trunc('week', current_date)::date - (series.week_offset * 7) as period_start
+    from generate_series(5, 0, -1) as series(week_offset)
+  ),
+  weekly as materialized (
+    select
+      bucket.period_start,
+      count(base.id) as contacts
+    from week_buckets bucket
+    left join base
+      on base.created_at >= bucket.period_start
+      and base.created_at < bucket.period_start + interval '7 days'
+    group by bucket.period_start
+    order by bucket.period_start
+  ),
+  stages as materialized (
+    select base.stage_name as name, count(*) as contacts
+    from base
+    group by base.stage_name
+  ),
+  sources as materialized (
+    select base.source_name as name, count(*) as contacts
+    from base
+    group by base.source_name
+    order by contacts desc, name
+    limit 5
+  ),
+  niches as materialized (
+    select base.niche as name, count(*) as contacts
+    from base
+    group by base.niche
+    order by contacts desc, name
+    limit 5
+  ),
+  niche_reaction as materialized (
+    select
+      base.niche as name,
+      count(*) as total,
+      count(*) filter (
+        where base.stage_name in ('Ответил', 'Заинтересован', 'Тестирует')
+      ) as reacted
+    from base
+    group by base.niche
+    order by reacted desc, total desc, name
+    limit 5
+  )
+  select jsonb_build_object(
+    'summary',
+      (
+        select jsonb_build_object(
+          'total', count(*),
+          'new_contacts', count(*) filter (
+            where base.created_at >= now() - interval '7 days'
+          ),
+          'interested', count(*) filter (
+            where base.stage_name = 'Заинтересован'
+              or base.priority_score >= 75
+          ),
+          'testing', count(*) filter (where base.stage_name = 'Тестирует')
+        )
+        from base
+      ),
+    'weekly',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'period_start', weekly.period_start,
+            'value', weekly.contacts
+          )
+          order by weekly.period_start
+        )
+        from weekly
+      ), '[]'::jsonb),
+    'stages',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object('name', stages.name, 'value', stages.contacts)
+          order by stages.name
+        )
+        from stages
+      ), '[]'::jsonb),
+    'sources',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object('name', sources.name, 'value', sources.contacts)
+          order by sources.contacts desc, sources.name
+        )
+        from sources
+      ), '[]'::jsonb),
+    'niches',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object('name', niches.name, 'value', niches.contacts)
+          order by niches.contacts desc, niches.name
+        )
+        from niches
+      ), '[]'::jsonb),
+    'niche_reaction',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'name', niche_reaction.name,
+            'total', niche_reaction.total,
+            'reacted', niche_reaction.reacted
+          )
+          order by niche_reaction.reacted desc, niche_reaction.total desc, niche_reaction.name
+        )
+        from niche_reaction
+      ), '[]'::jsonb)
+  );
+$$;
+
+create or replace function public.get_refusal_analytics()
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with refused as materialized (
+    select
+      l.id,
+      l.name,
+      l.type,
+      l.niche,
+      l.city,
+      l.refusal_comment,
+      coalesce(l.refused_at, l.updated_at, l.created_at) as refused_at,
+      coalesce(
+        nullif(trim(rr.name), ''),
+        nullif(trim(l.refusal_reason), ''),
+        'Причина не указана'
+      ) as reason,
+      coalesce(nullif(trim(rr.color), ''), 'gray') as color
+    from public.leads l
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.refusal_reasons rr on rr.id = l.refusal_reason_id
+    where l.refusal_reason_id is not null
+      or l.refused_at is not null
+      or public.hutka_normalize_stage_name(fs.name) = 'Отказ'
+  ),
+  reason_counts as materialized (
+    select refused.reason, refused.color, count(*) as contacts
+    from refused
+    group by refused.reason, refused.color
+  ),
+  recent as materialized (
+    select refused.*
+    from refused
+    order by refused.refused_at desc nulls last, refused.id
+    limit 8
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from refused),
+    'top_reasons',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'reason', reason_counts.reason,
+            'count', reason_counts.contacts,
+            'color', reason_counts.color
+          )
+          order by reason_counts.contacts desc, reason_counts.reason
+        )
+        from reason_counts
+      ), '[]'::jsonb),
+    'recent',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', recent.id,
+            'name', recent.name,
+            'type', recent.type,
+            'niche', recent.niche,
+            'city', recent.city,
+            'reason', recent.reason,
+            'comment', recent.refusal_comment,
+            'refused_at', recent.refused_at
+          )
+          order by recent.refused_at desc nulls last, recent.id
+        )
+        from recent
+      ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_report_lead_aggregates() from public;
+revoke all on function public.get_refusal_analytics() from public;
+grant execute on function public.get_report_lead_aggregates() to authenticated, service_role;
+grant execute on function public.get_refusal_analytics() to authenticated, service_role;
+
+-- Step 50: paginate grouped survey responses
+create index if not exists survey_answers_survey_group_created_idx
+  on public.survey_answers(survey_id, response_group_id, created_at desc);
+
+create or replace function public.get_survey_response_page(
+  p_survey_id uuid,
+  p_offset integer default 0,
+  p_limit integer default 20
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with response_groups as materialized (
+    select
+      coalesce(answer.response_group_id, answer.id) as group_id,
+      (array_agg(answer.respondent_name order by answer.created_at desc, answer.id))[1] as respondent_name,
+      (array_agg(answer.respondent_contact order by answer.created_at desc, answer.id))[1] as respondent_contact,
+      max(answer.created_at) as created_at
+    from public.survey_answers answer
+    where answer.survey_id = p_survey_id
+    group by coalesce(answer.response_group_id, answer.id)
+  ),
+  page_groups as materialized (
+    select response_group.*
+    from response_groups response_group
+    order by response_group.created_at desc, response_group.group_id
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 20), 1), 100)
+  )
+  select jsonb_build_object(
+    'total', (select count(*) from response_groups),
+    'responses',
+      coalesce((
+        select jsonb_agg(
+          jsonb_build_object(
+            'id', page_group.group_id,
+            'respondent_name', page_group.respondent_name,
+            'respondent_contact', page_group.respondent_contact,
+            'created_at', page_group.created_at,
+            'answers', coalesce((
+              select jsonb_agg(
+                jsonb_build_object(
+                  'question', coalesce(question.question_text, 'Вопрос'),
+                  'answer', answer.answer
+                )
+                order by question.order_index, answer.created_at, answer.id
+              )
+              from public.survey_answers answer
+              left join public.survey_questions question on question.id = answer.question_id
+              where answer.survey_id = p_survey_id
+                and coalesce(answer.response_group_id, answer.id) = page_group.group_id
+            ), '[]'::jsonb)
+          )
+          order by page_group.created_at desc, page_group.group_id
+        )
+        from page_groups page_group
+      ), '[]'::jsonb)
+  );
+$$;
+
+revoke all on function public.get_survey_response_page(uuid, integer, integer) from public;
+grant execute on function public.get_survey_response_page(uuid, integer, integer) to authenticated, service_role;
+
+-- Step 51: exact campaign metrics with paginated campaign contacts
+create or replace function public.get_campaign_detail_page(
+  p_campaign_id uuid,
+  p_offset integer default 0,
+  p_limit integer default 40
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with campaign as materialized (
+    select
+      c.id,
+      c.name,
+      c.goal,
+      c.channel,
+      c.city,
+      c.niche,
+      c.budget,
+      c.offer_text,
+      c.status,
+      c.start_date,
+      c.end_date,
+      c.result_notes,
+      c.created_at
+    from public.campaigns c
+    where c.id = p_campaign_id
+  ),
+  contacts as materialized (
+    select
+      l.id,
+      l.name,
+      l.type,
+      l.niche,
+      l.city,
+      l.priority_score,
+      l.updated_at,
+      public.hutka_normalize_stage_name(fs.name) as stage_name,
+      s.name as source_name
+    from public.campaign_leads cl
+    join public.leads l on l.id = cl.lead_id
+    left join public.funnel_stages fs on fs.id = l.stage_id
+    left join public.sources s on s.id = l.source_id
+    where cl.campaign_id = p_campaign_id
+  ),
+  page_contacts as materialized (
+    select contact.*
+    from contacts contact
+    order by contact.updated_at desc nulls last, contact.id
+    offset greatest(coalesce(p_offset, 0), 0)
+    limit least(greatest(coalesce(p_limit, 40), 1), 100)
+  ),
+  stage_counts as materialized (
+    select contact.stage_name as name, count(*) as contacts
+    from contacts contact
+    group by contact.stage_name
+  )
+  select case
+    when not exists (select 1 from campaign) then null
+    else jsonb_build_object(
+      'campaign',
+        (select to_jsonb(campaign.*) from campaign),
+      'metrics',
+        (
+          select jsonb_build_object(
+            'contacts', count(*),
+            'responses', count(*) filter (
+              where contact.stage_name in ('Ответил', 'Заинтересован', 'Тестирует')
+            ),
+            'interested', count(*) filter (
+              where contact.stage_name in ('Заинтересован', 'Тестирует')
+            ),
+            'testing', count(*) filter (where contact.stage_name = 'Тестирует'),
+            'refused', count(*) filter (where contact.stage_name = 'Отказ')
+          )
+          from contacts contact
+        ),
+      'stage_counts',
+        coalesce((
+          select jsonb_agg(
+            jsonb_build_object(
+              'name', stage_count.name,
+              'value', stage_count.contacts
+            )
+            order by stage_count.name
+          )
+          from stage_counts stage_count
+        ), '[]'::jsonb),
+      'contacts',
+        coalesce((
+          select jsonb_agg(
+            jsonb_build_object(
+              'id', contact.id,
+              'name', contact.name,
+              'type', contact.type,
+              'niche', contact.niche,
+              'city', contact.city,
+              'priority_score', contact.priority_score,
+              'stage_name', contact.stage_name,
+              'source_name', contact.source_name
+            )
+            order by contact.updated_at desc nulls last, contact.id
+          )
+          from page_contacts contact
+        ), '[]'::jsonb)
+    )
+  end;
+$$;
+
+revoke all on function public.get_campaign_detail_page(uuid, integer, integer) from public;
+grant execute on function public.get_campaign_detail_page(uuid, integer, integer) to authenticated, service_role;
+
+-- Step 52: compact questionnaire summaries and bounded response previews per contact
+create or replace function public.get_lead_questionnaire_summaries(p_lead_id uuid)
+returns table (
+  id uuid,
+  lead_id uuid,
+  title text,
+  description text,
+  status text,
+  token text,
+  created_at timestamptz,
+  questions_count bigint,
+  responses_count bigint
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select
+    questionnaire.id,
+    questionnaire.lead_id,
+    questionnaire.title,
+    questionnaire.description,
+    questionnaire.status,
+    questionnaire.token,
+    questionnaire.created_at,
+    coalesce(question_count.total, 0) as questions_count,
+    coalesce(response_count.total, 0) as responses_count
+  from public.lead_questionnaires questionnaire
+  left join lateral (
+    select count(*) as total
+    from public.lead_questionnaire_questions question
+    where question.questionnaire_id = questionnaire.id
+  ) question_count on true
+  left join lateral (
+    select count(distinct coalesce(answer.response_group_id, answer.id)) as total
+    from public.lead_questionnaire_answers answer
+    where answer.questionnaire_id = questionnaire.id
+  ) response_count on true
+  where questionnaire.lead_id = p_lead_id
+  order by questionnaire.created_at desc
+  limit 50;
+$$;
+
+create or replace function public.get_lead_questionnaire_response_preview(
+  p_lead_id uuid,
+  p_limit_groups integer default 20
+)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with response_groups as materialized (
+    select
+      answer.questionnaire_id,
+      coalesce(answer.response_group_id, answer.id) as group_id,
+      (array_agg(answer.respondent_name order by answer.created_at desc, answer.id))[1] as respondent_name,
+      (array_agg(answer.respondent_contact order by answer.created_at desc, answer.id))[1] as respondent_contact,
+      max(answer.created_at) as created_at,
+      questionnaire.title as questionnaire_title,
+      questionnaire.token as questionnaire_token
+    from public.lead_questionnaire_answers answer
+    join public.lead_questionnaires questionnaire on questionnaire.id = answer.questionnaire_id
+    where answer.lead_id = p_lead_id
+    group by
+      answer.questionnaire_id,
+      coalesce(answer.response_group_id, answer.id),
+      questionnaire.title,
+      questionnaire.token
+  ),
+  preview_groups as materialized (
+    select response_group.*
+    from response_groups response_group
+    order by response_group.created_at desc, response_group.group_id
+    limit least(greatest(coalesce(p_limit_groups, 20), 1), 50)
+  )
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'id', preview_group.group_id,
+        'questionnaire_id', preview_group.questionnaire_id,
+        'questionnaire_title', preview_group.questionnaire_title,
+        'questionnaire_token', preview_group.questionnaire_token,
+        'respondent_name', preview_group.respondent_name,
+        'respondent_contact', preview_group.respondent_contact,
+        'created_at', preview_group.created_at,
+        'answers', coalesce((
+          select jsonb_agg(
+            jsonb_build_object(
+              'question', coalesce(question.question_text, 'Вопрос'),
+              'answer', answer.answer
+            )
+            order by question.order_index, answer.created_at, answer.id
+          )
+          from public.lead_questionnaire_answers answer
+          left join public.lead_questionnaire_questions question on question.id = answer.question_id
+          where answer.questionnaire_id = preview_group.questionnaire_id
+            and coalesce(answer.response_group_id, answer.id) = preview_group.group_id
+        ), '[]'::jsonb)
+      )
+      order by preview_group.created_at desc, preview_group.group_id
+    ),
+    '[]'::jsonb
+  )
+  from preview_groups preview_group;
+$$;
+
+revoke all on function public.get_lead_questionnaire_summaries(uuid) from public;
+revoke all on function public.get_lead_questionnaire_response_preview(uuid, integer) from public;
+grant execute on function public.get_lead_questionnaire_summaries(uuid) to authenticated, service_role;
+grant execute on function public.get_lead_questionnaire_response_preview(uuid, integer) to authenticated, service_role;
+
+-- Step 53: detect contact duplicates inside PostgreSQL
+create or replace function public.get_contact_duplicate_groups()
+returns table (
+  field text,
+  value text,
+  contacts bigint
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with contact_values as (
+    select 'email'::text as field, lower(trim(lead.email)) as value
+    from public.leads lead
+    where nullif(trim(lead.email), '') is not null
+    union all
+    select 'phone'::text, lower(trim(lead.phone))
+    from public.leads lead
+    where nullif(trim(lead.phone), '') is not null
+    union all
+    select 'instagram'::text, lower(trim(lead.instagram))
+    from public.leads lead
+    where nullif(trim(lead.instagram), '') is not null
+    union all
+    select 'telegram'::text, lower(trim(lead.telegram))
+    from public.leads lead
+    where nullif(trim(lead.telegram), '') is not null
+  )
+  select
+    contact_value.field,
+    contact_value.value,
+    count(*) as contacts
+  from contact_values contact_value
+  group by contact_value.field, contact_value.value
+  having count(*) > 1
+  order by contacts desc, contact_value.field, contact_value.value
+  limit 20;
+$$;
+
+revoke all on function public.get_contact_duplicate_groups() from public;
+grant execute on function public.get_contact_duplicate_groups() to authenticated, service_role;
+
+-- Step 54: atomic workspace cleanup without deleting auth users or profiles.
+create or replace function public.reset_workspace_data(
+  p_mode text default 'work',
+  p_user_id uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  normalized_mode text := lower(trim(coalesce(p_mode, 'work')));
+  workspace_tables text[] := array[
+    'public.telegram_delivery_logs',
+    'public.notification_reads',
+    'public.saved_lead_views',
+    'public.import_logs',
+    'public.lead_questionnaire_answers',
+    'public.lead_questionnaire_questions',
+    'public.lead_questionnaires',
+    'public.survey_answers',
+    'public.survey_questions',
+    'public.hypothesis_leads',
+    'public.hypothesis_insights',
+    'public.hypothesis_campaigns',
+    'public.hypothesis_surveys',
+    'public.insight_leads',
+    'public.insight_campaigns',
+    'public.insight_surveys',
+    'public.campaign_leads',
+    'public.lead_tags',
+    'public.lead_interactions',
+    'public.task_assignees',
+    'public.tasks',
+    'public.hypotheses',
+    'public.insights',
+    'public.campaigns',
+    'public.surveys',
+    'public.leads'
+  ];
+  directory_tables text[] := array[
+    'public.question_pack_questions',
+    'public.question_packs',
+    'public.message_templates',
+    'public.refusal_reasons',
+    'public.tags',
+    'public.sources',
+    'public.funnel_stages'
+  ];
+  target_tables text[];
+  table_name text;
+  deleted_count bigint;
+  deleted_counts jsonb := '{}'::jsonb;
+begin
+  if normalized_mode not in ('work', 'full') then
+    raise exception 'Unsupported cleanup mode: %', normalized_mode
+      using errcode = '22023';
+  end if;
+
+  target_tables := workspace_tables;
+  if normalized_mode = 'full' then
+    target_tables := target_tables || directory_tables;
+  end if;
+
+  foreach table_name in array target_tables loop
+    if to_regclass(table_name) is null then
+      continue;
+    end if;
+
+    execute format(
+      'delete from %I.%I',
+      split_part(table_name, '.', 1),
+      split_part(table_name, '.', 2)
+    );
+    get diagnostics deleted_count = row_count;
+    deleted_counts := deleted_counts || jsonb_build_object(
+      split_part(table_name, '.', 2),
+      deleted_count
+    );
+  end loop;
+
+  if to_regclass('public.activity_logs') is not null then
+    insert into public.activity_logs (
+      user_id,
+      action,
+      entity_type,
+      entity_title,
+      details
+    )
+    values (
+      p_user_id,
+      'очистил базу',
+      'settings',
+      'Очистка базы',
+      jsonb_build_object(
+        'mode',
+        normalized_mode,
+        'deleted',
+        deleted_counts
+      )
+    );
+  end if;
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'mode',
+    normalized_mode,
+    'deleted',
+    deleted_counts
+  );
+end;
+$$;
+
+revoke all on function public.reset_workspace_data(text, uuid) from public;
+revoke all on function public.reset_workspace_data(text, uuid) from anon;
+revoke all on function public.reset_workspace_data(text, uuid) from authenticated;
+grant execute on function public.reset_workspace_data(text, uuid) to service_role;
+
+-- Step 55: merge duplicate sources atomically inside PostgreSQL.
+create or replace function public.merge_duplicate_sources(
+  p_user_id uuid default null
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  source_group record;
+  keeper_id uuid;
+  duplicate_ids uuid[];
+  merged_count integer := 0;
+  reassigned_count integer := 0;
+  affected_count integer := 0;
+  actor_id uuid;
+begin
+  select id
+  into actor_id
+  from public.profiles
+  where user_id = auth.uid()
+  limit 1;
+
+  actor_id := coalesce(actor_id, p_user_id);
+
+  for source_group in
+    select
+      public.normalize_source_name(name) as normalized_name,
+      array_agg(id order by created_at asc, id asc) as source_ids
+    from public.sources
+    where public.normalize_source_name(name) <> ''
+    group by public.normalize_source_name(name)
+    having count(*) > 1
+  loop
+    keeper_id := source_group.source_ids[1];
+    duplicate_ids := source_group.source_ids[2:array_length(source_group.source_ids, 1)];
+
+    update public.leads
+    set source_id = keeper_id
+    where source_id = any(duplicate_ids);
+    get diagnostics affected_count = row_count;
+    reassigned_count := reassigned_count + affected_count;
+
+    delete from public.sources
+    where id = any(duplicate_ids);
+    get diagnostics affected_count = row_count;
+    merged_count := merged_count + affected_count;
+
+    update public.sources
+    set name = source_group.normalized_name
+    where id = keeper_id;
+  end loop;
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    'объединил источники',
+    'source',
+    'Источники',
+    jsonb_build_object(
+      'merged',
+      merged_count,
+      'reassigned_contacts',
+      reassigned_count
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'merged',
+    merged_count,
+    'reassigned_contacts',
+    reassigned_count
+  );
+end;
+$$;
+
+revoke all on function public.merge_duplicate_sources(uuid) from public;
+revoke all on function public.merge_duplicate_sources(uuid) from anon;
+grant execute on function public.merge_duplicate_sources(uuid) to authenticated, service_role;
+
+-- Step 56: save a contact, its directories, tags, history, and activity log
+-- in one RLS-aware transaction.
+create index if not exists leads_email_normalized_idx
+  on public.leads(lower(trim(email)))
+  where nullif(trim(email), '') is not null;
+create index if not exists leads_phone_normalized_idx
+  on public.leads(trim(phone))
+  where nullif(trim(phone), '') is not null;
+create index if not exists leads_instagram_normalized_idx
+  on public.leads(lower(trim(instagram)))
+  where nullif(trim(instagram), '') is not null;
+create index if not exists leads_telegram_normalized_idx
+  on public.leads(lower(trim(telegram)))
+  where nullif(trim(telegram), '') is not null;
+create index if not exists sources_name_casefold_idx
+  on public.sources(lower(public.normalize_source_name(name)));
+create index if not exists funnel_stages_name_casefold_idx
+  on public.funnel_stages(lower(trim(name)));
+create index if not exists tags_name_casefold_idx
+  on public.tags(lower(trim(name)));
+
+create or replace function public.save_lead_with_tags(
+  p_lead_id uuid,
+  p_name text,
+  p_type text,
+  p_niche text,
+  p_city text,
+  p_phone text,
+  p_telegram text,
+  p_instagram text,
+  p_email text,
+  p_source_name text,
+  p_stage_name text,
+  p_stage_order integer,
+  p_stage_color text,
+  p_priority_score integer,
+  p_notes text,
+  p_next_step text,
+  p_next_contact_date timestamptz,
+  p_tags text[],
+  p_actor_profile_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  normalized_name text := trim(coalesce(p_name, ''));
+  normalized_type text := lower(trim(coalesce(p_type, '')));
+  normalized_source_name text;
+  normalized_stage_name text := coalesce(nullif(trim(p_stage_name), ''), 'Новый');
+  saved_lead_id uuid;
+  resolved_source_id uuid;
+  resolved_stage_id uuid;
+  resolved_tag_id uuid;
+  tag_name text;
+  duplicate_id uuid;
+  duplicate_name text;
+  actor_id uuid;
+  is_created boolean := p_lead_id is null;
+begin
+  if normalized_name = '' then
+    return jsonb_build_object('ok', false, 'error', 'missing-name');
+  end if;
+
+  if normalized_type not in ('master', 'salon', 'client', 'partner') then
+    return jsonb_build_object('ok', false, 'error', 'invalid-type');
+  end if;
+
+  if coalesce(p_priority_score, 0) < 0 or coalesce(p_priority_score, 0) > 100 then
+    return jsonb_build_object('ok', false, 'error', 'invalid-priority');
+  end if;
+
+  if p_lead_id is not null and not exists (
+    select 1
+    from public.leads lead
+    where lead.id = p_lead_id
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'contact-not-found');
+  end if;
+
+  select lead.id, lead.name
+  into duplicate_id, duplicate_name
+  from public.leads lead
+  where (p_lead_id is null or lead.id <> p_lead_id)
+    and (
+      (
+        nullif(trim(p_email), '') is not null
+        and lower(trim(lead.email)) = lower(trim(p_email))
+      )
+      or (
+        nullif(trim(p_phone), '') is not null
+        and trim(lead.phone) = trim(p_phone)
+      )
+      or (
+        nullif(trim(p_instagram), '') is not null
+        and lower(trim(lead.instagram)) = lower(trim(p_instagram))
+      )
+      or (
+        nullif(trim(p_telegram), '') is not null
+        and lower(trim(lead.telegram)) = lower(trim(p_telegram))
+      )
+    )
+  order by lead.created_at asc, lead.id asc
+  limit 1;
+
+  if duplicate_id is not null then
+    return jsonb_build_object(
+      'ok',
+      false,
+      'error',
+      'duplicate-contact',
+      'duplicate_id',
+      duplicate_id,
+      'duplicate_name',
+      duplicate_name
+    );
+  end if;
+
+  normalized_source_name := public.normalize_source_name(
+    coalesce(nullif(trim(p_source_name), ''), 'Не указан')
+  );
+  if normalized_source_name = '' then
+    normalized_source_name := 'Не указан';
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('source:' || lower(normalized_source_name), 0)
+  );
+
+  select source.id
+  into resolved_source_id
+  from public.sources source
+  where lower(public.normalize_source_name(source.name)) = lower(normalized_source_name)
+  order by source.created_at asc, source.id asc
+  limit 1;
+
+  if resolved_source_id is null then
+    begin
+      insert into public.sources (name, type)
+      values (normalized_source_name, 'manual')
+      returning id into resolved_source_id;
+    exception
+      when unique_violation then
+        select source.id
+        into resolved_source_id
+        from public.sources source
+        where lower(public.normalize_source_name(source.name)) = lower(normalized_source_name)
+        order by source.created_at asc, source.id asc
+        limit 1;
+    end;
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('stage:' || lower(normalized_stage_name), 0)
+  );
+
+  select stage.id
+  into resolved_stage_id
+  from public.funnel_stages stage
+  where lower(trim(stage.name)) = lower(normalized_stage_name)
+  order by stage.created_at asc, stage.id asc
+  limit 1;
+
+  if resolved_stage_id is null then
+    insert into public.funnel_stages (name, type, order_index, color)
+    values (
+      normalized_stage_name,
+      'master',
+      coalesce(p_stage_order, 0),
+      coalesce(nullif(trim(p_stage_color), ''), 'purple')
+    )
+    returning id into resolved_stage_id;
+  end if;
+
+  if is_created then
+    insert into public.leads (
+      name,
+      type,
+      niche,
+      city,
+      phone,
+      telegram,
+      instagram,
+      email,
+      source_id,
+      stage_id,
+      priority_score,
+      notes,
+      next_step,
+      next_contact_date
+    )
+    values (
+      normalized_name,
+      normalized_type,
+      nullif(trim(p_niche), ''),
+      nullif(trim(p_city), ''),
+      nullif(trim(p_phone), ''),
+      nullif(trim(p_telegram), ''),
+      nullif(trim(p_instagram), ''),
+      nullif(trim(p_email), ''),
+      resolved_source_id,
+      resolved_stage_id,
+      coalesce(p_priority_score, 0),
+      nullif(trim(p_notes), ''),
+      nullif(trim(p_next_step), ''),
+      p_next_contact_date
+    )
+    returning id into saved_lead_id;
+  else
+    update public.leads
+    set
+      name = normalized_name,
+      type = normalized_type,
+      niche = nullif(trim(p_niche), ''),
+      city = nullif(trim(p_city), ''),
+      phone = nullif(trim(p_phone), ''),
+      telegram = nullif(trim(p_telegram), ''),
+      instagram = nullif(trim(p_instagram), ''),
+      email = nullif(trim(p_email), ''),
+      source_id = resolved_source_id,
+      stage_id = resolved_stage_id,
+      priority_score = coalesce(p_priority_score, 0),
+      notes = nullif(trim(p_notes), ''),
+      next_step = nullif(trim(p_next_step), ''),
+      next_contact_date = p_next_contact_date,
+      updated_at = now()
+    where id = p_lead_id
+    returning id into saved_lead_id;
+
+    if saved_lead_id is null then
+      return jsonb_build_object('ok', false, 'error', 'contact-not-found');
+    end if;
+  end if;
+
+  delete from public.lead_tags
+  where lead_id = saved_lead_id;
+
+  for tag_name in
+    select min(trim(input_tag))
+    from unnest(coalesce(p_tags, array[]::text[])) as input_tag
+    where nullif(trim(input_tag), '') is not null
+    group by lower(trim(input_tag))
+  loop
+    resolved_tag_id := null;
+
+    perform pg_advisory_xact_lock(
+      hashtextextended('tag:' || lower(tag_name), 0)
+    );
+
+    select tag.id
+    into resolved_tag_id
+    from public.tags tag
+    where lower(trim(tag.name)) = lower(tag_name)
+    order by tag.created_at asc, tag.id asc
+    limit 1;
+
+    if resolved_tag_id is null then
+      begin
+        insert into public.tags (name, color)
+        values (tag_name, 'purple')
+        returning id into resolved_tag_id;
+      exception
+        when unique_violation then
+          select tag.id
+          into resolved_tag_id
+          from public.tags tag
+          where tag.name = tag_name
+          limit 1;
+      end;
+    end if;
+
+    if resolved_tag_id is not null then
+      insert into public.lead_tags (lead_id, tag_id)
+      values (saved_lead_id, resolved_tag_id)
+      on conflict do nothing;
+    end if;
+  end loop;
+
+  select profile.id
+  into actor_id
+  from public.profiles profile
+  where profile.user_id = auth.uid()
+  limit 1;
+
+  if actor_id is null and auth.role() = 'service_role' then
+    actor_id := p_actor_profile_id;
+  end if;
+
+  insert into public.lead_interactions (
+    lead_id,
+    type,
+    channel,
+    text,
+    result,
+    created_by
+  )
+  values (
+    saved_lead_id,
+    case when is_created then 'note' else 'status_change' end,
+    case when is_created then normalized_source_name else 'Hutka' end,
+    case
+      when is_created then 'Контакт добавлен в Hutka'
+      else format('Контакт обновлен. Стадия: %s', normalized_stage_name)
+    end,
+    case when is_created then 'created' else 'updated' end,
+    actor_id
+  );
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    case when is_created then 'создал контакт' else 'изменил контакт' end,
+    'contact',
+    saved_lead_id,
+    normalized_name,
+    jsonb_build_object(
+      'source',
+      normalized_source_name,
+      'stage',
+      normalized_stage_name,
+      'next_step',
+      nullif(trim(p_next_step), ''),
+      'next_contact_date',
+      p_next_contact_date
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'lead_id',
+    saved_lead_id,
+    'created',
+    is_created
+  );
+end;
+$$;
+
+revoke all on function public.save_lead_with_tags(
+  uuid, text, text, text, text, text, text, text, text, text, text,
+  integer, text, integer, text, text, timestamptz, text[], uuid
+) from public;
+revoke all on function public.save_lead_with_tags(
+  uuid, text, text, text, text, text, text, text, text, text, text,
+  integer, text, integer, text, text, timestamptz, text[], uuid
+) from anon;
+grant execute on function public.save_lead_with_tags(
+  uuid, text, text, text, text, text, text, text, text, text, text,
+  integer, text, integer, text, text, timestamptz, text[], uuid
+) to authenticated, service_role;
+
+-- Step 57: create a task, assignees, contact history, and activity log
+-- in one RLS-aware transaction.
+create or replace function public.create_task_with_assignees(
+  p_title text,
+  p_lead_id uuid,
+  p_description text,
+  p_due_date timestamptz,
+  p_priority text,
+  p_assignee_profile_ids uuid[],
+  p_assignee_roles text[],
+  p_actor_profile_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  normalized_title text := trim(coalesce(p_title, ''));
+  normalized_priority text := lower(trim(coalesce(p_priority, 'none')));
+  normalized_profile_ids uuid[] := coalesce(p_assignee_profile_ids, array[]::uuid[]);
+  normalized_roles text[] := coalesce(p_assignee_roles, array[]::text[]);
+  saved_task_id uuid;
+  lead_name text;
+  actor_id uuid;
+begin
+  if normalized_title = '' then
+    return jsonb_build_object('ok', false, 'error', 'missing-task-title');
+  end if;
+
+  if normalized_priority not in ('none', 'low', 'medium', 'high', 'urgent') then
+    return jsonb_build_object('ok', false, 'error', 'invalid-priority');
+  end if;
+
+  if cardinality(normalized_profile_ids) <> cardinality(normalized_roles) then
+    return jsonb_build_object('ok', false, 'error', 'invalid-assignees');
+  end if;
+
+  if cardinality(normalized_profile_ids) <> (
+    select count(distinct assignment.profile_id)
+    from unnest(normalized_profile_ids) as assignment(profile_id)
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'invalid-assignees');
+  end if;
+
+  if p_lead_id is not null then
+    select lead.name
+    into lead_name
+    from public.leads lead
+    where lead.id = p_lead_id;
+
+    if lead_name is null then
+      return jsonb_build_object('ok', false, 'error', 'lead-not-found');
+    end if;
+  end if;
+
+  if exists (
+    select 1
+    from unnest(normalized_profile_ids, normalized_roles)
+      as assignment(profile_id, assignee_role)
+    left join public.profiles profile
+      on profile.id = assignment.profile_id
+    where profile.id is null
+      or assignment.assignee_role is null
+      or assignment.assignee_role not in ('responsible', 'executor', 'co_executor')
+  ) then
+    return jsonb_build_object('ok', false, 'error', 'task-assignee-not-found');
+  end if;
+
+  select profile.id
+  into actor_id
+  from public.profiles profile
+  where profile.user_id = auth.uid()
+  limit 1;
+
+  if actor_id is null and auth.role() = 'service_role' then
+    actor_id := p_actor_profile_id;
+  end if;
+
+  insert into public.tasks (
+    title,
+    lead_id,
+    description,
+    due_date,
+    priority,
+    status,
+    created_by
+  )
+  values (
+    normalized_title,
+    p_lead_id,
+    nullif(trim(p_description), ''),
+    p_due_date,
+    normalized_priority,
+    'todo',
+    actor_id
+  )
+  returning id into saved_task_id;
+
+  if cardinality(normalized_profile_ids) > 0 then
+    insert into public.task_assignees (task_id, profile_id, role)
+    select
+      saved_task_id,
+      assignment.profile_id,
+      assignment.assignee_role
+    from unnest(normalized_profile_ids, normalized_roles)
+      as assignment(profile_id, assignee_role);
+  end if;
+
+  if p_lead_id is not null then
+    insert into public.lead_interactions (
+      lead_id,
+      type,
+      channel,
+      text,
+      result,
+      created_by
+    )
+    values (
+      p_lead_id,
+      'note',
+      'Hutka',
+      format('Создана задача: %s', normalized_title),
+      'task_created',
+      actor_id
+    );
+  end if;
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    'создал задачу',
+    'task',
+    saved_task_id,
+    normalized_title,
+    jsonb_build_object(
+      'lead_id',
+      p_lead_id,
+      'due_date',
+      p_due_date,
+      'priority',
+      normalized_priority,
+      'assignees',
+      cardinality(normalized_profile_ids)
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'task_id',
+    saved_task_id,
+    'lead_name',
+    lead_name
+  );
+end;
+$$;
+
+revoke all on function public.create_task_with_assignees(
+  text, uuid, text, timestamptz, text, uuid[], text[], uuid
+) from public;
+revoke all on function public.create_task_with_assignees(
+  text, uuid, text, timestamptz, text, uuid[], text[], uuid
+) from anon;
+grant execute on function public.create_task_with_assignees(
+  text, uuid, text, timestamptz, text, uuid[], text[], uuid
+) to authenticated, service_role;
+
+-- Step 58: schedule a contact action and its task atomically.
+create or replace function public.schedule_lead_action(
+  p_lead_id uuid,
+  p_next_step text,
+  p_next_contact_date timestamptz,
+  p_comment text,
+  p_actor_profile_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  normalized_next_step text := trim(coalesce(p_next_step, ''));
+  lead_name text;
+  open_task_id uuid;
+  saved_task_id uuid;
+  actor_id uuid;
+  is_created boolean := false;
+begin
+  if p_lead_id is null then
+    return jsonb_build_object('ok', false, 'error', 'missing-lead');
+  end if;
+
+  if normalized_next_step = '' then
+    return jsonb_build_object('ok', false, 'error', 'missing-next-action');
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('lead-action:' || p_lead_id::text, 0)
+  );
+
+  select lead.name
+  into lead_name
+  from public.leads lead
+  where lead.id = p_lead_id;
+
+  if lead_name is null then
+    return jsonb_build_object('ok', false, 'error', 'contact-not-found');
+  end if;
+
+  select task.id
+  into open_task_id
+  from public.tasks task
+  where task.lead_id = p_lead_id
+    and task.status in ('todo', 'in_progress')
+  order by task.created_at desc, task.id desc
+  limit 1
+  for update;
+
+  select profile.id
+  into actor_id
+  from public.profiles profile
+  where profile.user_id = auth.uid()
+  limit 1;
+
+  if actor_id is null and auth.role() = 'service_role' then
+    actor_id := p_actor_profile_id;
+  end if;
+
+  update public.leads
+  set
+    next_step = normalized_next_step,
+    next_contact_date = p_next_contact_date,
+    updated_at = now()
+  where id = p_lead_id;
+
+  if open_task_id is not null then
+    update public.tasks
+    set
+      title = normalized_next_step,
+      description = nullif(trim(p_comment), ''),
+      due_date = p_next_contact_date,
+      updated_at = now()
+    where id = open_task_id
+    returning id into saved_task_id;
+  else
+    insert into public.tasks (
+      lead_id,
+      title,
+      description,
+      due_date,
+      priority,
+      status,
+      created_by
+    )
+    values (
+      p_lead_id,
+      normalized_next_step,
+      nullif(trim(p_comment), ''),
+      p_next_contact_date,
+      'none',
+      'todo',
+      actor_id
+    )
+    returning id into saved_task_id;
+
+    is_created := true;
+  end if;
+
+  insert into public.lead_interactions (
+    lead_id,
+    type,
+    channel,
+    text,
+    result,
+    created_by
+  )
+  values (
+    p_lead_id,
+    'note',
+    'Hutka',
+    format(
+      'Запланировано действие: %s%s%s',
+      normalized_next_step,
+      case
+        when p_next_contact_date is null then ''
+        else format(' · дата %s', p_next_contact_date)
+      end,
+      case
+        when nullif(trim(p_comment), '') is null then ''
+        else format(' · %s', trim(p_comment))
+      end
+    ),
+    'next_action_planned',
+    actor_id
+  );
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    case when is_created then 'создал задачу' else 'изменил задачу' end,
+    'task',
+    saved_task_id,
+    normalized_next_step,
+    jsonb_build_object(
+      'contact_id',
+      p_lead_id,
+      'contact',
+      lead_name,
+      'due_date',
+      p_next_contact_date,
+      'from_next_action',
+      true
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'task_id',
+    saved_task_id,
+    'created',
+    is_created
+  );
+end;
+$$;
+
+revoke all on function public.schedule_lead_action(
+  uuid, text, timestamptz, text, uuid
+) from public;
+revoke all on function public.schedule_lead_action(
+  uuid, text, timestamptz, text, uuid
+) from anon;
+grant execute on function public.schedule_lead_action(
+  uuid, text, timestamptz, text, uuid
+) to authenticated, service_role;
+
+-- Step 59: move a contact between funnel stages atomically.
+create or replace function public.move_lead_to_stage(
+  p_lead_id uuid,
+  p_stage_id uuid,
+  p_stage_name text,
+  p_refusal_reason text,
+  p_campaign_id text,
+  p_actor_profile_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  normalized_stage_name text := public.hutka_normalize_stage_name(p_stage_name);
+  normalized_refusal_reason text := nullif(trim(p_refusal_reason), '');
+  resolved_stage_id uuid;
+  lead_name text;
+  actor_id uuid;
+  stage_order integer;
+  stage_color text;
+begin
+  if p_lead_id is null then
+    return jsonb_build_object('ok', false, 'error', 'missing-lead');
+  end if;
+
+  perform pg_advisory_xact_lock(
+    hashtextextended('funnel-lead:' || p_lead_id::text, 0)
+  );
+
+  if p_stage_id is not null then
+    select
+      stage.id,
+      public.hutka_normalize_stage_name(stage.name)
+    into resolved_stage_id, normalized_stage_name
+    from public.funnel_stages stage
+    where stage.id = p_stage_id;
+  end if;
+
+  if resolved_stage_id is null then
+    if nullif(trim(p_stage_name), '') is null then
+      return jsonb_build_object('ok', false, 'error', 'stage-not-found');
+    end if;
+
+    perform pg_advisory_xact_lock(
+      hashtextextended('funnel-stage:' || lower(normalized_stage_name), 0)
+    );
+
+    select stage.id
+    into resolved_stage_id
+    from public.funnel_stages stage
+    where public.hutka_normalize_stage_name(stage.name) = normalized_stage_name
+    order by stage.order_index asc, stage.created_at asc, stage.id asc
+    limit 1;
+
+    if resolved_stage_id is null then
+      stage_order := case normalized_stage_name
+        when 'Новый' then 1
+        when 'Написали' then 2
+        when 'Ответил' then 3
+        when 'Заинтересован' then 4
+        when 'Тестирует' then 5
+        when 'Пауза' then 6
+        when 'Отказ' then 7
+        else 99
+      end;
+      stage_color := case normalized_stage_name
+        when 'Новый' then 'gray'
+        when 'Написали' then 'purple'
+        when 'Ответил' then 'blue'
+        when 'Заинтересован' then 'yellow'
+        when 'Тестирует' then 'green'
+        when 'Пауза' then 'gray'
+        when 'Отказ' then 'red'
+        else 'gray'
+      end;
+
+      insert into public.funnel_stages (name, type, order_index, color)
+      values (normalized_stage_name, 'master', stage_order, stage_color)
+      returning id into resolved_stage_id;
+    end if;
+  end if;
+
+  if normalized_stage_name = 'Отказ' and normalized_refusal_reason is null then
+    return jsonb_build_object('ok', false, 'error', 'refusal-required');
+  end if;
+
+  select profile.id
+  into actor_id
+  from public.profiles profile
+  where profile.user_id = auth.uid()
+  limit 1;
+
+  if actor_id is null and auth.role() = 'service_role' then
+    actor_id := p_actor_profile_id;
+  end if;
+
+  update public.leads
+  set
+    stage_id = resolved_stage_id,
+    refusal_reason_id = null,
+    refusal_reason = case when normalized_stage_name = 'Отказ' then normalized_refusal_reason else null end,
+    refusal_comment = case when normalized_stage_name = 'Отказ' then normalized_refusal_reason else null end,
+    refused_at = case when normalized_stage_name = 'Отказ' then now() else null end,
+    updated_at = now()
+  where id = p_lead_id
+  returning name into lead_name;
+
+  if lead_name is null then
+    return jsonb_build_object('ok', false, 'error', 'lead-not-found');
+  end if;
+
+  insert into public.lead_interactions (
+    lead_id,
+    type,
+    channel,
+    text,
+    result,
+    created_by
+  )
+  values (
+    p_lead_id,
+    'status_change',
+    'Hutka',
+    case
+      when normalized_stage_name = 'Отказ'
+        then format('Контакт перемещен в отказ. Причина: %s', normalized_refusal_reason)
+      when normalized_stage_name = 'Тестирует'
+        then 'Важное событие: контакт начал тестирование.'
+      else format('Контакт перемещен в стадию: %s', normalized_stage_name)
+    end,
+    'stage_updated',
+    actor_id
+  );
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    'перетащил контакт в воронке',
+    'contact',
+    p_lead_id,
+    lead_name,
+    jsonb_build_object(
+      'stage',
+      normalized_stage_name,
+      'campaign_id',
+      nullif(trim(p_campaign_id), ''),
+      'refusal_reason',
+      normalized_refusal_reason
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'lead_id',
+    p_lead_id,
+    'stage_id',
+    resolved_stage_id,
+    'stage_name',
+    normalized_stage_name
+  );
+end;
+$$;
+
+revoke all on function public.move_lead_to_stage(
+  uuid, uuid, text, text, text, uuid
+) from public;
+revoke all on function public.move_lead_to_stage(
+  uuid, uuid, text, text, text, uuid
+) from anon;
+grant execute on function public.move_lead_to_stage(
+  uuid, uuid, text, text, text, uuid
+) to authenticated, service_role;
+
+-- Step 60: create personal contact questions atomically.
+create or replace function public.create_lead_questionnaire_with_questions(
+  p_lead_id uuid,
+  p_title text,
+  p_description text,
+  p_token text,
+  p_public_url text,
+  p_source text,
+  p_source_title text,
+  p_questions jsonb,
+  p_actor_profile_id uuid
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+declare
+  lead_name text;
+  normalized_title text;
+  normalized_token text := trim(coalesce(p_token, ''));
+  normalized_public_url text := coalesce(
+    nullif(trim(p_public_url), ''),
+    '/q/' || trim(coalesce(p_token, ''))
+  );
+  normalized_source text := lower(trim(coalesce(p_source, 'manual')));
+  normalized_questions jsonb := coalesce(p_questions, '[]'::jsonb);
+  questionnaire_id uuid;
+  questionnaire_created_at timestamptz;
+  actor_id uuid;
+  questions_count integer;
+  interaction_text text;
+begin
+  if p_lead_id is null then
+    return jsonb_build_object('ok', false, 'error', 'missing-contact');
+  end if;
+
+  if normalized_token = '' then
+    return jsonb_build_object('ok', false, 'error', 'questionnaire-token-required');
+  end if;
+
+  if jsonb_typeof(normalized_questions) <> 'array' then
+    return jsonb_build_object('ok', false, 'error', 'questions-required');
+  end if;
+
+  select count(*)
+  into questions_count
+  from jsonb_array_elements(normalized_questions) question
+  where nullif(trim(question ->> 'text'), '') is not null;
+
+  if questions_count = 0 then
+    return jsonb_build_object('ok', false, 'error', 'questions-required');
+  end if;
+
+  select lead.name
+  into lead_name
+  from public.leads lead
+  where lead.id = p_lead_id;
+
+  if lead_name is null then
+    return jsonb_build_object('ok', false, 'error', 'contact-not-found');
+  end if;
+
+  select profile.id
+  into actor_id
+  from public.profiles profile
+  where profile.user_id = auth.uid()
+  limit 1;
+
+  if actor_id is null and auth.role() = 'service_role' then
+    actor_id := p_actor_profile_id;
+  end if;
+
+  normalized_title := coalesce(
+    nullif(trim(p_title), ''),
+    format('Вопросы для %s', lead_name)
+  );
+
+  insert into public.lead_questionnaires (
+    lead_id,
+    title,
+    description,
+    status,
+    token,
+    created_by
+  )
+  values (
+    p_lead_id,
+    normalized_title,
+    nullif(trim(p_description), ''),
+    'active',
+    normalized_token,
+    actor_id
+  )
+  returning id, created_at
+  into questionnaire_id, questionnaire_created_at;
+
+  insert into public.lead_questionnaire_questions (
+    questionnaire_id,
+    question_text,
+    question_type,
+    options,
+    required,
+    order_index
+  )
+  select
+    questionnaire_id,
+    trim(question.value ->> 'text'),
+    coalesce(nullif(trim(question.value ->> 'type'), ''), 'short_text'),
+    case
+      when jsonb_typeof(question.value -> 'options') = 'array'
+        then question.value -> 'options'
+      else '[]'::jsonb
+    end,
+    coalesce((question.value ->> 'required')::boolean, false),
+    question.ordinality::integer
+  from jsonb_array_elements(normalized_questions)
+    with ordinality as question(value, ordinality)
+  where nullif(trim(question.value ->> 'text'), '') is not null;
+
+  interaction_text := case
+    when normalized_source = 'question_pack'
+      then format(
+        'Созданы вопросы для контакта из готового набора «%s»: %s',
+        coalesce(nullif(trim(p_source_title), ''), normalized_title),
+        normalized_public_url
+      )
+    else format(
+      'Созданы вопросы для контакта «%s»: %s',
+      normalized_title,
+      normalized_public_url
+    )
+  end;
+
+  insert into public.lead_interactions (
+    lead_id,
+    type,
+    channel,
+    text,
+    result,
+    created_by
+  )
+  values (
+    p_lead_id,
+    'survey_sent',
+    'Hutka',
+    interaction_text,
+    case
+      when normalized_source = 'question_pack' then 'lead_questionnaire_pack_created'
+      else 'lead_questionnaire_created'
+    end,
+    actor_id
+  );
+
+  insert into public.activity_logs (
+    user_id,
+    action,
+    entity_type,
+    entity_id,
+    entity_title,
+    details
+  )
+  values (
+    actor_id,
+    'создал анкету',
+    'lead_questionnaire',
+    questionnaire_id,
+    normalized_title,
+    jsonb_build_object(
+      'lead_id',
+      p_lead_id,
+      'source',
+      normalized_source,
+      'questions',
+      questions_count
+    )
+  );
+
+  return jsonb_build_object(
+    'ok',
+    true,
+    'questionnaire_id',
+    questionnaire_id,
+    'lead_id',
+    p_lead_id,
+    'lead_name',
+    lead_name,
+    'title',
+    normalized_title,
+    'description',
+    nullif(trim(p_description), ''),
+    'status',
+    'active',
+    'token',
+    normalized_token,
+    'questions_count',
+    questions_count,
+    'created_at',
+    questionnaire_created_at
+  );
+end;
+$$;
+
+revoke all on function public.create_lead_questionnaire_with_questions(
+  uuid, text, text, text, text, text, text, jsonb, uuid
+) from public;
+revoke all on function public.create_lead_questionnaire_with_questions(
+  uuid, text, text, text, text, text, text, jsonb, uuid
+) from anon;
+grant execute on function public.create_lead_questionnaire_with_questions(
+  uuid, text, text, text, text, text, text, jsonb, uuid
+) to authenticated, service_role;

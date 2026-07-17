@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { AlertCircle, CheckCircle2, ExternalLink, Send, Settings2, Users } from 'lucide-react';
-import { sendTelegramBroadcastTestAction, sendTelegramTestToAllRecipientsAction } from '@/actions/telegram.actions';
 import { PageHeader } from '@/components/layout/page-header';
+import { TelegramTestWorkspace } from '@/components/settings/telegram-test-workspace';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { requireAdmin } from '@/lib/permissions';
 import { getTelegramIntegrationStatus } from '@/lib/telegram';
 
@@ -112,18 +111,7 @@ export default async function TelegramSettingsPage({ searchParams }: { searchPar
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" /> Тестовое сообщение</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <form action={sendTelegramBroadcastTestAction} className="space-y-4">
-              <Textarea name="message" defaultValue="Тестовое сообщение из Hutka. Telegram-уведомления для команды работают." />
-              <Button type="submit">
-                <Send className="h-4 w-4" />
-                Отправить текст команде
-              </Button>
-            </form>
-            <form action={sendTelegramTestToAllRecipientsAction}>
-              <Button type="submit" variant="secondary">Быстрый тест всем</Button>
-            </form>
-          </CardContent>
+          <CardContent><TelegramTestWorkspace /></CardContent>
         </Card>
 
         <Card>

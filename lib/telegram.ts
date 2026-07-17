@@ -1,5 +1,7 @@
 import { createClient as createSupabaseServiceClient } from '@supabase/supabase-js';
+import { after } from 'next/server';
 import { getSupabaseServiceConfig, isSupabaseConfigured, isSupabaseServiceConfigured } from '@/lib/supabase/config';
+import { getAppBaseUrl } from '@/lib/app-url';
 
 export type TelegramRecipient = {
   id: string;
@@ -46,13 +48,7 @@ function getBotToken() {
 }
 
 function getAppUrl() {
-  const rawUrl = process.env.NEXT_PUBLIC_APP_URL
-    || process.env.VERCEL_PROJECT_PRODUCTION_URL
-    || process.env.VERCEL_URL
-    || '';
-  const trimmed = rawUrl.trim().replace(/\/$/, '');
-  if (!trimmed) return '';
-  return /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
+  return getAppBaseUrl();
 }
 
 function canUseServiceClient() {
@@ -126,6 +122,7 @@ export async function sendTelegramMessage({ chatId, text, disableWebPagePreview 
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(6000),
       body: JSON.stringify({
         chat_id: targetChatId,
         text: normalizedText,
@@ -218,7 +215,6 @@ export async function sendWorkspaceTelegramNotification(payload: WorkspaceTelegr
     return { sent: 0, failed: 0, skipped: true, reason: 'bot-not-configured', errors: ['TELEGRAM_BOT_TOKEN is not configured'] } satisfies WorkspaceTelegramResult;
   }
 
-  const recipients = await getTelegramRecipients();
   if (!isSupabaseServiceConfigured()) {
     await writeTelegramDeliveryLog({
       eventType,
@@ -229,6 +225,7 @@ export async function sendWorkspaceTelegramNotification(payload: WorkspaceTelegr
     return { sent: 0, failed: 0, skipped: true, reason: 'service-not-configured', errors: ['SUPABASE_SERVICE_ROLE_KEY is not configured'] } satisfies WorkspaceTelegramResult;
   }
 
+  const recipients = await getTelegramRecipients();
   if (recipients.length === 0) {
     await writeTelegramDeliveryLog({
       eventType,
@@ -260,6 +257,17 @@ export async function sendWorkspaceTelegramNotification(payload: WorkspaceTelegr
     skipped: false,
     errors: results.map((result) => result.error).filter((error): error is string => Boolean(error))
   } satisfies WorkspaceTelegramResult;
+}
+
+export function queueWorkspaceTelegramNotification(payload: WorkspaceTelegramPayload | (() => Promise<WorkspaceTelegramPayload>)) {
+  after(async () => {
+    try {
+      const resolvedPayload = typeof payload === 'function' ? await payload() : payload;
+      await sendWorkspaceTelegramNotification(resolvedPayload);
+    } catch {
+      // Delivery is best-effort and must not delay or fail the user's action.
+    }
+  });
 }
 
 export async function maybeNotifyQuestionnaireResponse(input: {

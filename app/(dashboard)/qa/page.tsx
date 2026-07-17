@@ -57,13 +57,13 @@ export default async function QaPage() {
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
-                  <Link href="/api/health" target="_blank">
+                  <Link prefetch={false} href="/api/health" target="_blank">
                     <ShieldCheck className="h-4 w-4" />
                     Health endpoint
                   </Link>
                 </Button>
                 <Button asChild variant="secondary">
-                  <Link href="/docs/PRODUCTION_SMOKE_TEST.md" target="_blank">
+                  <Link prefetch={false} href="/docs/PRODUCTION_SMOKE_TEST.md" target="_blank">
                     Smoke test
                     <ExternalLink className="h-4 w-4" />
                   </Link>
@@ -134,7 +134,7 @@ export default async function QaPage() {
                 <p className="mt-1 text-sm leading-6 text-app-muted">{group.description}</p>
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {group.routes.map((route) => (
-                    <Link key={`${group.title}-${route.href}`} href={route.href} className="rounded-2xl border border-app-line p-3 transition hover:border-purple-200 hover:bg-purple-50">
+                    <Link key={`${group.title}-${route.href}`} prefetch={false} href={route.href} className="rounded-2xl border border-app-line p-3 transition hover:border-purple-200 hover:bg-purple-50">
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black text-app-text">{route.label}</span>
                         <Badge tone={accessTone(route.access)}>{accessLabel(route.access)}</Badge>

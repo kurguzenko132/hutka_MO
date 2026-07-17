@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 
@@ -48,6 +49,30 @@ export type TaskListItem = {
 export type TaskFilterOptions = {
   leads: Array<{ id: string; name: string }>;
   teamMembers: TaskTeamMember[];
+};
+
+export type TaskSummary = {
+  total: number;
+  overdue: number;
+  today: number;
+  urgent: number;
+  done: number;
+};
+
+export type TaskDirectoryPage = {
+  items: TaskListItem[];
+  summary: TaskSummary;
+  total: number;
+  currentPage: number;
+  pageCount: number;
+  pageSize: number;
+};
+
+export type TaskReportSummary = {
+  total: number;
+  overdue: number;
+  today: number;
+  later: number;
 };
 
 const taskPriorities: TaskPriority[] = ['none', 'low', 'medium', 'high', 'urgent'];
@@ -102,6 +127,11 @@ export function statusLabel(status?: string | null) {
 
 function normalize(value?: string | null) {
   return String(value ?? '').trim().toLowerCase();
+}
+
+function safeNumber(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function normalizePriority(value?: string | null): TaskPriority {
@@ -368,33 +398,204 @@ async function getTaskAssigneesByTaskId(taskIds: string[]) {
   return assigneesByTaskId;
 }
 
-export async function getTasks(filters: TaskFilters = {}): Promise<TaskListItem[]> {
-  let items: TaskListItem[];
-
+const getAllTasks = cache(async (): Promise<TaskListItem[]> => {
   if (!isSupabaseConfigured()) {
-    items = demoTasks;
-  } else {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('tasks')
-      .select('id,title,description,due_date,priority,status,created_at,leads(id,name)')
-      .order('due_date', { ascending: true, nullsFirst: false })
-      .order('created_at', { ascending: false });
-
-    if (error || !data) {
-      items = [];
-    } else {
-      const taskIds = data.map((task) => String(task.id)).filter(Boolean);
-      const assigneesByTaskId = await getTaskAssigneesByTaskId(taskIds);
-      items = data.map((task) => {
-        const taskId = String(task.id);
-        return mapDbTask(task as Record<string, unknown>, assigneesByTaskId.get(taskId) ?? []);
-      });
-    }
+    return demoTasks;
   }
 
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id,title,description,due_date,priority,status,created_at,leads(id,name)')
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  const taskIds = data.map((task) => String(task.id)).filter(Boolean);
+  const assigneesByTaskId = await getTaskAssigneesByTaskId(taskIds);
+  return data.map((task) => {
+    const taskId = String(task.id);
+    return mapDbTask(task as Record<string, unknown>, assigneesByTaskId.get(taskId) ?? []);
+  });
+});
+
+export async function getTasks(filters: TaskFilters = {}): Promise<TaskListItem[]> {
+  const items = await getAllTasks();
   return items.filter((task) => matchesTaskFilters(task, filters));
 }
+
+function summarizeTasks(tasks: TaskListItem[]): TaskSummary {
+  return {
+    total: tasks.length,
+    overdue: tasks.filter((task) => task.group === 'Просрочено').length,
+    today: tasks.filter((task) => task.group === 'Сегодня').length,
+    urgent: tasks.filter((task) => task.priorityValue === 'urgent').length,
+    done: tasks.filter((task) => task.statusValue === 'done').length
+  };
+}
+
+async function getTaskDirectoryPageFallback(
+  filters: TaskFilters,
+  requestedPage: number,
+  pageSize: number
+): Promise<TaskDirectoryPage> {
+  const items = await getTasks(filters);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(Math.max(requestedPage, 1), pageCount);
+  return {
+    items: items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    summary: summarizeTasks(items),
+    total: items.length,
+    currentPage,
+    pageCount,
+    pageSize
+  };
+}
+
+function taskDirectoryParams(filters: TaskFilters, page: number, pageSize: number) {
+  return {
+    p_q: filters.q || null,
+    p_status: filters.status || 'active',
+    p_priority: filters.priority || null,
+    p_due: filters.due || null,
+    p_lead_id: filters.leadId || null,
+    p_profile_id: filters.profileId || null,
+    p_offset: (page - 1) * pageSize,
+    p_limit: pageSize
+  };
+}
+
+function parseTaskDirectoryPayload(data: unknown) {
+  if (!data || typeof data !== 'object') return null;
+  const payload = data as { total?: unknown; items?: unknown; summary?: unknown };
+  const summary = payload.summary && typeof payload.summary === 'object'
+    ? payload.summary as Record<string, unknown>
+    : {};
+  const items = Array.isArray(payload.items)
+    ? payload.items
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((item) => {
+        const rawAssignees = Array.isArray(item.assignees) ? item.assignees : [];
+        return mapDbTask(
+          item,
+          rawAssignees
+            .filter((assignee): assignee is Record<string, unknown> => Boolean(assignee) && typeof assignee === 'object')
+            .map(mapTaskAssignee)
+            .filter((assignee): assignee is TaskAssignee => assignee !== null)
+        );
+      })
+    : [];
+
+  return {
+    items,
+    total: Math.max(0, safeNumber(payload.total)),
+    summary: {
+      total: Math.max(0, safeNumber(summary.total)),
+      overdue: Math.max(0, safeNumber(summary.overdue)),
+      today: Math.max(0, safeNumber(summary.today)),
+      urgent: Math.max(0, safeNumber(summary.urgent)),
+      done: Math.max(0, safeNumber(summary.done))
+    }
+  };
+}
+
+export async function getTaskDirectoryPage(
+  filters: TaskFilters = {},
+  requestedPage = 1,
+  requestedPageSize = 40
+): Promise<TaskDirectoryPage> {
+  const pageSize = Math.min(Math.max(Math.floor(requestedPageSize) || 40, 1), 100);
+  const page = Math.max(Math.floor(requestedPage) || 1, 1);
+
+  if (!isSupabaseConfigured()) {
+    return getTaskDirectoryPageFallback(filters, page, pageSize);
+  }
+
+  try {
+    const supabase = await createClient();
+    const firstResult = await supabase.rpc('get_task_directory_page', taskDirectoryParams(filters, page, pageSize));
+    if (firstResult.error) return getTaskDirectoryPageFallback(filters, page, pageSize);
+
+    const firstPayload = parseTaskDirectoryPayload(firstResult.data);
+    if (!firstPayload) return getTaskDirectoryPageFallback(filters, page, pageSize);
+
+    const pageCount = Math.max(1, Math.ceil(firstPayload.total / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    if (currentPage === page) {
+      return { ...firstPayload, currentPage, pageCount, pageSize };
+    }
+
+    const finalResult = await supabase.rpc('get_task_directory_page', taskDirectoryParams(filters, currentPage, pageSize));
+    const finalPayload = finalResult.error ? null : parseTaskDirectoryPayload(finalResult.data);
+    return {
+      items: finalPayload?.items ?? [],
+      summary: finalPayload?.summary ?? firstPayload.summary,
+      total: finalPayload?.total ?? firstPayload.total,
+      currentPage,
+      pageCount,
+      pageSize
+    };
+  } catch {
+    return getTaskDirectoryPageFallback(filters, page, pageSize);
+  }
+}
+
+export const getTaskPreview = cache(async (requestedLimit = 5): Promise<TaskListItem[]> => {
+  const limit = Math.min(Math.max(Math.floor(requestedLimit) || 5, 1), 20);
+  if (!isSupabaseConfigured()) {
+    return (await getTasks({ status: 'active' })).slice(0, limit);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('id,title,description,due_date,priority,status,created_at,leads(id,name)')
+    .in('status', ['todo', 'in_progress'])
+    .order('due_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+
+  const taskIds = data.map((task) => String(task.id)).filter(Boolean);
+  const assigneesByTaskId = await getTaskAssigneesByTaskId(taskIds);
+  return data.map((task) => {
+    const taskId = String(task.id);
+    return mapDbTask(task as Record<string, unknown>, assigneesByTaskId.get(taskId) ?? []);
+  });
+});
+
+export const getTaskReportSummary = cache(async (): Promise<TaskReportSummary> => {
+  if (!isSupabaseConfigured()) {
+    const tasks = await getTasks({ status: 'active' });
+    return {
+      total: tasks.length,
+      overdue: tasks.filter((task) => task.group === 'Просрочено').length,
+      today: tasks.filter((task) => task.group === 'Сегодня').length,
+      later: tasks.filter((task) => task.group === 'Позже').length
+    };
+  }
+
+  const today = startOfToday();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+  const weekEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+  const supabase = await createClient();
+  const activeStatuses: TaskStatus[] = ['todo', 'in_progress'];
+  const [totalResult, overdueResult, todayResult, laterResult] = await Promise.all([
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).in('status', activeStatuses),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).in('status', activeStatuses).lt('due_date', today.toISOString()),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).in('status', activeStatuses).gte('due_date', today.toISOString()).lt('due_date', tomorrow.toISOString()),
+    supabase.from('tasks').select('id', { count: 'exact', head: true }).in('status', activeStatuses).gte('due_date', weekEnd.toISOString())
+  ]);
+
+  return {
+    total: totalResult.count ?? 0,
+    overdue: overdueResult.count ?? 0,
+    today: todayResult.count ?? 0,
+    later: laterResult.count ?? 0
+  };
+});
 
 export async function getTaskTeamOptions(): Promise<TaskTeamMember[]> {
   if (!isSupabaseConfigured()) {
@@ -434,7 +635,7 @@ export async function getTaskFilterOptions(): Promise<TaskFilterOptions> {
 
   const supabase = await createClient();
   const [{ data, error }, teamMembers] = await Promise.all([
-    supabase.from('leads').select('id,name').order('name', { ascending: true }),
+    supabase.from('leads').select('id,name,tasks!inner(id)').order('name', { ascending: true }).limit(1000),
     getTaskTeamOptions()
   ]);
   if (error || !data) return { leads: [], teamMembers };

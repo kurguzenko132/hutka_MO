@@ -1,6 +1,8 @@
+import Form from 'next/form';
 import { FunnelBoard } from '@/components/funnels/funnel-board';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { getFunnelBoard } from '@/lib/funnels';
@@ -15,10 +17,9 @@ type SearchParams = {
 };
 
 export default async function FunnelsPage({ searchParams }: { searchParams?: Promise<SearchParams> }) {
-  const user = await getCurrentUserContext();
+  const [user, params] = await Promise.all([getCurrentUserContext(), searchParams]);
   const role = user?.role ?? 'viewer';
   const canManageFunnels = can(role, 'manageFunnels');
-  const params = await searchParams;
   const campaignId = params?.campaignId;
   const [board, campaigns] = await Promise.all([getFunnelBoard(campaignId), getCampaignOptions()]);
 
@@ -33,7 +34,7 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
 
       <Card>
         <CardContent className="p-4">
-          <form action="/funnels" className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <Form action="/funnels" prefetch={false} className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <label className="space-y-1.5">
               <span className="text-xs font-bold uppercase tracking-wide text-app-faint">Кампания</span>
               <Select name="campaignId" defaultValue={campaignId ?? ''}>
@@ -43,8 +44,8 @@ export default async function FunnelsPage({ searchParams }: { searchParams?: Pro
                 ))}
               </Select>
             </label>
-            <Button type="submit" variant="secondary">Показать</Button>
-          </form>
+            <SubmitButton variant="secondary">Показать</SubmitButton>
+          </Form>
         </CardContent>
       </Card>
 

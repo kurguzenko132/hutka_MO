@@ -1,14 +1,16 @@
 import Link from 'next/link';
 import { ArrowLeft, Save } from 'lucide-react';
 import { createTaskAction } from '@/actions/tasks.actions';
-import { getLeadOptions } from '@/lib/leads';
+import { getLeadOptionById } from '@/lib/leads';
 import { getTaskTeamOptions, taskAssigneeRoleLabels, type TaskTeamMember } from '@/lib/tasks';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { LeadCombobox } from '@/components/people/lead-combobox';
 import { requirePermission } from '@/lib/permissions';
 
 const errorMessages: Record<string, string> = {
@@ -43,9 +45,12 @@ function TeamCheckboxGroup({ title, name, members }: { title: string; name: stri
 
 export default async function NewTaskPage({ searchParams }: { searchParams?: Promise<{ error?: string; leadId?: string }> }) {
   await requirePermission('manageTasks', '/tasks?error=forbidden');
-  const [leads, teamMembers, params] = await Promise.all([getLeadOptions(), getTaskTeamOptions(), searchParams]);
+  const params = await searchParams;
+  const [teamMembers, selectedLead] = await Promise.all([
+    getTaskTeamOptions(),
+    params?.leadId ? getLeadOptionById(params.leadId) : Promise.resolve(null)
+  ]);
   const error = params?.error ? errorMessages[params.error] : undefined;
-  const selectedLeadId = params?.leadId ?? '';
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
@@ -68,12 +73,11 @@ export default async function NewTaskPage({ searchParams }: { searchParams?: Pro
               <Input name="title" placeholder="Написать Анне повторно" required />
             </Field>
             <Field label="Контакт из базы">
-              <Select name="lead_id" defaultValue={selectedLeadId}>
-                <option value="">Без контакта</option>
-                {leads.map((lead) => (
-                  <option key={lead.id} value={lead.id}>{lead.name}</option>
-                ))}
-              </Select>
+              <LeadCombobox
+                name="lead_id"
+                initialOption={selectedLead}
+                placeholder="Найти контакт или оставить пустым..."
+              />
             </Field>
             <Field label="Дедлайн">
               <Input name="due_date" type="date" />
@@ -112,7 +116,7 @@ export default async function NewTaskPage({ searchParams }: { searchParams?: Pro
         </FormSection>
         <div className="flex justify-end gap-3">
           <Button asChild variant="secondary"><Link href="/tasks">Отмена</Link></Button>
-          <Button type="submit"><Save className="h-4 w-4" />Сохранить задачу</Button>
+          <SubmitButton><Save className="h-4 w-4" />Сохранить задачу</SubmitButton>
         </div>
       </form>
     </div>

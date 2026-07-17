@@ -61,7 +61,7 @@ export default async function GeographyPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/80 bg-white/80 p-5 shadow-card backdrop-blur">
+          <div className="rounded-3xl border border-app-line bg-white p-5 shadow-card">
             <p className="text-sm font-black text-app-text">Что сделать дальше</p>
             <div className="mt-4 space-y-3">
               {data.recommendation.nextActions.map((action, index) => (
@@ -170,7 +170,7 @@ export default async function GeographyPage() {
                     <td className="px-4 py-4 font-bold text-emerald-600">{city.activeParticipants}</td>
                     <td className="px-4 py-4 text-app-muted">{city.topNiches.slice(0, 3).join(', ') || '—'}</td>
                     <td className="px-4 py-4">
-                      <Link href={`/people?city=${encodeURIComponent(city.city)}`} className="inline-flex items-center gap-1 text-xs font-bold text-app-purple hover:text-purple-700">
+                      <Link prefetch={false} href={`/people?city=${encodeURIComponent(city.city)}`} className="inline-flex items-center gap-1 text-xs font-bold text-app-purple hover:text-purple-700">
                         Контакты <ArrowUpRight className="h-3 w-3" />
                       </Link>
                     </td>

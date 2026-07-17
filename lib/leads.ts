@@ -1,7 +1,8 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { activity, leads as mockLeads, type Lead, type LeadType, type Priority } from '@/lib/data';
-import { matchesSmartView } from '@/lib/lead-views';
+import { matchesSmartView, type LeadSmartViewCounts } from '@/lib/lead-views';
 import { canonicalFunnelStageNames, normalizeStageName, orderStageNames, uniqueNormalizedTags } from '@/lib/stages';
 
 const typeToDb: Record<LeadType, string> = {
@@ -45,6 +46,20 @@ export type LeadFilterOptions = {
   sources: string[];
   priorities: string[];
   tags: string[];
+};
+
+export type LeadDirectoryPage = {
+  items: Lead[];
+  total: number;
+  currentPage: number;
+  pageCount: number;
+  pageSize: number;
+};
+
+export type LeadDirectoryMeta = {
+  total: number;
+  options: LeadFilterOptions;
+  smartViewCounts: LeadSmartViewCounts;
 };
 
 export type LeadInteraction = {
@@ -237,41 +252,196 @@ function mapDbLead(row: Record<string, unknown>): Lead {
 
 const leadSelect = 'id,name,type,niche,city,phone,telegram,instagram,email,priority_score,notes,next_step,next_contact_date,refusal_reason,refusal_comment,refused_at,created_at,sources(name),funnel_stages(name),refusal_reasons(name,color),lead_tags(tags(name))';
 
-export async function getLeads(filters: LeadFilters = {}): Promise<Lead[]> {
-  let items: Lead[];
-
+const getAllLeads = cache(async (): Promise<Lead[]> => {
   if (!isSupabaseConfigured()) {
-    items = mockLeads;
-  } else {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('leads')
-      .select(leadSelect)
-      .order('created_at', { ascending: false });
-
-    if (error || !data) {
-      items = [];
-    } else {
-      items = data.map((row) => mapDbLead(row as Record<string, unknown>));
-    }
+    return mockLeads;
   }
 
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('leads')
+    .select(leadSelect)
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+  return data.map((row) => mapDbLead(row as Record<string, unknown>));
+});
+
+function safeNumber(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function stringList(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return unique(value.map((item) => typeof item === 'string' ? item : String(item ?? '')));
+}
+
+function fallbackSmartViewCounts(items: Lead[]): LeadSmartViewCounts {
+  const count = (view: string) => items.filter((lead) => matchesSmartView(lead, view)).length;
+  return {
+    all: items.length,
+    interested: count('interested'),
+    testing: count('testing'),
+    'need-write': count('need-write'),
+    unanswered: count('unanswered'),
+    paused: count('paused'),
+    refusals: count('refusals'),
+    'no-next-step': count('no-next-step')
+  };
+}
+
+function directoryMetaFromItems(items: Lead[]): LeadDirectoryMeta {
+  return {
+    total: items.length,
+    options: {
+      types: unique(items.map((lead) => lead.type)),
+      cities: unique(items.map((lead) => lead.city)),
+      niches: unique(items.map((lead) => lead.niche)),
+      stages: orderStageNames(items.map((lead) => lead.stage)),
+      sources: unique(items.map((lead) => lead.source)),
+      priorities: unique(items.map((lead) => lead.priority)),
+      tags: unique(items.flatMap((lead) => lead.tags))
+    },
+    smartViewCounts: fallbackSmartViewCounts(items)
+  };
+}
+
+export async function getLeads(filters: LeadFilters = {}): Promise<Lead[]> {
+  const items = await getAllLeads();
   return items.filter((lead) => matchesLeadFilters(lead, filters));
 }
 
 export async function getLeadFilterOptions(): Promise<LeadFilterOptions> {
-  const items = await getLeads();
+  return (await getLeadDirectoryMeta()).options;
+}
 
+async function getLeadDirectoryPageFallback(filters: LeadFilters, requestedPage: number, pageSize: number): Promise<LeadDirectoryPage> {
+  const items = await getLeads(filters);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const currentPage = Math.min(Math.max(requestedPage, 1), pageCount);
   return {
-    types: unique(items.map((lead) => lead.type)),
-    cities: unique(items.map((lead) => lead.city)),
-    niches: unique(items.map((lead) => lead.niche)),
-    stages: orderStageNames(items.map((lead) => lead.stage)),
-    sources: unique(items.map((lead) => lead.source)),
-    priorities: unique(items.map((lead) => lead.priority)),
-    tags: unique(items.flatMap((lead) => lead.tags))
+    items: items.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    total: items.length,
+    currentPage,
+    pageCount,
+    pageSize
   };
 }
+
+function directoryPageParams(filters: LeadFilters, page: number, pageSize: number) {
+  return {
+    p_q: filters.q || null,
+    p_type: filters.type || null,
+    p_city: filters.city || null,
+    p_niche: filters.niche || null,
+    p_stage: filters.stage || null,
+    p_source: filters.source || null,
+    p_priority: filters.priority || null,
+    p_tag: filters.tag || null,
+    p_view: filters.view || null,
+    p_offset: (page - 1) * pageSize,
+    p_limit: pageSize
+  };
+}
+
+function parseDirectoryPagePayload(data: unknown) {
+  if (!data || typeof data !== 'object') return null;
+  const payload = data as { total?: unknown; items?: unknown };
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  return {
+    total: Math.max(0, safeNumber(payload.total)),
+    items: rawItems
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map(mapDbLead)
+  };
+}
+
+export async function getLeadDirectoryPage(
+  filters: LeadFilters = {},
+  requestedPage = 1,
+  requestedPageSize = 50
+): Promise<LeadDirectoryPage> {
+  const pageSize = Math.min(Math.max(Math.floor(requestedPageSize) || 50, 1), 200);
+  const page = Math.max(Math.floor(requestedPage) || 1, 1);
+
+  if (!isSupabaseConfigured()) {
+    return getLeadDirectoryPageFallback(filters, page, pageSize);
+  }
+
+  try {
+    const supabase = await createClient();
+    const firstResult = await supabase.rpc('get_lead_directory_page', directoryPageParams(filters, page, pageSize));
+    if (firstResult.error) return getLeadDirectoryPageFallback(filters, page, pageSize);
+
+    const firstPayload = parseDirectoryPagePayload(firstResult.data);
+    if (!firstPayload) return getLeadDirectoryPageFallback(filters, page, pageSize);
+
+    const pageCount = Math.max(1, Math.ceil(firstPayload.total / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    if (currentPage === page) {
+      return { ...firstPayload, currentPage, pageCount, pageSize };
+    }
+
+    const finalResult = await supabase.rpc('get_lead_directory_page', directoryPageParams(filters, currentPage, pageSize));
+    const finalPayload = finalResult.error ? null : parseDirectoryPagePayload(finalResult.data);
+    return {
+      items: finalPayload?.items ?? [],
+      total: finalPayload?.total ?? firstPayload.total,
+      currentPage,
+      pageCount,
+      pageSize
+    };
+  } catch {
+    return getLeadDirectoryPageFallback(filters, page, pageSize);
+  }
+}
+
+const getLeadDirectoryMeta = cache(async (): Promise<LeadDirectoryMeta> => {
+  if (!isSupabaseConfigured()) {
+    return directoryMetaFromItems(await getAllLeads());
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('get_lead_directory_meta');
+    if (error || !data || typeof data !== 'object') {
+      return directoryMetaFromItems(await getAllLeads());
+    }
+
+    const payload = data as Record<string, unknown>;
+    const rawCounts = payload.smart_counts && typeof payload.smart_counts === 'object'
+      ? payload.smart_counts as Record<string, unknown>
+      : {};
+
+    return {
+      total: Math.max(0, safeNumber(payload.total)),
+      options: {
+        types: stringList(payload.types),
+        cities: stringList(payload.cities),
+        niches: stringList(payload.niches),
+        stages: orderStageNames(stringList(payload.stages)),
+        sources: stringList(payload.sources),
+        priorities: stringList(payload.priorities),
+        tags: stringList(payload.tags)
+      },
+      smartViewCounts: {
+        all: safeNumber(rawCounts.all),
+        interested: safeNumber(rawCounts.interested),
+        testing: safeNumber(rawCounts.testing),
+        'need-write': safeNumber(rawCounts['need-write']),
+        unanswered: safeNumber(rawCounts.unanswered),
+        paused: safeNumber(rawCounts.paused),
+        refusals: safeNumber(rawCounts.refusals),
+        'no-next-step': safeNumber(rawCounts['no-next-step'])
+      }
+    };
+  } catch {
+    return directoryMetaFromItems(await getAllLeads());
+  }
+});
+
+export { getLeadDirectoryMeta };
 
 export async function getLeadById(id: string): Promise<Lead | null> {
   if (!isSupabaseConfigured()) {
@@ -302,17 +472,42 @@ export async function getLeadOptions(): Promise<LeadOption[]> {
   return data.map((lead) => ({ id: String(lead.id), name: String(lead.name) }));
 }
 
-export async function getLeadInteractions(leadId: string): Promise<LeadInteraction[]> {
+export async function getLeadOptionById(id: string): Promise<LeadOption | null> {
+  const leadId = id.trim();
+  if (!leadId) return null;
   if (!isSupabaseConfigured()) {
-    return activity.map((item, index) => ({ id: String(index), date: item.date, title: item.title, text: item.text }));
+    const lead = mockLeads.find((item) => item.id === leadId);
+    return lead ? { id: lead.id, name: lead.name } : null;
   }
 
   const supabase = await createClient();
   const { data, error } = await supabase
+    .from('leads')
+    .select('id,name')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (error || !data) return null;
+  return { id: String(data.id), name: String(data.name) };
+}
+
+export async function getLeadInteractions(leadId: string, limit?: number): Promise<LeadInteraction[]> {
+  if (!isSupabaseConfigured()) {
+    const items = activity.map((item, index) => ({ id: String(index), date: item.date, title: item.title, text: item.text }));
+    return limit ? items.slice(0, limit) : items;
+  }
+
+  const supabase = await createClient();
+  let query = supabase
     .from('lead_interactions')
     .select('id,type,channel,text,result,created_at')
     .eq('lead_id', leadId)
     .order('created_at', { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
+  }
+
+  const { data, error } = await query;
 
   if (error || !data) return [];
 
@@ -339,7 +534,8 @@ export async function getLeadTasks(leadId: string): Promise<LeadTask[]> {
     .from('tasks')
     .select('id,title,description,due_date,priority,status')
     .eq('lead_id', leadId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(100);
 
   if (error || !data) return [];
 
@@ -381,7 +577,6 @@ export type LeadRelatedItems = {
   campaigns: LeadRelationItem[];
   surveys: LeadSurveyResponseGroup[];
   insights: LeadRelationItem[];
-  hypotheses: LeadRelationItem[];
 };
 
 function relatedRow(item: unknown, key: string): Record<string, unknown> | null {
@@ -466,16 +661,6 @@ function buildFallbackRelatedItems(leadId: string): LeadRelatedItems {
         label: 'Высокая важность',
         meta: 'Маркетинговый вывод'
       }
-    ],
-    hypotheses: [
-      {
-        id: 'demo-hypothesis-1',
-        title: 'Оффер про новых клиентов работает лучше CRM',
-        href: '/hypotheses/demo-hypothesis-1',
-        type: 'hypothesis',
-        label: 'В проверке',
-        meta: 'Оффер'
-      }
     ]
   };
 }
@@ -487,24 +672,23 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
 
   const supabase = await createClient();
 
-  const [campaignsResult, surveysResult, insightsResult, hypothesesResult] = await Promise.all([
+  const [campaignsResult, surveysResult, insightsResult] = await Promise.all([
     supabase
       .from('campaign_leads')
       .select('campaigns(id,name,status,channel,created_at)')
-      .eq('lead_id', leadId),
+      .eq('lead_id', leadId)
+      .limit(100),
     supabase
       .from('survey_answers')
       .select('response_group_id,respondent_name,respondent_contact,created_at,surveys(id,title,type,status,slug)')
       .eq('lead_id', leadId)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(500),
     supabase
       .from('insight_leads')
       .select('insights(id,title,category,importance,status,created_at)')
-      .eq('lead_id', leadId),
-    supabase
-      .from('hypothesis_leads')
-      .select('hypotheses(id,title,category,status,confidence,created_at)')
       .eq('lead_id', leadId)
+      .limit(100)
   ]);
 
   const campaigns = campaignsResult.error || !campaignsResult.data
@@ -560,24 +744,9 @@ export async function getLeadRelatedItems(leadId: string): Promise<LeadRelatedIt
         meta: String(insight.category ?? 'Вывод')
       }));
 
-  const hypotheses = hypothesesResult.error || !hypothesesResult.data
-    ? []
-    : hypothesesResult.data
-      .map((item) => relatedRow(item, 'hypotheses'))
-      .filter((row): row is Record<string, unknown> => Boolean(row))
-      .map((hypothesis) => ({
-        id: String(hypothesis.id),
-        title: relationTitle(hypothesis),
-        href: `/hypotheses/${hypothesis.id}`,
-        type: 'hypothesis' as const,
-        label: String(hypothesis.status ?? 'new'),
-        meta: String(hypothesis.category ?? 'Архив')
-      }));
-
   return {
     campaigns: uniqueById(campaigns),
     surveys: Array.from(surveyGroups.values()),
-    insights: uniqueById(insights),
-    hypotheses: uniqueById(hypotheses)
+    insights: uniqueById(insights)
   };
 }

@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 
@@ -26,6 +27,14 @@ export type ActivityLogFilters = {
   entityType?: string;
   action?: string;
   date?: string;
+};
+
+export type ActivityLogDirectory = {
+  items: ActivityLogItem[];
+  total: number;
+  currentPage: number;
+  pageCount: number;
+  pageSize: number;
 };
 
 function formatDateTime(value?: string | null) {
@@ -60,27 +69,56 @@ function detailsText(value: unknown) {
     .join(' · ');
 }
 
+export async function writeActivityLog(input: ActivityLogInput) {
+  if (!isSupabaseConfigured()) return;
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('activity_logs').insert({
+    user_id: input.userId || null,
+    action: input.action,
+    entity_type: input.entityType,
+    entity_id: input.entityId || null,
+    entity_title: input.entityTitle || null,
+    details: input.details ?? {}
+  });
+  if (error) throw error;
+}
+
 export async function recordActivityLog(input: ActivityLogInput) {
   if (!isSupabaseConfigured()) return;
 
-  try {
-    const supabase = await createClient();
-    await supabase.from('activity_logs').insert({
-      user_id: input.userId || null,
-      action: input.action,
-      entity_type: input.entityType,
-      entity_id: input.entityId || null,
-      entity_title: input.entityTitle || null,
-      details: input.details ?? {}
-    });
-  } catch {
-    // Лог не должен ломать основное рабочее действие.
-  }
+  after(async () => {
+    try {
+      await writeActivityLog(input);
+    } catch {
+      // Лог не должен ломать основное рабочее действие.
+    }
+  });
 }
 
-export async function getActivityLogs(filters: ActivityLogFilters = {}) {
+function mapActivityLogRows(data: Array<Record<string, unknown>>): ActivityLogItem[] {
+  return data.map((row) => ({
+    id: String(row.id),
+    userName: profileName(row.profiles),
+    action: String(row.action ?? 'действие'),
+    entityType: String(row.entity_type ?? 'object'),
+    entityId: row.entity_id ? String(row.entity_id) : undefined,
+    entityTitle: String(row.entity_title ?? '—'),
+    details: detailsText(row.details),
+    createdAt: formatDateTime(String(row.created_at ?? ''))
+  }));
+}
+
+export async function getActivityLogs(
+  filters: ActivityLogFilters = {},
+  requestedPage = 1,
+  requestedPageSize = 50
+): Promise<ActivityLogDirectory> {
+  const pageSize = Math.min(Math.max(Math.floor(requestedPageSize) || 50, 1), 100);
+  const page = Math.max(Math.floor(requestedPage) || 1, 1);
+
   if (!isSupabaseConfigured()) {
-    return [
+    const items = [
       {
         id: 'demo-1',
         userName: 'Демо пользователь',
@@ -92,40 +130,53 @@ export async function getActivityLogs(filters: ActivityLogFilters = {}) {
         createdAt: formatDateTime(new Date().toISOString())
       }
     ] satisfies ActivityLogItem[];
+    return { items, total: items.length, currentPage: 1, pageCount: 1, pageSize };
   }
 
   try {
     const supabase = await createClient();
-    let query = supabase
-      .from('activity_logs')
-      .select('id,user_id,action,entity_type,entity_id,entity_title,details,created_at,profiles(full_name,email)')
-      .order('created_at', { ascending: false })
-      .limit(150);
+    const runQuery = async (currentPage: number) => {
+      let query = supabase
+        .from('activity_logs')
+        .select(
+          'id,user_id,action,entity_type,entity_id,entity_title,details,created_at,profiles(full_name,email)',
+          { count: 'exact' }
+        )
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * pageSize, currentPage * pageSize - 1);
 
-    if (filters.userId) query = query.eq('user_id', filters.userId);
-    if (filters.entityType) query = query.eq('entity_type', filters.entityType);
-    if (filters.action) query = query.ilike('action', `%${filters.action}%`);
-    if (filters.date) {
-      const start = new Date(`${filters.date}T00:00:00.000Z`);
-      const end = new Date(start);
-      end.setUTCDate(end.getUTCDate() + 1);
-      query = query.gte('created_at', start.toISOString()).lt('created_at', end.toISOString());
+      if (filters.userId) query = query.eq('user_id', filters.userId);
+      if (filters.entityType) query = query.eq('entity_type', filters.entityType);
+      if (filters.action) query = query.ilike('action', `%${filters.action}%`);
+      if (filters.date) {
+        const start = new Date(`${filters.date}T00:00:00.000Z`);
+        const end = new Date(start);
+        end.setUTCDate(end.getUTCDate() + 1);
+        query = query.gte('created_at', start.toISOString()).lt('created_at', end.toISOString());
+      }
+
+      return query;
+    };
+
+    const firstResult = await runQuery(page);
+    if (firstResult.error || !firstResult.data) {
+      return { items: [], total: 0, currentPage: 1, pageCount: 1, pageSize };
     }
 
-    const { data, error } = await query;
-    if (error || !data) return [];
+    const total = Math.max(0, firstResult.count ?? 0);
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    const result = currentPage === page ? firstResult : await runQuery(currentPage);
+    const data = result.error || !result.data ? [] : result.data;
 
-    return data.map((row) => ({
-      id: String(row.id),
-      userName: profileName((row as { profiles?: unknown }).profiles),
-      action: String(row.action ?? 'действие'),
-      entityType: String(row.entity_type ?? 'object'),
-      entityId: row.entity_id ? String(row.entity_id) : undefined,
-      entityTitle: String(row.entity_title ?? '—'),
-      details: detailsText(row.details),
-      createdAt: formatDateTime(String(row.created_at ?? ''))
-    })) satisfies ActivityLogItem[];
+    return {
+      items: mapActivityLogRows(data as Array<Record<string, unknown>>),
+      total,
+      currentPage,
+      pageCount,
+      pageSize
+    };
   } catch {
-    return [];
+    return { items: [], total: 0, currentPage: 1, pageCount: 1, pageSize };
   }
 }

@@ -32,6 +32,7 @@ export function ActionGrid({ role }: { role: UserRole }) {
             return (
               <Link
                 key={action.href}
+                prefetch={false}
                 href={action.href}
                 className="group rounded-2xl border border-app-line bg-white p-4 transition hover:border-purple-200 hover:bg-purple-50/60 hover:shadow-card"
               >

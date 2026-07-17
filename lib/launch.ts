@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { databaseTableLabels, databaseTables } from '@/lib/database-tables';
+import { getDatabaseTableCounts } from '@/lib/database-counts';
 
 export type LaunchCheck = {
   id: string;
@@ -75,11 +76,16 @@ export async function getLaunchReadiness() {
   }
 
   const supabase = await createClient();
-
-  for (const table of databaseTables) {
-    const { count, error } = await supabase.from(table).select('*', { count: 'exact', head: true });
-    tableStatus.push({ table, label: databaseTableLabels[table], ok: !error, count: count ?? 0, error: error?.message });
-  }
+  const tableCounts = await getDatabaseTableCounts(supabase);
+  tableCounts.forEach((result) => {
+    tableStatus.push({
+      table: result.table,
+      label: databaseTableLabels[result.table],
+      ok: !result.error,
+      count: result.count,
+      error: result.error
+    });
+  });
 
   const getCount = (table: string) => tableStatus.find((item) => item.table === table)?.count ?? 0;
   metrics.push(

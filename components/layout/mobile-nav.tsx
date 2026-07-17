@@ -10,6 +10,7 @@ import { navItems } from '@/lib/data';
 import { can, roleLabels, type UserRole } from '@/lib/roles';
 import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { useNotificationCount } from './notification-count';
 import { Logo } from './logo';
 
 const bottomNavHrefs = ['/dashboard', '/people', '/tasks', '/notifications'];
@@ -18,15 +19,14 @@ export function MobileNav({
   role,
   userName,
   userJobTitle,
-  userAvatarUrl,
-  unreadCount = 0
+  userAvatarUrl
 }: {
   role: UserRole;
   userName?: string;
   userJobTitle?: string;
   userAvatarUrl?: string;
-  unreadCount?: number;
 }) {
+  const unreadCount = useNotificationCount();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const initials = getInitials(userName, 'H');
@@ -86,7 +86,7 @@ export function MobileNav({
                 )}
               >
                 {userAvatarUrl ? (
-                  <Image src={userAvatarUrl} alt="" width={48} height={48} unoptimized className="h-12 w-12 rounded-2xl object-cover" />
+                  <Image src={userAvatarUrl} alt="" width={48} height={48} className="h-12 w-12 rounded-2xl object-cover" />
                 ) : (
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-black text-white">
                     {initials}

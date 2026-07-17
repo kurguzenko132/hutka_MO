@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getFollowUpRecommendations } from '@/lib/followups';
+import { getFollowUpDirectoryPage } from '@/lib/followups';
 import { sendWorkspaceTelegramNotification } from '@/lib/telegram';
 
 export const runtime = 'nodejs';
@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
 
-  const followups = await getFollowUpRecommendations();
+  const followups = await getFollowUpDirectoryPage(undefined, 1, 1);
   const focus = followups.recommendations[0];
 
   const result = await sendWorkspaceTelegramNotification({

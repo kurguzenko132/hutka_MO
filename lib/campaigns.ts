@@ -1,6 +1,7 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
+import { canonicalFunnelStageNames, isInterestedStage, isTestingStage, normalizeStageName } from '@/lib/stages';
 
 export type CampaignStatus = 'draft' | 'active' | 'paused' | 'finished';
 
@@ -30,6 +31,11 @@ export type CampaignMetrics = {
   conversion: string;
 };
 
+export type CampaignStageCount = {
+  name: string;
+  value: number;
+};
+
 export type CampaignListItem = {
   id: string;
   name: string;
@@ -50,6 +56,11 @@ export type CampaignListItem = {
 
 export type CampaignDetail = CampaignListItem & {
   contacts: CampaignContact[];
+  stageCounts: CampaignStageCount[];
+  contactsPage: {
+    total: number;
+    loaded: number;
+  };
 };
 
 const demoCampaigns: CampaignDetail[] = [
@@ -69,6 +80,8 @@ const demoCampaigns: CampaignDetail[] = [
     endDate: '—',
     createdAt: '20.05.2025',
     metrics: { contacts: 60, responses: 22, surveys: 10, participants: 4, refused: 3, conversion: '6,7%' },
+    stageCounts: canonicalFunnelStageNames.map((name) => ({ name, value: name === 'Новый' || name === 'Тестирует' ? 1 : 0 })),
+    contactsPage: { total: 2, loaded: 2 },
     contacts: [
       { id: 'anna-smirnova', name: 'Анна Смирнова', type: 'Мастер', niche: 'Брови и ресницы', city: 'Москва', stage: 'Тестирует', source: 'Instagram', score: 86 },
       { id: 'darya-volkova', name: 'Дарья Волкова', type: 'Мастер', niche: 'Маникюр', city: 'Екатеринбург', stage: 'Новый', source: 'TikTok', score: 38 }
@@ -90,6 +103,8 @@ const demoCampaigns: CampaignDetail[] = [
     endDate: '—',
     createdAt: '22.05.2025',
     metrics: { contacts: 38, responses: 19, surveys: 12, participants: 6, refused: 2, conversion: '15,8%' },
+    stageCounts: canonicalFunnelStageNames.map((name) => ({ name, value: 0 })),
+    contactsPage: { total: 0, loaded: 0 },
     contacts: []
   },
   {
@@ -108,6 +123,8 @@ const demoCampaigns: CampaignDetail[] = [
     endDate: '18.05.2025',
     createdAt: '10.05.2025',
     metrics: { contacts: 130, responses: 82, surveys: 56, participants: 0, refused: 9, conversion: '43,1%' },
+    stageCounts: canonicalFunnelStageNames.map((name) => ({ name, value: 0 })),
+    contactsPage: { total: 0, loaded: 0 },
     contacts: []
   }
 ];
@@ -175,8 +192,8 @@ function getLeadFromCampaignLead(value: unknown): Record<string, unknown> | null
   return rawLead && typeof rawLead === 'object' ? rawLead as Record<string, unknown> : null;
 }
 
-function mapCampaignContact(row: Record<string, unknown>): CampaignContact {
-  const stage = normalizeStageName(relatedName(row.funnel_stages));
+export function mapCampaignContact(row: Record<string, unknown>): CampaignContact {
+  const stage = normalizeStageName(row.stage_name ? String(row.stage_name) : relatedName(row.funnel_stages));
   const score = typeof row.priority_score === 'number' ? row.priority_score : Number(row.priority_score ?? 0);
   return {
     id: String(row.id),
@@ -185,7 +202,7 @@ function mapCampaignContact(row: Record<string, unknown>): CampaignContact {
     niche: String(row.niche ?? 'Не указана'),
     city: String(row.city ?? 'Не указан'),
     stage,
-    source: relatedName(row.sources) ?? 'Не указан',
+    source: row.source_name ? String(row.source_name) : relatedName(row.sources) ?? 'Не указан',
     score: Number.isFinite(score) ? score : 0
   };
 }
@@ -216,6 +233,8 @@ function mapCampaign(row: Record<string, unknown>): CampaignDetail {
     .map((lead) => mapCampaignContact(lead));
 
   const status = String(row.status ?? 'draft') as CampaignStatus;
+  const stageValues = new Map(canonicalFunnelStageNames.map((name) => [name, 0]));
+  contacts.forEach((contact) => stageValues.set(contact.stage, (stageValues.get(contact.stage) ?? 0) + 1));
 
   return {
     id: String(row.id),
@@ -233,7 +252,45 @@ function mapCampaign(row: Record<string, unknown>): CampaignDetail {
     endDate: formatDate(row.end_date ? String(row.end_date) : null),
     createdAt: formatDate(row.created_at ? String(row.created_at) : null),
     metrics: calculateMetrics(contacts),
-    contacts
+    contacts,
+    stageCounts: canonicalFunnelStageNames.map((name) => ({ name, value: stageValues.get(name) ?? 0 })),
+    contactsPage: { total: contacts.length, loaded: contacts.length }
+  };
+}
+
+function mapCampaignSummary(row: Record<string, unknown>): CampaignListItem {
+  const status = String(row.status ?? 'draft') as CampaignStatus;
+  const contacts = Number(row.contacts_count ?? 0);
+  const responses = Number(row.responses_count ?? 0);
+  const interested = Number(row.interested_count ?? 0);
+  const testing = Number(row.testing_count ?? 0);
+  const refused = Number(row.refused_count ?? 0);
+  const total = Number.isFinite(contacts) ? contacts : 0;
+  const participants = Number.isFinite(testing) ? testing : 0;
+
+  return {
+    id: String(row.id),
+    name: String(row.name ?? 'Без названия'),
+    goal: row.goal ? String(row.goal) : undefined,
+    channel: String(row.channel ?? 'Не указан'),
+    city: row.city ? String(row.city) : undefined,
+    niche: row.niche ? String(row.niche) : undefined,
+    budget: Number(row.budget ?? 0),
+    offerText: row.offer_text ? String(row.offer_text) : undefined,
+    status,
+    statusLabel: statusLabel(status),
+    resultNotes: row.result_notes ? String(row.result_notes) : undefined,
+    startDate: formatDate(row.start_date ? String(row.start_date) : null),
+    endDate: formatDate(row.end_date ? String(row.end_date) : null),
+    createdAt: formatDate(row.created_at ? String(row.created_at) : null),
+    metrics: {
+      contacts: total,
+      responses: Number.isFinite(responses) ? responses : 0,
+      surveys: Number.isFinite(interested) ? interested : 0,
+      participants,
+      refused: Number.isFinite(refused) ? refused : 0,
+      conversion: `${Math.round((participants / (total || 1)) * 1000) / 10}%`
+    }
   };
 }
 
@@ -248,10 +305,63 @@ const campaignSelect = `
   )
 `;
 
-export async function getCampaigns(): Promise<CampaignListItem[]> {
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function safeNumber(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function parseCampaignDetailPayload(value: unknown): CampaignDetail | null {
+  const payload = payloadRecord(value);
+  const campaign = payloadRecord(payload?.campaign);
+  const metrics = payloadRecord(payload?.metrics);
+  if (!payload || !campaign || !metrics) return null;
+
+  const contacts = (Array.isArray(payload.contacts) ? payload.contacts : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => mapCampaignContact(item));
+  const total = safeNumber(metrics.contacts);
+  const testing = safeNumber(metrics.testing);
+  const stageValues = new Map(canonicalFunnelStageNames.map((name) => [name, 0]));
+
+  for (const rawStage of Array.isArray(payload.stage_counts) ? payload.stage_counts : []) {
+    const stage = payloadRecord(rawStage);
+    if (!stage) continue;
+    stageValues.set(normalizeStageName(String(stage.name ?? '')), safeNumber(stage.value));
+  }
+
+  const summary = mapCampaignSummary({
+    ...campaign,
+    contacts_count: total,
+    responses_count: safeNumber(metrics.responses),
+    interested_count: safeNumber(metrics.interested),
+    testing_count: testing,
+    refused_count: safeNumber(metrics.refused)
+  });
+
+  return {
+    ...summary,
+    contacts,
+    stageCounts: canonicalFunnelStageNames.map((name) => ({ name, value: stageValues.get(name) ?? 0 })),
+    contactsPage: { total, loaded: contacts.length }
+  };
+}
+
+export const getCampaigns = cache(async (): Promise<CampaignListItem[]> => {
   if (!isSupabaseConfigured()) return demoCampaigns;
 
   const supabase = await createClient();
+  const summaryResult = await supabase.rpc('get_campaign_summaries');
+  if (!summaryResult.error && Array.isArray(summaryResult.data)) {
+    return summaryResult.data.map((row) => mapCampaignSummary(row as Record<string, unknown>));
+  }
+
   const { data, error } = await supabase
     .from('campaigns')
     .select(campaignSelect)
@@ -260,7 +370,7 @@ export async function getCampaigns(): Promise<CampaignListItem[]> {
   if (error || !data) return [];
 
   return data.map((row) => mapCampaign(row as Record<string, unknown>));
-}
+});
 
 export async function getCampaignById(id: string): Promise<CampaignDetail | null> {
   if (!isSupabaseConfigured()) {
@@ -268,6 +378,16 @@ export async function getCampaignById(id: string): Promise<CampaignDetail | null
   }
 
   const supabase = await createClient();
+  const detailResult = await supabase.rpc('get_campaign_detail_page', {
+    p_campaign_id: id,
+    p_offset: 0,
+    p_limit: 40
+  });
+  if (!detailResult.error) {
+    const campaign = parseCampaignDetailPayload(detailResult.data);
+    if (campaign) return campaign;
+  }
+
   const { data, error } = await supabase
     .from('campaigns')
     .select(campaignSelect)
@@ -277,6 +397,43 @@ export async function getCampaignById(id: string): Promise<CampaignDetail | null
   if (error || !data) return null;
 
   return mapCampaign(data as Record<string, unknown>);
+}
+
+export async function getCampaignContactPage(
+  id: string,
+  requestedOffset = 0,
+  requestedLimit = 40
+) {
+  const offset = Math.max(Math.floor(requestedOffset) || 0, 0);
+  const limit = Math.min(Math.max(Math.floor(requestedLimit) || 40, 1), 100);
+
+  if (!isSupabaseConfigured()) {
+    const campaign = demoCampaigns.find((item) => item.id === id);
+    const contacts = campaign?.contacts ?? [];
+    return { contacts: contacts.slice(offset, offset + limit), total: contacts.length };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('get_campaign_detail_page', {
+      p_campaign_id: id,
+      p_offset: offset,
+      p_limit: limit
+    });
+    const payload = error ? null : payloadRecord(data);
+    const metrics = payloadRecord(payload?.metrics);
+    if (!payload || !metrics) return { contacts: [], total: 0 };
+
+    return {
+      contacts: (Array.isArray(payload.contacts) ? payload.contacts : [])
+        .map((item) => payloadRecord(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => mapCampaignContact(item)),
+      total: Math.max(0, safeNumber(metrics.contacts))
+    };
+  } catch {
+    return { contacts: [], total: 0 };
+  }
 }
 
 

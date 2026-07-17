@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { leads as demoLeads } from '@/lib/data';
@@ -88,6 +89,45 @@ function makeBars(entries: Array<{ reason: string; count: number; color?: string
   return sorted.map((item) => ({ ...item, width: `${Math.max(8, Math.round((item.count / max) * 100))}%` }));
 }
 
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseRefusalAnalytics(value: unknown): RefusalAnalytics | null {
+  const payload = payloadRecord(value);
+  if (!payload) return null;
+
+  const topReasons = (Array.isArray(payload.top_reasons) ? payload.top_reasons : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      reason: asString(item.reason, 'Причина не указана'),
+      count: Number(item.count ?? 0),
+      color: asString(item.color, 'gray')
+    }));
+
+  const recent = (Array.isArray(payload.recent) ? payload.recent : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      id: String(item.id),
+      name: asString(item.name, 'Без имени'),
+      meta: `${asString(item.type, 'contact')} · ${asString(item.niche, 'Ниша не указана')} · ${asString(item.city, 'Город не указан')}`,
+      reason: asString(item.reason, 'Причина не указана'),
+      comment: asString(item.comment, ''),
+      refusedAt: formatDate(item.refused_at ? String(item.refused_at) : null),
+      href: `/people/${String(item.id)}`
+    }));
+
+  return {
+    total: Math.max(0, Number(payload.total ?? 0)),
+    topReasons: makeBars(topReasons),
+    recent
+  };
+}
+
 export async function getRefusalReasons(includeInactive = false): Promise<RefusalReason[]> {
   if (!isSupabaseConfigured()) {
     return defaultReasons.filter((reason) => includeInactive || reason.isActive);
@@ -125,7 +165,7 @@ export async function getRefusalReasonById(id: string): Promise<RefusalReason | 
   return reasons.find((reason) => reason.id === id) ?? null;
 }
 
-export async function getRefusalAnalytics(): Promise<RefusalAnalytics> {
+export const getRefusalAnalytics = cache(async (): Promise<RefusalAnalytics> => {
   if (!isSupabaseConfigured()) {
     const refused = demoLeads.filter((lead) => lead.stage === 'Отказ' || lead.tags.includes('Вернуться позже'));
     const topReasons = makeBars([
@@ -149,6 +189,12 @@ export async function getRefusalAnalytics(): Promise<RefusalAnalytics> {
 
   try {
     const supabase = await createClient();
+    const aggregateResult = await supabase.rpc('get_refusal_analytics');
+    if (!aggregateResult.error) {
+      const aggregate = parseRefusalAnalytics(aggregateResult.data);
+      if (aggregate) return aggregate;
+    }
+
     const { data, error } = await supabase
       .from('leads')
       .select('id,name,type,niche,city,refusal_reason,refusal_comment,refused_at,refusal_reasons(name,color),funnel_stages(name)')
@@ -184,6 +230,6 @@ export async function getRefusalAnalytics(): Promise<RefusalAnalytics> {
   } catch {
     return { total: 0, topReasons: [], recent: [] };
   }
-}
+});
 
 export const refusalDemoReasons = defaultReasons;

@@ -236,39 +236,66 @@ async function ensureTagId(supabase: Awaited<ReturnType<typeof createClient>>, n
 }
 
 function tagsFromRow(row: CsvRow) {
-  return String(row.tags ?? '')
-    .split(/[;,]/)
-    .map((tag) => tag.trim())
-    .filter(Boolean);
+  return Array.from(new Set(
+    String(row.tags ?? '')
+      .split(/[;,]/)
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+  ));
 }
 
-async function duplicateExists(supabase: Awaited<ReturnType<typeof createClient>>, row: CsvRow) {
-  const instagram = row.instagram?.trim();
-  const telegram = row.telegram?.trim();
-  const email = row.email?.trim();
-  const phone = row.phone?.trim();
+const duplicateColumns = ['instagram', 'telegram', 'email', 'phone'] as const;
+type DuplicateColumn = typeof duplicateColumns[number];
+type DuplicateSets = Record<DuplicateColumn, Set<string>>;
 
-  if (instagram) {
-    const found = await supabase.from('leads').select('id').eq('instagram', instagram).limit(1);
-    if ((found.data?.length ?? 0) > 0) return true;
+function duplicateValue(row: CsvRow, column: DuplicateColumn) {
+  return String(row[column] ?? '').trim();
+}
+
+function emptyDuplicateSets(): DuplicateSets {
+  return {
+    instagram: new Set(),
+    telegram: new Set(),
+    email: new Set(),
+    phone: new Set()
+  };
+}
+
+function chunkValues(values: string[], size: number) {
+  const chunks: string[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push(values.slice(index, index + size));
   }
+  return chunks;
+}
 
-  if (telegram) {
-    const found = await supabase.from('leads').select('id').eq('telegram', telegram).limit(1);
-    if ((found.data?.length ?? 0) > 0) return true;
+async function loadExistingDuplicateValues(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: CsvRow[]
+): Promise<DuplicateSets> {
+  const result = emptyDuplicateSets();
+
+  await Promise.all(duplicateColumns.map(async (column) => {
+    const values = Array.from(new Set(rows.map((row) => duplicateValue(row, column)).filter(Boolean)));
+
+    for (const chunk of chunkValues(values, 100)) {
+      const query = await supabase.from('leads').select(column).in(column, chunk);
+      if (query.error) throw query.error;
+
+      for (const lead of query.data ?? []) {
+        const value = String((lead as Partial<Record<DuplicateColumn, unknown>>)[column] ?? '').trim();
+        if (value) result[column].add(value);
+      }
+    }
+  }));
+
+  return result;
+}
+
+async function processInBatches<T>(items: T[], batchSize: number, worker: (item: T) => Promise<void>) {
+  for (let index = 0; index < items.length; index += batchSize) {
+    await Promise.all(items.slice(index, index + batchSize).map(worker));
   }
-
-  if (email) {
-    const found = await supabase.from('leads').select('id').eq('email', email).limit(1);
-    if ((found.data?.length ?? 0) > 0) return true;
-  }
-
-  if (phone) {
-    const found = await supabase.from('leads').select('id').eq('phone', phone).limit(1);
-    if ((found.data?.length ?? 0) > 0) return true;
-  }
-
-  return false;
 }
 
 export async function importContactsCsvAction(formData: FormData) {
@@ -292,6 +319,8 @@ export async function importContactsCsvAction(formData: FormData) {
   const rows = parseCsv(text).slice(0, 1000);
   const stats: ImportStats = { total: rows.length, imported: 0, skipped: 0, failed: 0, errors: [] };
   const supabase = await createClient();
+  const duplicateSets = skipDuplicates ? await loadExistingDuplicateValues(supabase, rows) : emptyDuplicateSets();
+  const candidates: Array<{ index: number; row: CsvRow; name: string }> = [];
 
   for (const [index, row] of rows.entries()) {
     const line = index + 2;
@@ -303,16 +332,66 @@ export async function importContactsCsvAction(formData: FormData) {
       continue;
     }
 
-    try {
-      if (skipDuplicates && (await duplicateExists(supabase, row))) {
+    if (skipDuplicates) {
+      const isDuplicate = duplicateColumns.some((column) => {
+        const value = duplicateValue(row, column);
+        return value ? duplicateSets[column].has(value) : false;
+      });
+
+      if (isDuplicate) {
         stats.skipped += 1;
         continue;
       }
 
+      duplicateColumns.forEach((column) => {
+        const value = duplicateValue(row, column);
+        if (value) duplicateSets[column].add(value);
+      });
+    }
+
+    candidates.push({ index, row, name });
+  }
+
+  const sourceIdCache = new Map<string, Promise<string>>();
+  const stageIdCache = new Map<string, Promise<string>>();
+  const tagIdCache = new Map<string, Promise<string>>();
+
+  function cachedSourceId(name: string) {
+    const key = name || defaultSource;
+    const cached = sourceIdCache.get(key);
+    if (cached) return cached;
+    const request = ensureSourceId(supabase, key);
+    sourceIdCache.set(key, request);
+    return request;
+  }
+
+  function cachedStageId(name: string) {
+    const key = name || defaultStage;
+    const cached = stageIdCache.get(key);
+    if (cached) return cached;
+    const request = ensureStageId(supabase, key);
+    stageIdCache.set(key, request);
+    return request;
+  }
+
+  function cachedTagId(name: string) {
+    const cached = tagIdCache.get(name);
+    if (cached) return cached;
+    const request = ensureTagId(supabase, name);
+    tagIdCache.set(name, request);
+    return request;
+  }
+
+  await processInBatches(candidates, 8, async ({ index, row, name }) => {
+    const line = index + 2;
+
+    try {
       const type = normalizeType(row.type || defaultType);
       const priority = normalizePriority(row.priority || 'Средний');
-      const sourceId = await ensureSourceId(supabase, row.source || defaultSource);
-      const stageId = await ensureStageId(supabase, row.stage || defaultStage);
+      const [sourceId, stageId] = await Promise.all([
+        cachedSourceId(row.source || defaultSource),
+        cachedStageId(row.stage || defaultStage)
+      ]);
 
       const { data: lead, error } = await supabase
         .from('leads')
@@ -339,9 +418,11 @@ export async function importContactsCsvAction(formData: FormData) {
       if (error || !lead) throw error ?? new Error('Контакт не создан');
 
       const tags = tagsFromRow(row);
-      for (const tag of tags) {
-        const tagId = await ensureTagId(supabase, tag);
-        const { error: tagError } = await supabase.from('lead_tags').insert({ lead_id: lead.id, tag_id: tagId });
+      const tagIds = await Promise.all(tags.map(cachedTagId));
+      if (tagIds.length > 0) {
+        const { error: tagError } = await supabase.from('lead_tags').insert(
+          tagIds.map((tagId) => ({ lead_id: lead.id, tag_id: tagId }))
+        );
         if (tagError) throw tagError;
       }
 
@@ -359,7 +440,7 @@ export async function importContactsCsvAction(formData: FormData) {
       stats.failed += 1;
       stats.errors.push(`Строка ${line}: ${error instanceof Error ? error.message : 'ошибка импорта'}`);
     }
-  }
+  });
 
   const { error: logError } = await supabase.from('import_logs').insert({
     file_name: file.name,

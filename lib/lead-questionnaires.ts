@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
+import { buildAppUrl } from '@/lib/app-url';
 
 export type LeadQuestionnaireStatus = 'draft' | 'active' | 'closed';
 
@@ -77,8 +78,7 @@ function answerToText(value: unknown): string {
 }
 
 function publicUrl(token: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
-  return appUrl ? `${appUrl}/q/${token}` : `/q/${token}`;
+  return buildAppUrl(`/q/${token}`);
 }
 
 function relatedLeadName(value: unknown): string | undefined {
@@ -108,7 +108,17 @@ function statusFrom(value: unknown): LeadQuestionnaireStatus {
 }
 
 function countRelation(value: unknown) {
+  if (Array.isArray(value) && value.length === 1 && value[0] && typeof value[0] === 'object' && 'count' in value[0]) {
+    const count = Number((value[0] as { count?: unknown }).count ?? 0);
+    return Number.isFinite(count) ? count : 0;
+  }
   return Array.isArray(value) ? value.length : 0;
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
 }
 
 function mapListItem(row: Record<string, unknown>): LeadQuestionnaireListItem {
@@ -157,11 +167,19 @@ export async function getLeadQuestionnaires(leadId: string): Promise<LeadQuestio
   if (!isSupabaseConfigured()) return [];
 
   const supabase = await createClient();
+  const summaryResult = await supabase.rpc('get_lead_questionnaire_summaries', {
+    p_lead_id: leadId
+  });
+  if (!summaryResult.error && Array.isArray(summaryResult.data)) {
+    return summaryResult.data.map((row) => mapListItem(row as Record<string, unknown>));
+  }
+
   const { data, error } = await supabase
     .from('lead_questionnaires')
-    .select('id,lead_id,title,description,status,token,created_at,lead_questionnaire_questions(id),lead_questionnaire_answers(id)')
+    .select('id,lead_id,title,description,status,token,created_at,lead_questionnaire_questions(count),lead_questionnaire_answers(count)')
     .eq('lead_id', leadId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(50);
 
   if (error || !data) return [];
   return data.map((row) => mapListItem(row as Record<string, unknown>));
@@ -274,11 +292,42 @@ export async function getLeadQuestionnaireResponses(leadId: string): Promise<Lea
   if (!isSupabaseConfigured()) return [];
 
   const supabase = await createClient();
+  const previewResult = await supabase.rpc('get_lead_questionnaire_response_preview', {
+    p_lead_id: leadId,
+    p_limit_groups: 20
+  });
+  if (!previewResult.error && Array.isArray(previewResult.data)) {
+    return previewResult.data
+      .map((item) => payloadRecord(item))
+      .filter((item): item is Record<string, unknown> => Boolean(item))
+      .map((item) => {
+        const questionnaireId = String(item.questionnaire_id ?? '');
+        const token = String(item.questionnaire_token ?? '');
+        return {
+          id: `${questionnaireId}:${String(item.id)}`,
+          questionnaireTitle: String(item.questionnaire_title ?? 'Вопросы для контакта'),
+          questionnaireId,
+          questionnaireUrl: token ? publicUrl(token) : '',
+          respondentName: item.respondent_name ? String(item.respondent_name) : undefined,
+          respondentContact: item.respondent_contact ? String(item.respondent_contact) : undefined,
+          createdAt: formatDateTime(item.created_at ? String(item.created_at) : null),
+          answers: (Array.isArray(item.answers) ? item.answers : [])
+            .map((answer) => payloadRecord(answer))
+            .filter((answer): answer is Record<string, unknown> => Boolean(answer))
+            .map((answer) => ({
+              question: String(answer.question ?? 'Вопрос'),
+              answer: answerToText(answer.answer)
+            }))
+        };
+      });
+  }
+
   const { data, error } = await supabase
     .from('lead_questionnaire_answers')
     .select('id,response_group_id,respondent_name,respondent_contact,answer,created_at,lead_questionnaires(id,title,token),lead_questionnaire_questions(question_text)')
     .eq('lead_id', leadId)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .limit(500);
 
   if (error || !data) return [];
 

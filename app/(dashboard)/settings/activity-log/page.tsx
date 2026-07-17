@@ -1,7 +1,9 @@
 import Link from 'next/link';
-import { ArrowLeft, FilterX } from 'lucide-react';
+import Form from 'next/form';
+import { ArrowLeft, ChevronLeft, ChevronRight, FilterX } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -23,6 +25,17 @@ function buildFilters(params: Record<string, string | string[] | undefined> = {}
   };
 }
 
+function pageHref(filters: ActivityLogFilters, page: number) {
+  const params = new URLSearchParams();
+  if (filters.userId) params.set('userId', filters.userId);
+  if (filters.entityType) params.set('entityType', filters.entityType);
+  if (filters.action) params.set('action', filters.action);
+  if (filters.date) params.set('date', filters.date);
+  if (page > 1) params.set('page', String(page));
+  const query = params.toString();
+  return query ? `/settings/activity-log?${query}` : '/settings/activity-log';
+}
+
 const entityTypes = [
   ['contact', 'Контакт'],
   ['task', 'Задача'],
@@ -42,7 +55,9 @@ export default async function ActivityLogPage({
   await requireAdmin();
   const params = await searchParams;
   const filters = buildFilters(params);
-  const [logs, settings] = await Promise.all([getActivityLogs(filters), getSettingsData()]);
+  const requestedPage = Math.max(Number.parseInt(firstParam(params?.page), 10) || 1, 1);
+  const [directory, settings] = await Promise.all([getActivityLogs(filters, requestedPage), getSettingsData()]);
+  const logs = directory.items;
 
   return (
     <div className="space-y-6">
@@ -60,7 +75,7 @@ export default async function ActivityLogPage({
 
       <Card>
         <CardContent className="p-4">
-          <form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_180px_auto_auto]" action="/settings/activity-log">
+          <Form className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_180px_auto_auto]" action="/settings/activity-log" prefetch={false}>
             <Select name="userId" defaultValue={filters.userId ?? ''}>
               <option value="">Все пользователи</option>
               {settings.users.map((user) => (
@@ -75,14 +90,14 @@ export default async function ActivityLogPage({
             </Select>
             <Input name="action" defaultValue={filters.action ?? ''} placeholder="Действие" />
             <Input name="date" type="date" defaultValue={filters.date ?? ''} />
-            <Button type="submit" variant="secondary">Показать</Button>
+            <SubmitButton variant="secondary">Показать</SubmitButton>
             <Button asChild variant="ghost">
               <Link href="/settings/activity-log">
                 <FilterX className="h-4 w-4" />
                 Сбросить
               </Link>
             </Button>
-          </form>
+          </Form>
         </CardContent>
       </Card>
 
@@ -117,6 +132,44 @@ export default async function ActivityLogPage({
               )}
             </tbody>
           </table>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-app-line px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-app-muted">
+            {directory.total > 0
+              ? `Показано ${(directory.currentPage - 1) * directory.pageSize + 1}–${Math.min(directory.currentPage * directory.pageSize, directory.total)} из ${directory.total}`
+              : 'Записей нет'}
+          </p>
+          <div className="flex items-center gap-2">
+            {directory.currentPage > 1 ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link prefetch={false} href={pageHref(filters, directory.currentPage - 1)}>
+                  <ChevronLeft className="h-4 w-4" />
+                  Предыдущая
+                </Link>
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" disabled>
+                <ChevronLeft className="h-4 w-4" />
+                Предыдущая
+              </Button>
+            )}
+            <span className="px-2 text-sm font-bold text-app-text">
+              {directory.currentPage} / {directory.pageCount}
+            </span>
+            {directory.currentPage < directory.pageCount ? (
+              <Button asChild size="sm" variant="secondary">
+                <Link prefetch={false} href={pageHref(filters, directory.currentPage + 1)}>
+                  Следующая
+                  <ChevronRight className="h-4 w-4" />
+                </Link>
+              </Button>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" disabled>
+                Следующая
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
         </div>
       </Card>
     </div>

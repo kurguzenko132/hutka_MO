@@ -3,11 +3,12 @@ import { ArrowLeft, FlaskConical, Save, Target } from 'lucide-react';
 import { createHypothesisAction } from '@/actions/hypotheses.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
+import { LeadMultiCombobox } from '@/components/people/lead-multi-combobox';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { getLeadOptions } from '@/lib/leads';
 import { getCampaignOptions, getSurveyOptions } from '@/lib/insights';
 import { getInsightOptions, hypothesisCategories } from '@/lib/hypotheses';
 import { requirePermission } from '@/lib/permissions';
@@ -21,7 +22,7 @@ export default async function NewHypothesisPage({ searchParams }: { searchParams
   await requirePermission('manageHypotheses', '/hypotheses?error=forbidden');
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : undefined;
-  const [leads, insights, campaigns, surveys] = await Promise.all([getLeadOptions(), getInsightOptions(), getCampaignOptions(), getSurveyOptions()]);
+  const [insights, campaigns, surveys] = await Promise.all([getInsightOptions(), getCampaignOptions(), getSurveyOptions()]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -95,9 +96,7 @@ export default async function NewHypothesisPage({ searchParams }: { searchParams
           <FormSection title="Связи" subtitle="Свяжи проверку с реальными контактами, выводами, кампаниями и анкетами.">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Field label="Контакты">
-                <Select name="lead_ids" multiple className="min-h-36 py-2">
-                  {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.name}</option>)}
-                </Select>
+                <LeadMultiCombobox name="lead_ids" />
               </Field>
               <Field label="Выводы">
                 <Select name="insight_ids" multiple className="min-h-36 py-2">
@@ -115,12 +114,12 @@ export default async function NewHypothesisPage({ searchParams }: { searchParams
                 </Select>
               </Field>
             </div>
-            <p className="mt-3 text-xs leading-5 text-app-muted">Чтобы выбрать несколько пунктов, удерживай Cmd/Ctrl. Связи можно не добавлять на старте.</p>
+            <p className="mt-3 text-xs leading-5 text-app-muted">Выводы, кампании и анкеты поддерживают множественный выбор через Cmd/Ctrl. Связи можно не добавлять на старте.</p>
           </FormSection>
 
           <div className="flex justify-end gap-3">
             <Button asChild variant="secondary"><Link href="/hypotheses">Отмена</Link></Button>
-            <Button type="submit"><Save className="h-4 w-4" />Сохранить проверку</Button>
+            <SubmitButton><Save className="h-4 w-4" />Сохранить проверку</SubmitButton>
           </div>
         </form>
 

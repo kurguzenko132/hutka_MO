@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardList, Send } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { submitSurveyResponseAction } from '@/actions/surveys.actions';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -175,10 +176,10 @@ export default async function PublicSurveyPage({
               </Card>
             )}
 
-            <Button type="submit" size="lg" className="w-full" disabled={survey.questions.length === 0}>
+            <SubmitButton size="lg" className="w-full" disabled={survey.questions.length === 0}>
               <Send className="h-4 w-4" />
               Отправить ответы
-            </Button>
+            </SubmitButton>
           </form>
         )}
       </div>

@@ -15,7 +15,7 @@ export function TodayWorkCard({ tasks }: { tasks: TaskListItem[] }) {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Сегодня нужно сделать</CardTitle>
-        <Link href="/tasks" className="text-xs font-bold text-app-purple">Все задачи →</Link>
+        <Link prefetch={false} href="/tasks" className="text-xs font-bold text-app-purple">Все задачи →</Link>
       </CardHeader>
       <CardContent className="space-y-3">
         {tasks.length === 0 ? (
@@ -24,7 +24,7 @@ export function TodayWorkCard({ tasks }: { tasks: TaskListItem[] }) {
           </div>
         ) : (
           tasks.map((task) => (
-            <Link key={task.id} href={task.leadId ? `/people/${task.leadId}` : '/tasks'} className="group block rounded-2xl border border-app-line p-4 transition hover:border-purple-200 hover:bg-purple-50/60">
+            <Link key={task.id} prefetch={false} href={task.leadId ? `/people/${task.leadId}` : '/tasks'} className="group block rounded-2xl border border-app-line p-4 transition hover:border-purple-200 hover:bg-purple-50/60">
               <div className="flex items-start gap-3">
                 <div className="rounded-xl bg-emerald-50 p-2 text-app-green">
                   <CheckCircle2 className="h-4 w-4" />

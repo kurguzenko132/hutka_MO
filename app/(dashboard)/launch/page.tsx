@@ -45,7 +45,7 @@ export default async function LaunchPage() {
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Button asChild>
-                  <Link href="/backup/export">
+                  <Link prefetch={false} href="/backup/export">
                     <Download className="h-4 w-4" />
                     Скачать бэкап JSON
                   </Link>
@@ -154,7 +154,7 @@ export default async function LaunchPage() {
             Экспорт выгружает все таблицы рабочей схемы в один JSON-файл: контакты, задачи, анкеты, вопросы для контактов, кампании, выводы, настройки, справочники, шаблоны, причины отказов, сохраненные фильтры и Telegram-логи. Делай такой экспорт перед массовыми импортами, изменением schema.sql и активным использованием команды.
           </div>
           <Button asChild size="lg">
-            <Link href="/backup/export">
+            <Link prefetch={false} href="/backup/export">
               <Archive className="h-4 w-4" />
               Экспортировать базу
             </Link>

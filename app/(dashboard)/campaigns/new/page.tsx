@@ -4,6 +4,7 @@ import { createCampaignAction } from '@/actions/campaigns.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -86,7 +87,7 @@ export default async function NewCampaignPage({ searchParams }: { searchParams?:
 
           <div className="flex justify-end gap-3">
             <Button asChild variant="secondary"><Link href="/campaigns">Отмена</Link></Button>
-            <Button type="submit"><Save className="h-4 w-4" />Сохранить кампанию</Button>
+            <SubmitButton><Save className="h-4 w-4" />Сохранить кампанию</SubmitButton>
           </div>
         </form>
         <aside className="rounded-3xl border border-purple-100 bg-gradient-to-br from-purple-50 to-pink-50 p-5 h-fit">

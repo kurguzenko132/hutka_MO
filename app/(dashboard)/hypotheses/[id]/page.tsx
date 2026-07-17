@@ -7,6 +7,7 @@ import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -107,7 +108,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
                   <Field label="Следующее действие">
                     <Textarea name="next_action" defaultValue={hypothesis.nextAction || ''} />
                   </Field>
-                  <Button type="submit" className="w-full"><Save className="h-4 w-4" />Сохранить</Button>
+                  <SubmitButton className="w-full"><Save className="h-4 w-4" />Сохранить</SubmitButton>
                 </div>
               </FormSection>
             </form>
@@ -130,7 +131,7 @@ export default async function HypothesisDetailPage({ params }: { params: Promise
             <form action={deleteHypothesisAction}>
               <input type="hidden" name="hypothesis_id" value={hypothesis.id} />
               <FormSection title="Удалить проверку" subtitle="Удалится проверка и ее связи. Контакты, кампании, выводы и анкеты останутся.">
-                <Button type="submit" variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить проверку</Button>
+                <SubmitButton variant="danger" className="w-full"><Trash2 className="h-4 w-4" />Удалить проверку</SubmitButton>
               </FormSection>
             </form>
           )}
@@ -160,7 +161,7 @@ function RelationCard({ icon, title, empty, items }: { icon: ReactNode; title: s
         <div className="space-y-2">
           {items.length === 0 && <p className="text-sm text-app-muted">{empty}</p>}
           {items.map((item) => (
-            <Link key={item.id} href={item.href} className="block rounded-xl border border-app-line p-3 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
+            <Link key={item.id} prefetch={false} href={item.href} className="block rounded-xl border border-app-line p-3 text-sm font-semibold text-app-text transition hover:border-purple-200 hover:bg-purple-50">
               {item.name}
             </Link>
           ))}

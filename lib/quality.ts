@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { databaseTableLabels, databaseTables } from '@/lib/database-tables';
+import { databaseTableLabels } from '@/lib/database-tables';
+import { getDatabaseTableCounts } from '@/lib/database-counts';
 
 export type QualityStatus = 'ok' | 'warning' | 'error';
 
@@ -18,12 +19,6 @@ export type QualityReport = {
   checks: QualityCheck[];
   duplicateGroups: Array<{ field: string; value: string; count: number }>;
 };
-
-async function safeCount(supabase: Awaited<ReturnType<typeof createClient>>, table: string) {
-  const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true });
-  if (error) return null;
-  return count ?? 0;
-}
 
 function normalize(value?: unknown) {
   return String(value ?? '').trim().toLowerCase();
@@ -70,23 +65,43 @@ export async function getQualityReport(): Promise<QualityReport> {
   if (!configured) return base;
 
   const supabase = await createClient();
-  for (const table of databaseTables) {
-    const count = await safeCount(supabase, table);
-    base.counts.push({ label: databaseTableLabels[table], value: count ?? 0 });
+  const [tableCounts, duplicateResult] = await Promise.all([
+    getDatabaseTableCounts(supabase),
+    supabase.rpc('get_contact_duplicate_groups')
+  ]);
+  for (const result of tableCounts) {
+    const count = result.error ? null : result.count;
+    base.counts.push({ label: databaseTableLabels[result.table], value: count ?? 0 });
     base.checks.push({
-      label: `Таблица ${table}`,
+      label: `Таблица ${result.table}`,
       description: count === null ? 'Таблица недоступна или RLS не позволяет чтение.' : `Доступна, записей: ${count}.`,
       status: count === null ? 'error' : 'ok',
       action: count === null ? 'Проверь schema.sql и политики RLS.' : undefined
     });
   }
 
-  const { data: leadRows, error: leadsError } = await supabase
-    .from('leads')
-    .select('id, email, phone, instagram, telegram')
-    .limit(2000);
+  let duplicateError = duplicateResult.error;
+  if (!duplicateResult.error && Array.isArray(duplicateResult.data)) {
+    base.duplicateGroups = duplicateResult.data.map((item) => ({
+      field: String(item.field ?? ''),
+      value: String(item.value ?? ''),
+      count: Number(item.contacts ?? 0)
+    }));
+  } else {
+    const { data: leadRows, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, email, phone, instagram, telegram')
+      .limit(2000);
+    duplicateError = leadsError;
+    if (!leadsError) {
+      const rows = (leadRows ?? []) as Array<Record<string, unknown>>;
+      base.duplicateGroups = ['email', 'phone', 'instagram', 'telegram']
+        .flatMap((field) => findDuplicates(rows, field))
+        .slice(0, 20);
+    }
+  }
 
-  if (leadsError) {
+  if (duplicateError) {
     base.checks.push({
       label: 'Проверка дублей',
       description: 'Не удалось прочитать контакты для проверки дублей.',
@@ -94,8 +109,6 @@ export async function getQualityReport(): Promise<QualityReport> {
       action: 'Проверь доступ к таблице leads.'
     });
   } else {
-    const rows = (leadRows ?? []) as Array<Record<string, unknown>>;
-    base.duplicateGroups = ['email', 'phone', 'instagram', 'telegram'].flatMap((field) => findDuplicates(rows, field)).slice(0, 20);
     base.checks.push({
       label: 'Дубли контактов',
       description: base.duplicateGroups.length === 0 ? 'Явных дублей по email/телефону/Instagram/Telegram не найдено.' : `Найдено групп дублей: ${base.duplicateGroups.length}.`,

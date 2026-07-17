@@ -12,13 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { getDashboardData } from '@/lib/dashboard';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
-import { getFollowUpRecommendations } from '@/lib/followups';
 
 const kpiIcons = [Users, Send, Heart, Timer];
 
 export default async function DashboardPage() {
-  const [dashboard, followups] = await Promise.all([getDashboardData(), getFollowUpRecommendations()]);
-  const user = await getCurrentUserContext();
+  const [dashboard, user] = await Promise.all([getDashboardData(), getCurrentUserContext()]);
   const role = user?.role ?? 'viewer';
   const statusItems = dashboard.funnel.map((step) => ({ name: step.label, value: step.count, width: step.percent }));
 
@@ -46,10 +44,10 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="grid gap-2 sm:flex sm:flex-wrap">
-            <Link href="/tasks" className="rounded-xl border border-app-line bg-white px-4 py-2 text-center text-sm font-bold text-app-text transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">
+            <Link prefetch={false} href="/tasks" className="rounded-xl border border-app-line bg-white px-4 py-2 text-center text-sm font-bold text-app-text transition hover:border-purple-200 hover:bg-purple-50 hover:text-app-purple">
               Открыть задачи
             </Link>
-            <Link href="/reports" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
+            <Link prefetch={false} href="/reports" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
               Отчет команде
             </Link>
           </div>
@@ -63,7 +61,7 @@ export default async function DashboardPage() {
         })}
       </div>
 
-      {followups.summary.total > 0 && (
+      {dashboard.actions.total > 0 && (
         <Card className="border-amber-100 bg-white">
           <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-4">
@@ -73,15 +71,15 @@ export default async function DashboardPage() {
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h2 className="text-lg font-black text-app-text">Что нужно сделать</h2>
-                  <Badge tone="yellow">{followups.summary.total} действий</Badge>
-                  {followups.summary.urgent > 0 ? <Badge tone="red">{followups.summary.urgent} срочно</Badge> : null}
+                  <Badge tone="yellow">{dashboard.actions.total} действий</Badge>
+                  {dashboard.actions.urgent > 0 ? <Badge tone="red">{dashboard.actions.urgent} срочно</Badge> : null}
                 </div>
                 <p className="mt-2 text-sm leading-6 text-app-muted">
                   Hutka нашла контакты с просроченными датами, анкетами без ответа или высоким интересом без закрепленной задачи.
                 </p>
               </div>
             </div>
-            <Link href="/followups" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
+            <Link prefetch={false} href="/followups" className="rounded-xl bg-app-purple px-4 py-2 text-center text-sm font-bold text-white transition hover:bg-purple-700">
               Открыть список
             </Link>
           </CardContent>
@@ -93,8 +91,8 @@ export default async function DashboardPage() {
       <div className="grid gap-6 xl:grid-cols-2">
         <BarList title="Распределение контактов по статусам" items={statusItems} color="purple" />
         <BarList title="Что нужно сделать" items={[
-          { name: 'Просрочено', value: followups.summary.urgent, width: followups.summary.total ? `${Math.max(8, Math.round((followups.summary.urgent / followups.summary.total) * 100))}%` : '0%' },
-          { name: 'Всего действий', value: followups.summary.total, width: followups.summary.total ? '100%' : '0%' }
+          { name: 'Просрочено', value: dashboard.actions.urgent, width: dashboard.actions.total ? `${Math.max(8, Math.round((dashboard.actions.urgent / dashboard.actions.total) * 100))}%` : '0%' },
+          { name: 'Всего действий', value: dashboard.actions.total, width: dashboard.actions.total ? '100%' : '0%' }
         ].filter((item) => item.value > 0)} color="pink" />
       </div>
 
@@ -102,7 +100,7 @@ export default async function DashboardPage() {
         <Card className="border-red-100 bg-white">
           <CardHeader className="flex flex-row items-center justify-between gap-3">
             <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-app-red" /> Причины отказов</CardTitle>
-            <Link href="/reports" className="text-xs font-bold text-app-purple">В отчет →</Link>
+            <Link prefetch={false} href="/reports" className="text-xs font-bold text-app-purple">В отчет →</Link>
           </CardHeader>
           <CardContent className="grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
             <div>
@@ -124,7 +122,7 @@ export default async function DashboardPage() {
             </div>
             <div className="space-y-3">
               {dashboard.refusals.recent.slice(0, 3).map((item) => (
-                <Link key={item.id} href={item.href} className="block rounded-2xl border border-red-100 bg-white p-4 transition hover:border-red-200 hover:shadow-card">
+                <Link key={item.id} prefetch={false} href={item.href} className="block rounded-2xl border border-red-100 bg-white p-4 transition hover:border-red-200 hover:shadow-card">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone="red">{item.reason}</Badge>
                     <Badge tone="gray">{item.refusedAt}</Badge>
@@ -153,7 +151,7 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Главные выводы недели</CardTitle>
-            <Link href="/insights" className="text-xs font-bold text-app-purple">Все →</Link>
+            <Link prefetch={false} href="/insights" className="text-xs font-bold text-app-purple">Все →</Link>
           </CardHeader>
           <CardContent className="space-y-4">
             {dashboard.insights.length === 0 ? (
@@ -169,7 +167,7 @@ export default async function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-sm font-semibold leading-6 text-app-text">{insight}</p>
-                      <Link href="/insights" className="mt-2 inline-block text-xs font-bold text-app-purple">Смотреть детали →</Link>
+                      <Link prefetch={false} href="/insights" className="mt-2 inline-block text-xs font-bold text-app-purple">Смотреть детали →</Link>
                     </div>
                   </div>
                 </div>

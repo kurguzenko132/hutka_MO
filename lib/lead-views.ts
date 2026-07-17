@@ -13,6 +13,17 @@ export type LeadSmartView = {
   tone: 'purple' | 'blue' | 'green' | 'yellow' | 'red' | 'gray' | 'pink';
 };
 
+export type LeadSmartViewCounts = {
+  all: number;
+  interested: number;
+  testing: number;
+  'need-write': number;
+  unanswered: number;
+  paused: number;
+  refusals: number;
+  'no-next-step': number;
+};
+
 export type SavedLeadView = {
   id: string;
   name: string;
@@ -73,16 +84,14 @@ export function buildLeadQuery(filters: LeadFilters = {}) {
   return query ? `/people?${query}` : '/people';
 }
 
-export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
-  const count = (view: string) => leads.filter((lead) => matchesSmartView(lead, view)).length;
-
+export function buildSmartLeadViews(counts: LeadSmartViewCounts): LeadSmartView[] {
   return [
     {
       id: 'all',
       title: 'Все',
       description: 'Вся база контактов без дополнительных условий.',
       href: '/people?view=all',
-      count: leads.length,
+      count: counts.all,
       tone: 'purple'
     },
     {
@@ -90,7 +99,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Заинтересованные',
       description: 'Ответили положительно, имеют высокий приоритет или отмечены как заинтересованные.',
       href: '/people?view=interested',
-      count: count('interested'),
+      count: counts.interested,
       tone: 'pink'
     },
     {
@@ -98,7 +107,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Тестируют',
       description: 'Контакты, которые уже перешли к тестированию.',
       href: '/people?view=testing',
-      count: count('testing'),
+      count: counts.testing,
       tone: 'green'
     },
     {
@@ -106,7 +115,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Нужно написать',
       description: 'Просроченная дата следующего касания или тег «вернуться позже».',
       href: '/people?view=need-write',
-      count: count('need-write'),
+      count: counts['need-write'],
       tone: 'yellow'
     },
     {
@@ -114,7 +123,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Без ответа',
       description: 'Найденные контакты или те, кому уже написали, но они еще не ответили.',
       href: '/people?view=unanswered',
-      count: count('unanswered'),
+      count: counts.unanswered,
       tone: 'blue'
     },
     {
@@ -122,7 +131,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Пауза',
       description: 'Контакты, к которым нужно вернуться позже.',
       href: '/people?view=paused',
-      count: count('paused'),
+      count: counts.paused,
       tone: 'gray'
     },
     {
@@ -130,7 +139,7 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Отказы',
       description: 'Контакты, которые отказались или имеют зафиксированную причину отказа.',
       href: '/people?view=refusals',
-      count: count('refusals'),
+      count: counts.refusals,
       tone: 'red'
     },
     {
@@ -138,10 +147,25 @@ export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
       title: 'Без следующего шага',
       description: 'Контакты, где нужно назначить конкретное действие и дату.',
       href: '/people?view=no-next-step',
-      count: count('no-next-step'),
+      count: counts['no-next-step'],
       tone: 'gray'
     }
   ];
+}
+
+export function getSmartLeadViews(leads: Lead[]): LeadSmartView[] {
+  const count = (view: string) => leads.filter((lead) => matchesSmartView(lead, view)).length;
+
+  return buildSmartLeadViews({
+    all: leads.length,
+    interested: count('interested'),
+    testing: count('testing'),
+    'need-write': count('need-write'),
+    unanswered: count('unanswered'),
+    paused: count('paused'),
+    refusals: count('refusals'),
+    'no-next-step': count('no-next-step')
+  });
 }
 
 function normalizeFilters(raw: unknown): LeadFilters {

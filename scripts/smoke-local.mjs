@@ -11,6 +11,9 @@ const expectedRoutes = [
   { path: '/people/export', status: 307, locationIncludes: '/login?next=%2Fpeople%2Fexport' },
   { path: '/people/import/template', status: 307, locationIncludes: '/login?next=%2Fpeople%2Fimport%2Ftemplate' },
   { path: '/api/version', status: 200, bodyIncludes: '"name":"hutka"' },
+  { path: '/api/leads/options', status: 200, bodyIncludes: '"items":[]' },
+  { path: '/api/funnels/leads?stage=%D0%9D%D0%BE%D0%B2%D1%8B%D0%B9', status: 200, bodyIncludes: '"items":[]' },
+  { path: '/api/campaigns/00000000-0000-4000-8000-000000000000/contacts', status: 200, bodyIncludes: '"items":[]' },
   { path: '/api/telegram/digest', status: 401 },
   { path: '/s/demo', status: 200 },
   { path: '/q/demo-token', status: 404 }

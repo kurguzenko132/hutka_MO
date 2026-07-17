@@ -2,7 +2,14 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { insightImportanceToDb, insightStatusToDb } from '@/lib/insights';
+import {
+  insightImportanceLabel,
+  insightImportanceToDb,
+  insightStatusLabel,
+  insightStatusToDb,
+  type InsightImportance,
+  type InsightStatus
+} from '@/lib/insight-shared';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
@@ -16,10 +23,26 @@ function getMany(formData: FormData, key: string) {
   return formData.getAll(key).map((value) => String(value)).filter(Boolean);
 }
 
-async function insightExists(supabase: Awaited<ReturnType<typeof createClient>>, insightId: string) {
-  const { data, error } = await supabase.from('insights').select('id').eq('id', insightId).maybeSingle();
-  return !error && Boolean(data?.id);
-}
+export type InsightUpdateMutationInput = {
+  id: string;
+  status: string;
+  importance: string;
+  evidence?: string;
+  nextAction?: string;
+};
+
+export type InsightUpdateMutationResult = {
+  ok: boolean;
+  error?: 'demo' | 'missing-insight' | 'update-failed' | 'insight-not-found' | 'confirmation-required' | 'delete-failed';
+  item?: {
+    status: InsightStatus;
+    statusLabel: string;
+    importance: InsightImportance;
+    importanceLabel: string;
+    evidence?: string;
+    nextAction?: string;
+  };
+};
 
 export async function createInsightAction(formData: FormData) {
   const user = await requirePermission('manageInsights', '/insights?error=forbidden');
@@ -52,19 +75,20 @@ export async function createInsightAction(formData: FormData) {
   const campaignIds = getMany(formData, 'campaign_ids');
   const surveyIds = getMany(formData, 'survey_ids');
 
-  if (leadIds.length > 0) {
-    const { error: leadsError } = await supabase.from('insight_leads').insert(leadIds.map((leadId) => ({ insight_id: insightId, lead_id: leadId })));
-    if (leadsError) redirect(`/insights/${insightId}?error=relations-save-failed`);
-  }
+  const relationResults = await Promise.all([
+    leadIds.length > 0
+      ? supabase.from('insight_leads').insert(leadIds.map((leadId) => ({ insight_id: insightId, lead_id: leadId })))
+      : Promise.resolve({ error: null }),
+    campaignIds.length > 0
+      ? supabase.from('insight_campaigns').insert(campaignIds.map((campaignId) => ({ insight_id: insightId, campaign_id: campaignId })))
+      : Promise.resolve({ error: null }),
+    surveyIds.length > 0
+      ? supabase.from('insight_surveys').insert(surveyIds.map((surveyId) => ({ insight_id: insightId, survey_id: surveyId })))
+      : Promise.resolve({ error: null })
+  ]);
 
-  if (campaignIds.length > 0) {
-    const { error: campaignsError } = await supabase.from('insight_campaigns').insert(campaignIds.map((campaignId) => ({ insight_id: insightId, campaign_id: campaignId })));
-    if (campaignsError) redirect(`/insights/${insightId}?error=relations-save-failed`);
-  }
-
-  if (surveyIds.length > 0) {
-    const { error: surveysError } = await supabase.from('insight_surveys').insert(surveyIds.map((surveyId) => ({ insight_id: insightId, survey_id: surveyId })));
-    if (surveysError) redirect(`/insights/${insightId}?error=relations-save-failed`);
+  if (relationResults.some((result) => result.error)) {
+    redirect(`/insights/${insightId}?error=relations-save-failed`);
   }
 
   await recordActivityLog({
@@ -82,28 +106,49 @@ export async function createInsightAction(formData: FormData) {
 }
 
 export async function updateInsightAction(formData: FormData) {
-  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
   const insightId = getText(formData, 'insight_id');
-  if (!insightId) redirect('/insights');
-
-  if (!isSupabaseConfigured()) {
-    redirect(`/insights/${insightId}?updated=demo`);
+  const result = await updateInsightMutation({
+    id: insightId,
+    status: getText(formData, 'status'),
+    importance: getText(formData, 'importance'),
+    evidence: getText(formData, 'evidence'),
+    nextAction: getText(formData, 'next_action')
+  });
+  if (!result.ok) {
+    if (result.error === 'missing-insight' || result.error === 'insight-not-found') redirect('/insights?error=insight-not-found');
+    redirect(`/insights/${insightId}?error=${result.error ?? 'update-failed'}`);
   }
+  revalidatePath('/insights');
+  revalidatePath(`/insights/${insightId}`);
+  revalidatePath('/dashboard');
+  redirect(`/insights/${insightId}`);
+}
 
+export async function updateInsightMutation(input: InsightUpdateMutationInput): Promise<InsightUpdateMutationResult> {
+  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
+  const insightId = input.id.trim();
+  if (!insightId) return { ok: false, error: 'missing-insight' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
+
+  const status = insightStatusToDb[input.status] ?? (Object.values(insightStatusToDb).includes(input.status as InsightStatus) ? input.status as InsightStatus : 'new');
+  const importance = insightImportanceToDb[input.importance] ?? (Object.values(insightImportanceToDb).includes(input.importance as InsightImportance) ? input.importance as InsightImportance : 'medium');
+  const evidence = input.evidence?.trim() || '';
+  const nextAction = input.nextAction?.trim() || '';
   const supabase = await createClient();
-  if (!(await insightExists(supabase, insightId))) redirect('/insights?error=insight-not-found');
-
-  const { error } = await supabase
+  const { data: updatedInsight, error } = await supabase
     .from('insights')
     .update({
-      status: insightStatusToDb[getText(formData, 'status')] ?? 'new',
-      importance: insightImportanceToDb[getText(formData, 'importance')] ?? 'medium',
-      evidence: getText(formData, 'evidence') || null,
-      next_action: getText(formData, 'next_action') || null
+      status,
+      importance,
+      evidence: evidence || null,
+      next_action: nextAction || null
     })
-    .eq('id', insightId);
+    .eq('id', insightId)
+    .select('id,status,importance,evidence,next_action')
+    .maybeSingle();
 
-  if (error) redirect(`/insights/${insightId}?error=update-failed`);
+  if (error) return { ok: false, error: 'update-failed' };
+  if (!updatedInsight?.id) return { ok: false, error: 'insight-not-found' };
 
   await recordActivityLog({
     userId: user.profileId,
@@ -111,32 +156,51 @@ export async function updateInsightAction(formData: FormData) {
     entityType: 'insight',
     entityId: insightId,
     entityTitle: 'Вывод',
-    details: { status: insightStatusToDb[getText(formData, 'status')] ?? 'new' }
+    details: { status }
   });
-
-  revalidatePath('/insights');
-  revalidatePath(`/insights/${insightId}`);
-  revalidatePath('/dashboard');
-  redirect(`/insights/${insightId}`);
+  return {
+    ok: true,
+    item: {
+      status,
+      statusLabel: insightStatusLabel(status),
+      importance,
+      importanceLabel: insightImportanceLabel(importance),
+      evidence: updatedInsight.evidence ? String(updatedInsight.evidence) : undefined,
+      nextAction: updatedInsight.next_action ? String(updatedInsight.next_action) : undefined
+    }
+  };
 }
 
 export async function deleteInsightAction(formData: FormData) {
-  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
   const insightId = getText(formData, 'insight_id');
   const confirmation = getText(formData, 'confirmation');
-  if (!insightId) redirect('/insights?error=missing-insight');
-  if (confirmation !== 'УДАЛИТЬ') redirect(`/insights/${insightId}?error=confirmation-required`);
-
-  if (!isSupabaseConfigured()) {
-    redirect('/insights?deleted=demo');
+  const result = await deleteInsightMutation(insightId, confirmation);
+  if (!result.ok) {
+    if (result.error === 'missing-insight' || result.error === 'insight-not-found') redirect('/insights?error=insight-not-found');
+    redirect(`/insights/${insightId}?error=${result.error ?? 'delete-failed'}`);
   }
+  revalidatePath('/insights');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/insights?deleted=insight');
+}
+
+export async function deleteInsightMutation(insightIdRaw: string, confirmation: string): Promise<InsightUpdateMutationResult> {
+  const user = await requirePermission('manageInsights', '/insights?error=forbidden');
+  const insightId = insightIdRaw.trim();
+  if (!insightId) return { ok: false, error: 'missing-insight' };
+  if (confirmation !== 'УДАЛИТЬ') return { ok: false, error: 'confirmation-required' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
 
   const supabase = await createClient();
-  const { data: insight } = await supabase.from('insights').select('id,title').eq('id', insightId).maybeSingle();
-  if (!insight?.id) redirect('/insights?error=insight-not-found');
-
-  const { error } = await supabase.from('insights').delete().eq('id', insightId);
-  if (error) redirect(`/insights/${insightId}?error=delete-failed`);
+  const { data: insight, error } = await supabase
+    .from('insights')
+    .delete()
+    .eq('id', insightId)
+    .select('id,title')
+    .maybeSingle();
+  if (error) return { ok: false, error: 'delete-failed' };
+  if (!insight?.id) return { ok: false, error: 'insight-not-found' };
 
   await recordActivityLog({
     userId: user.profileId,
@@ -146,8 +210,5 @@ export async function deleteInsightAction(formData: FormData) {
     entityTitle: String(insight.title ?? 'Вывод')
   });
 
-  revalidatePath('/insights');
-  revalidatePath('/dashboard');
-  revalidatePath('/reports');
-  redirect('/insights?deleted=insight');
+  return { ok: true };
 }

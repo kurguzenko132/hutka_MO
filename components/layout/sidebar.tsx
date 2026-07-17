@@ -9,6 +9,7 @@ import { can, roleLabels, type UserRole } from '@/lib/roles';
 import { getInitials } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { Logo } from './logo';
+import { useProfilePresentation } from './profile-presentation';
 
 export function Sidebar({
   role,
@@ -22,11 +23,12 @@ export function Sidebar({
   userAvatarUrl?: string;
 }) {
   const pathname = usePathname();
+  const profile = useProfilePresentation({ fullName: userName, jobTitle: userJobTitle, avatarUrl: userAvatarUrl });
   const visibleItems = navItems.filter((item) => {
     const adminOnly = item.href === '/settings' || item.href === '/quality' || item.href === '/launch' || item.href === '/qa';
     return !adminOnly || can(role, 'manageSettings');
   });
-  const initials = getInitials(userName, 'H');
+  const initials = getInitials(profile.fullName, 'H');
 
   return (
     <aside className="fixed left-0 top-0 z-40 hidden h-screen w-72 border-r border-app-line bg-white px-4 py-5  lg:block">
@@ -68,16 +70,16 @@ export function Sidebar({
         )}
       >
         <div className="flex items-center gap-3">
-          {userAvatarUrl ? (
-            <Image src={userAvatarUrl} alt="" width={40} height={40} unoptimized className="h-10 w-10 rounded-full object-cover" />
+          {profile.avatarUrl ? (
+            <Image src={profile.avatarUrl} alt="" width={40} height={40} className="h-10 w-10 rounded-full object-cover" />
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-400 to-purple-600 text-sm font-bold text-white">
               {initials}
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-bold text-app-text">{userName ?? 'Hutka'}</p>
-            <p className="truncate text-xs text-app-muted">{userJobTitle || roleLabels[role]}</p>
+            <p className="truncate text-sm font-bold text-app-text">{profile.fullName ?? 'Hutka'}</p>
+            <p className="truncate text-xs text-app-muted">{profile.jobTitle || roleLabels[role]}</p>
           </div>
           <Settings className="h-4 w-4 shrink-0 text-app-faint" />
         </div>

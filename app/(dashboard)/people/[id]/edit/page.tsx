@@ -7,6 +7,7 @@ import { getSettingsData } from '@/lib/settings';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -130,10 +131,10 @@ export default async function EditLeadPage({
           <Button asChild variant="secondary">
             <Link href={`/people/${lead.id}`}>Отмена</Link>
           </Button>
-          <Button type="submit">
+          <SubmitButton>
             <Save className="h-4 w-4" />
             Сохранить изменения
-          </Button>
+          </SubmitButton>
         </div>
       </form>
     </div>

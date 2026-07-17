@@ -2,25 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requireUser } from '@/lib/permissions';
 import { normalizeRole, type UserRole } from '@/lib/roles';
+import type { MarketingProfile } from '@/lib/profile-shared';
 
-export type MarketingProfile = {
-  id: string;
-  userId: string;
-  email: string;
-  fullName: string;
-  jobTitle: string;
-  role: UserRole;
-  avatarUrl: string;
-  phone: string;
-  telegram: string;
-  telegramChatId: string;
-  telegramNotificationsEnabled: boolean;
-  telegramLastTestAt: string;
-  bio: string;
-  createdAt: string;
-  updatedAt: string;
-  isDemo: boolean;
-};
+export type { MarketingProfile } from '@/lib/profile-shared';
 
 function asString(value: unknown, fallback = '') {
   return typeof value === 'string' && value.trim() ? value : fallback;

@@ -123,7 +123,7 @@ canvas {
 
 .performance-contain {
   content-visibility: auto;
-  contain-intrinsic-size: 320px;
+  contain-intrinsic-size: auto 320px;
 }
 
 @media (prefers-reduced-motion: reduce) {

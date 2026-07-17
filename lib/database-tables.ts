@@ -37,6 +37,8 @@ export const databaseTables = [
   'telegram_delivery_logs'
 ] as const;
 
+export type DatabaseTable = (typeof databaseTables)[number];
+
 export const workDataTables = [
   'telegram_delivery_logs',
   'notification_reads',

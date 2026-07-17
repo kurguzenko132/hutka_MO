@@ -3,11 +3,12 @@ import { ArrowLeft, Brain, Save, Sparkles } from 'lucide-react';
 import { createInsightAction } from '@/actions/insights.actions';
 import { Field, FormSection } from '@/components/forms/form-section';
 import { PageHeader } from '@/components/layout/page-header';
+import { LeadMultiCombobox } from '@/components/people/lead-multi-combobox';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { getLeadOptions } from '@/lib/leads';
 import { getCampaignOptions, getSurveyOptions, insightCategories } from '@/lib/insights';
 import { requirePermission } from '@/lib/permissions';
 
@@ -20,7 +21,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
   await requirePermission('manageInsights', '/insights?error=forbidden');
   const params = await searchParams;
   const error = params?.error ? errorMessages[params.error] : undefined;
-  const [leads, campaigns, surveys] = await Promise.all([getLeadOptions(), getCampaignOptions(), getSurveyOptions()]);
+  const [campaigns, surveys] = await Promise.all([getCampaignOptions(), getSurveyOptions()]);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -74,9 +75,7 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
           <FormSection title="Связи" subtitle="Не обязательно, но полезно: так команда увидит, на чем основан вывод.">
             <div className="grid gap-4 md:grid-cols-3">
               <Field label="Контакты">
-                <Select name="lead_ids" multiple className="min-h-36 py-2">
-                  {leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.name}</option>)}
-                </Select>
+                <LeadMultiCombobox name="lead_ids" />
               </Field>
               <Field label="Кампании">
                 <Select name="campaign_ids" multiple className="min-h-36 py-2">
@@ -89,12 +88,12 @@ export default async function NewInsightPage({ searchParams }: { searchParams?: 
                 </Select>
               </Field>
             </div>
-            <p className="mt-3 text-xs leading-5 text-app-muted">Чтобы выбрать несколько пунктов, удерживай Cmd/Ctrl. Если связей пока нет — просто сохрани вывод без них.</p>
+            <p className="mt-3 text-xs leading-5 text-app-muted">Кампании и анкеты поддерживают множественный выбор через Cmd/Ctrl. Если связей пока нет — просто сохрани вывод без них.</p>
           </FormSection>
 
           <div className="flex justify-end gap-3">
             <Button asChild variant="secondary"><Link href="/insights">Отмена</Link></Button>
-            <Button type="submit"><Save className="h-4 w-4" />Сохранить вывод</Button>
+            <SubmitButton><Save className="h-4 w-4" />Сохранить вывод</SubmitButton>
           </div>
         </form>
 

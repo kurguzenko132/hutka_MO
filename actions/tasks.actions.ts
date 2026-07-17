@@ -4,12 +4,13 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { sendWorkspaceTelegramNotification } from '@/lib/telegram';
+import { queueWorkspaceTelegramNotification } from '@/lib/telegram';
 import { statusLabel } from '@/lib/tasks';
 import type { TaskAssigneeRole, TaskStatus } from '@/lib/tasks';
 import { requirePermission } from '@/lib/permissions';
 import { getSafeRedirectPath, withRedirectQuery } from '@/lib/auth';
-import { recordActivityLog } from '@/lib/activity-log';
+import { writeActivityLog } from '@/lib/activity-log';
+import { deferSideEffects } from '@/lib/deferred-side-effects';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -35,6 +36,86 @@ type TaskAssigneeDraft = {
   profile_id: string;
   role: TaskAssigneeRole;
 };
+
+export type TaskMutationResult = {
+  ok: boolean;
+  error?: string;
+};
+
+type AtomicTaskCreateResult =
+  | { status: 'success'; taskId: string }
+  | { status: 'business-error'; error: string }
+  | { status: 'unavailable' }
+  | { status: 'failed' };
+
+function isMissingAtomicTaskCreate(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error) return false;
+  if (error.code === 'PGRST202' || error.code === '42883') return true;
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return message.includes('create_task_with_assignees') && (
+    message.includes('could not find')
+    || message.includes('does not exist')
+    || message.includes('schema cache')
+  );
+}
+
+async function createTaskWithAssigneesRpc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    title: string;
+    leadId: string | null;
+    description: string;
+    dueDate: string;
+    priority: string;
+    assignees: TaskAssigneeDraft[];
+    actorProfileId: string | null;
+  }
+): Promise<AtomicTaskCreateResult> {
+  const { data, error } = await supabase.rpc('create_task_with_assignees', {
+    p_title: input.title,
+    p_lead_id: input.leadId,
+    p_description: input.description || null,
+    p_due_date: input.dueDate || null,
+    p_priority: input.priority,
+    p_assignee_profile_ids: input.assignees.map((assignee) => assignee.profile_id),
+    p_assignee_roles: input.assignees.map((assignee) => assignee.role),
+    p_actor_profile_id: input.actorProfileId
+  });
+
+  if (error) {
+    return isMissingAtomicTaskCreate(error) ? { status: 'unavailable' } : { status: 'failed' };
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { status: 'failed' };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (result.ok === true && typeof result.task_id === 'string') {
+    return { status: 'success', taskId: result.task_id };
+  }
+  if (result.ok === false && typeof result.error === 'string') {
+    return { status: 'business-error', error: result.error };
+  }
+  return { status: 'failed' };
+}
+
+function queueTaskCreatedTelegram(input: {
+  title: string;
+  leadId: string | null;
+  dueDate: string;
+  assigneeCount: number;
+}) {
+  queueWorkspaceTelegramNotification({
+    eventType: 'task_created',
+    title: 'создана задача',
+    text: `Создана задача: ${input.title}`,
+    href: input.leadId ? `/people/${input.leadId}` : '/tasks',
+    extraLines: [
+      input.dueDate ? `Дедлайн: ${input.dueDate}` : 'Дедлайн: не указан',
+      input.assigneeCount > 0 ? `Участников: ${input.assigneeCount}` : 'Участники не назначены'
+    ]
+  });
+}
 
 function getReturnTo(formData: FormData, fallback = '/tasks') {
   return getSafeRedirectPath(getText(formData, 'return_to'), fallback);
@@ -93,21 +174,54 @@ export async function createTaskAction(formData: FormData) {
   }
 
   const supabase = await createClient();
+  const atomicResult = await createTaskWithAssigneesRpc(supabase, {
+    title,
+    leadId,
+    description: getText(formData, 'description'),
+    dueDate,
+    priority,
+    assignees,
+    actorProfileId: user.profileId
+  });
 
-  if (leadId) {
-    const { data: lead, error: leadError } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
-    if (leadError || !lead?.id) {
-      redirect(withRedirectQuery(returnTo, { error: 'lead-not-found' }, '/tasks'));
-    }
+  if (atomicResult.status === 'success') {
+    if (leadId) revalidatePath(`/people/${leadId}`);
+    queueTaskCreatedTelegram({
+      title,
+      leadId,
+      dueDate,
+      assigneeCount: assignees.length
+    });
+    revalidatePath('/tasks');
+    revalidatePath('/dashboard');
+    revalidatePath('/notifications');
+    redirect(returnTo);
+  }
+  if (atomicResult.status === 'business-error') {
+    const error = atomicResult.error === 'invalid-assignees'
+      ? 'task-assignee-not-found'
+      : atomicResult.error === 'invalid-priority'
+        ? 'task-save-failed'
+        : atomicResult.error;
+    redirect(withRedirectQuery(returnTo, { error }, '/tasks'));
+  }
+  if (atomicResult.status === 'failed') {
+    redirect(withRedirectQuery(returnTo, { error: 'task-save-failed' }, '/tasks'));
   }
 
   const profileIds = assignees.map((assignee) => assignee.profile_id);
-  if (profileIds.length > 0) {
-    const existingProfileIds = await getExistingProfileIds(supabase, profileIds);
-    const hasUnknownProfile = profileIds.some((profileId) => !existingProfileIds.has(profileId));
-    if (hasUnknownProfile) {
-      redirect(withRedirectQuery(returnTo, { error: 'task-assignee-not-found' }, '/tasks'));
-    }
+  const [leadResult, existingProfileIds] = await Promise.all([
+    leadId ? supabase.from('leads').select('id').eq('id', leadId).maybeSingle() : Promise.resolve({ data: { id: null }, error: null }),
+    getExistingProfileIds(supabase, profileIds)
+  ]);
+
+  if (leadId && (leadResult.error || !leadResult.data?.id)) {
+    redirect(withRedirectQuery(returnTo, { error: 'lead-not-found' }, '/tasks'));
+  }
+
+  const hasUnknownProfile = profileIds.some((profileId) => !existingProfileIds.has(profileId));
+  if (hasUnknownProfile) {
+    redirect(withRedirectQuery(returnTo, { error: 'task-assignee-not-found' }, '/tasks'));
   }
 
   const { data: task, error } = await supabase
@@ -143,35 +257,34 @@ export async function createTaskAction(formData: FormData) {
     }
   }
 
-  if (leadId) {
-    await supabase.from('lead_interactions').insert({
-      lead_id: leadId,
-      type: 'note',
-      channel: 'Hutka',
-      text: `Создана задача: ${title}`,
-      result: 'task_created'
-    });
-    revalidatePath(`/people/${leadId}`);
-  }
+  deferSideEffects(
+    async () => {
+      if (!leadId) return;
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'note',
+        channel: 'Hutka',
+        text: `Создана задача: ${title}`,
+        result: 'task_created'
+      });
+    },
+    async () => writeActivityLog({
+      userId: user.profileId,
+      action: 'создал задачу',
+      entityType: 'task',
+      entityId: String(task.id),
+      entityTitle: title,
+      details: { lead_id: leadId, due_date: dueDate || null, assignees: assignees.length }
+    })
+  );
 
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'создал задачу',
-    entityType: 'task',
-    entityId: String(task.id),
-    entityTitle: title,
-    details: { lead_id: leadId, due_date: dueDate || null, assignees: assignees.length }
-  });
+  if (leadId) revalidatePath(`/people/${leadId}`);
 
-  await sendWorkspaceTelegramNotification({
-    eventType: 'task_created',
-    title: 'создана задача',
-    text: `Создана задача: ${title}`,
-    href: leadId ? `/people/${leadId}` : '/tasks',
-    extraLines: [
-      dueDate ? `Дедлайн: ${dueDate}` : 'Дедлайн: не указан',
-      assignees.length > 0 ? `Участников: ${assignees.length}` : 'Участники не назначены'
-    ]
+  queueTaskCreatedTelegram({
+    title,
+    leadId,
+    dueDate,
+    assigneeCount: assignees.length
   });
 
   revalidatePath('/tasks');
@@ -180,56 +293,53 @@ export async function createTaskAction(formData: FormData) {
   redirect(returnTo);
 }
 
-export async function updateTaskStatusAction(formData: FormData) {
-  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
-  const taskId = getText(formData, 'task_id');
-  const status = getText(formData, 'status') as TaskStatus;
-  const returnTo = getReturnTo(formData);
-
-  if (!taskId || !allowedStatuses.includes(status)) {
-    redirect(withRedirectQuery(returnTo, { error: 'task-status-failed' }, '/tasks'));
-  }
-
-  if (!isSupabaseConfigured()) {
-    redirect(withRedirectQuery(returnTo, { task: 'demo-status' }, '/tasks'));
-  }
+async function updateTaskStatusCore(
+  taskId: string,
+  status: TaskStatus,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<TaskMutationResult> {
+  if (!taskId || !allowedStatuses.includes(status)) return { ok: false, error: 'task-status-failed' };
+  if (!isSupabaseConfigured()) return { ok: true };
 
   const supabase = await createClient();
-  const { data: task, error: taskError } = await supabase
-    .from('tasks')
-    .select('id,lead_id,title')
-    .eq('id', taskId)
-    .maybeSingle();
-
-  if (taskError || !task?.id) {
-    redirect(withRedirectQuery(returnTo, { error: 'task-not-found' }, '/tasks'));
-  }
-
-  const { error } = await supabase
+  const { data: task, error } = await supabase
     .from('tasks')
     .update({ status, updated_at: new Date().toISOString() })
-    .eq('id', taskId);
+    .eq('id', taskId)
+    .select('id,lead_id,title')
+    .maybeSingle();
 
-  if (error) {
-    redirect(withRedirectQuery(returnTo, { error: 'task-status-failed' }, '/tasks'));
+  if (error || !task?.id) {
+    return { ok: false, error: 'task-status-failed' };
   }
 
   const leadId = task.lead_id ? String(task.lead_id) : '';
   const title = task.title ? String(task.title) : 'Задача';
 
-  if (leadId) {
-    await supabase.from('lead_interactions').insert({
-      lead_id: leadId,
-      type: 'note',
-      channel: 'Hutka',
-      text: `Статус задачи изменен: ${title} → ${status}`,
-      result: 'task_status_changed'
-    });
-    revalidatePath(`/people/${leadId}`);
-  }
+  deferSideEffects(
+    async () => {
+      if (!leadId) return;
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'note',
+        channel: 'Hutka',
+        text: `Статус задачи изменен: ${title} → ${status}`,
+        result: 'task_status_changed'
+      });
+    },
+    async () => writeActivityLog({
+      userId,
+      action: status === 'done' ? 'закрыл задачу' : 'изменил задачу',
+      entityType: 'task',
+      entityId: taskId,
+      entityTitle: title,
+      details: { status, lead_id: leadId || null }
+    })
+  );
 
   if (status === 'done' || status === 'in_progress') {
-    await sendWorkspaceTelegramNotification({
+    queueWorkspaceTelegramNotification({
       eventType: 'task_status_changed',
       title: 'обновлена задача',
       text: `Статус задачи «${title}» изменен на ${statusLabel(status)}.`,
@@ -237,59 +347,94 @@ export async function updateTaskStatusAction(formData: FormData) {
     });
   }
 
-  await recordActivityLog({
-    userId: user.profileId,
-    action: status === 'done' ? 'закрыл задачу' : 'изменил задачу',
+  if (shouldRevalidate) {
+    revalidatePath('/tasks');
+    revalidatePath('/dashboard');
+    revalidatePath('/notifications');
+    revalidatePath('/reports');
+    if (leadId) revalidatePath(`/people/${leadId}`);
+  }
+  return { ok: true };
+}
+
+export async function updateTaskStatusMutationAction(input: {
+  taskId: string;
+  status: TaskStatus;
+}): Promise<TaskMutationResult> {
+  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
+  return updateTaskStatusCore(input.taskId.trim(), input.status, user.profileId);
+}
+
+export async function updateTaskStatusAction(formData: FormData) {
+  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
+  const taskId = getText(formData, 'task_id');
+  const status = getText(formData, 'status') as TaskStatus;
+  const returnTo = getReturnTo(formData);
+  if (!isSupabaseConfigured()) {
+    redirect(withRedirectQuery(returnTo, { task: 'demo-status' }, '/tasks'));
+  }
+  const result = await updateTaskStatusCore(taskId, status, user.profileId, true);
+
+  if (!result.ok) {
+    redirect(withRedirectQuery(returnTo, { error: result.error ?? 'task-status-failed' }, '/tasks'));
+  }
+
+  redirect(returnTo);
+}
+
+async function deleteTaskCore(
+  taskId: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<TaskMutationResult> {
+  if (!taskId) return { ok: false, error: 'missing-task' };
+  if (!isSupabaseConfigured()) return { ok: true };
+
+  const supabase = await createClient();
+  const { data: task, error } = await supabase
+    .from('tasks')
+    .delete()
+    .eq('id', taskId)
+    .select('id,lead_id,title')
+    .maybeSingle();
+  if (error || !task?.id) return { ok: false, error: 'task-delete-failed' };
+
+  const leadId = task.lead_id ? String(task.lead_id) : '';
+  deferSideEffects(async () => writeActivityLog({
+    userId,
+    action: 'удалил задачу',
     entityType: 'task',
     entityId: taskId,
-    entityTitle: title,
-    details: { status, lead_id: leadId || null }
-  });
+    entityTitle: String(task.title ?? 'Задача'),
+    details: { lead_id: leadId || null }
+  }));
 
-  revalidatePath('/tasks');
-  revalidatePath('/dashboard');
-  revalidatePath('/notifications');
-  revalidatePath('/reports');
-  redirect(returnTo);
+  if (shouldRevalidate) {
+    revalidatePath('/tasks');
+    revalidatePath('/dashboard');
+    revalidatePath('/reports');
+    if (leadId) revalidatePath(`/people/${leadId}`);
+  }
+  return { ok: true };
+}
+
+export async function deleteTaskMutationAction(input: { taskId: string }): Promise<TaskMutationResult> {
+  const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
+  return deleteTaskCore(input.taskId.trim(), user.profileId);
 }
 
 export async function deleteTaskAction(formData: FormData) {
   const user = await requirePermission('manageTasks', '/tasks?error=forbidden');
   const taskId = getText(formData, 'task_id');
   const returnTo = getReturnTo(formData);
-  if (!taskId) redirect(withRedirectQuery(returnTo, { error: 'missing-task' }, '/tasks'));
-
   if (!isSupabaseConfigured()) {
     redirect(withRedirectQuery(returnTo, { task: 'demo-delete' }, '/tasks'));
   }
+  const result = await deleteTaskCore(taskId, user.profileId, true);
 
-  const supabase = await createClient();
-  const { data: task, error: taskError } = await supabase
-    .from('tasks')
-    .select('id,lead_id,title')
-    .eq('id', taskId)
-    .maybeSingle();
-
-  if (taskError || !task?.id) {
-    redirect(withRedirectQuery(returnTo, { error: 'task-not-found' }, '/tasks'));
+  if (!result.ok) {
+    redirect(withRedirectQuery(returnTo, { error: result.error ?? 'task-delete-failed' }, '/tasks'));
   }
 
-  const { error } = await supabase.from('tasks').delete().eq('id', taskId);
-  if (error) redirect(withRedirectQuery(returnTo, { error: 'task-delete-failed' }, '/tasks'));
-
-  const leadId = task.lead_id ? String(task.lead_id) : '';
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'удалил задачу',
-    entityType: 'task',
-    entityId: taskId,
-    entityTitle: String(task.title ?? 'Задача'),
-    details: { lead_id: leadId || null }
-  });
-
-  revalidatePath('/tasks');
-  revalidatePath('/dashboard');
-  revalidatePath('/reports');
-  if (leadId) revalidatePath(`/people/${leadId}`);
   redirect(withRedirectQuery(returnTo, { deleted: 'task' }, '/tasks'));
 }

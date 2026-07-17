@@ -1,10 +1,6 @@
-import type { ElementType } from 'react';
-import { CalendarCheck, CheckCircle2, Clock3, Flame, TimerOff } from 'lucide-react';
 import { PageHeader } from '@/components/layout/page-header';
-import { Card, CardContent } from '@/components/ui/card';
-import { TaskFiltersPanel } from '@/components/tasks/task-filters';
-import { TaskList } from '@/components/tasks/task-list';
-import { getTaskFilterOptions, getTaskSummary, getTasks, type TaskFilters } from '@/lib/tasks';
+import { TaskWorkspace } from '@/components/tasks/task-workspace';
+import { getTaskDirectoryPage, getTaskFilterOptions, type TaskFilters } from '@/lib/tasks';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
 import { ActionNotice } from '@/components/ui/action-notice';
@@ -29,52 +25,53 @@ function buildReturnTo(params?: Record<string, string | undefined>) {
   return search ? `/tasks?${search}` : '/tasks';
 }
 
-function Stat({ icon: Icon, label, value, tone }: { icon: ElementType; label: string; value: number; tone: string }) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-5">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${tone}`}>
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <p className="text-2xl font-black text-app-text">{value}</p>
-          <p className="text-sm text-app-muted">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
+const PAGE_SIZE = 40;
+
+function pageHref(params: Record<string, string | undefined> | undefined, page: number) {
+  const query = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (value && key !== 'page') query.set(key, value);
+  });
+  if (page > 1) query.set('page', String(page));
+  const search = query.toString();
+  return search ? `/tasks?${search}` : '/tasks';
 }
 
 export default async function TasksPage({ searchParams }: { searchParams?: Promise<Record<string, string | undefined>> }) {
-  const user = await getCurrentUserContext();
+  const [user, params] = await Promise.all([
+    getCurrentUserContext(),
+    searchParams
+  ]);
   const role = user?.role ?? 'viewer';
-  const params = await searchParams;
   const filters = normalizeTaskFilters(params);
   const returnTo = buildReturnTo(params);
+  const requestedPage = Number(params?.page || 1);
+  const normalizedPage = Math.max(Number.isFinite(requestedPage) ? Math.floor(requestedPage) : 1, 1);
 
-  const [tasks, baseTasks, options] = await Promise.all([
-    getTasks(filters),
-    getTasks({ status: filters.status || 'active' }),
+  const [directory, options] = await Promise.all([
+    getTaskDirectoryPage(filters, normalizedPage, PAGE_SIZE),
     getTaskFilterOptions()
   ]);
-
-  const summary = getTaskSummary(tasks);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Задачи" subtitle="Действия, созвоны, анкеты и рабочие шаги по контактам" actionLabel={can(role, 'manageTasks') ? 'Создать задачу' : undefined} actionHref={can(role, 'manageTasks') ? '/tasks/new' : undefined} />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <Stat icon={CalendarCheck} label="Найдено по фильтрам" value={summary.total} tone="bg-purple-50 text-app-purple" />
-        <Stat icon={TimerOff} label="Просрочено" value={summary.overdue} tone="bg-red-50 text-red-600" />
-        <Stat icon={Clock3} label="Сегодня" value={summary.today} tone="bg-amber-50 text-amber-600" />
-        <Stat icon={Flame} label="Срочно" value={summary.urgent} tone="bg-pink-50 text-pink-600" />
-        <Stat icon={CheckCircle2} label="Выполнено" value={summary.done} tone="bg-emerald-50 text-emerald-600" />
-      </div>
-
-      <ActionNotice searchParams={params} />
-      <TaskFiltersPanel filters={filters} options={options} total={baseTasks.length} shown={tasks.length} role={role} />
-      <TaskList tasks={tasks} returnTo={returnTo} role={role} />
+      <TaskWorkspace
+        key={`${returnTo}:${directory.currentPage}`}
+        initialTasks={directory.items}
+        initialSummary={directory.summary}
+        initialTotal={directory.total}
+        filters={filters}
+        options={options}
+        role={role}
+        pageSize={directory.pageSize}
+        currentPage={directory.currentPage}
+        pageCount={directory.pageCount}
+        previousHref={directory.currentPage > 1 ? pageHref(params, directory.currentPage - 1) : undefined}
+        nextHref={directory.currentPage < directory.pageCount ? pageHref(params, directory.currentPage + 1) : undefined}
+        serverNotice={<ActionNotice searchParams={params} />}
+      />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import Form from 'next/form';
 import { Download, FilterX, Plus, Search, Upload, Wand2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -89,6 +91,7 @@ export function PeopleFilters({
                 return (
                   <Link
                     key={view.id}
+                    prefetch={false}
                     href={view.href}
                     className={cn(
                       'min-w-0 rounded-2xl border p-3 transition',
@@ -112,7 +115,7 @@ export function PeopleFilters({
       </Card>
 
       <Card className="p-4">
-        <form className="space-y-4" action="/people">
+        <Form className="space-y-4" action="/people" prefetch={false}>
           <input type="hidden" name="view" value={filters.view ?? ''} />
           <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -133,18 +136,18 @@ export function PeopleFilters({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" variant="secondary">
+              <SubmitButton variant="secondary">
                 Применить
-              </Button>
+              </SubmitButton>
               <Button asChild variant="ghost">
-                <Link href="/people">
+                <Link prefetch={false} href="/people">
                   <FilterX className="h-4 w-4" />
                   Сбросить
                 </Link>
               </Button>
               {canManageContacts && (
                 <Button asChild variant="secondary">
-                  <Link href={buildHref('/people/export', filters)}>
+                  <Link prefetch={false} href={buildHref('/people/export', filters)}>
                     <Download className="h-4 w-4" />
                     Экспорт
                   </Link>
@@ -182,7 +185,7 @@ export function PeopleFilters({
               )}
             </div>
           </div>
-        </form>
+        </Form>
       </Card>
     </div>
   );

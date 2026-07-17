@@ -50,6 +50,17 @@ export type FollowUpData = {
   demoMode: boolean;
 };
 
+export type FollowUpDirectoryPage = {
+  recommendations: FollowUpRecommendation[];
+  bulkCandidates: FollowUpRecommendation[];
+  summary: FollowUpSummary;
+  total: number;
+  currentPage: number;
+  pageCount: number;
+  pageSize: number;
+  demoMode: boolean;
+};
+
 type DbLead = {
   id: string;
   name: string | null;
@@ -252,6 +263,177 @@ function buildDemoRecommendations(): FollowUpRecommendation[] {
       hasOpenTask: true
     })
   ]);
+}
+
+function safeNumber(value: unknown) {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function parseFollowUpReason(value: unknown): FollowUpReason | null {
+  const reason = String(value ?? '');
+  const values: FollowUpReason[] = [
+    'overdue_followup',
+    'today_followup',
+    'missing_next_action',
+    'hot_without_task',
+    'unanswered_questionnaire',
+    'stale_stage'
+  ];
+  return values.includes(reason as FollowUpReason) ? reason as FollowUpReason : null;
+}
+
+function recommendationFromDirectoryRow(row: Record<string, unknown>): FollowUpRecommendation | null {
+  const reason = parseFollowUpReason(row.reason);
+  const leadId = String(row.id ?? '');
+  if (!reason || !leadId) return null;
+
+  const score = safeNumber(row.priority_score);
+  const nextContactDate = row.next_contact_date ? String(row.next_contact_date) : null;
+  const lastActivity = row.last_activity ? String(row.last_activity) : row.created_at ? String(row.created_at) : null;
+  const overdueDays = Math.abs(dayDiff(nextContactDate) ?? 0);
+  const staleDays = Math.abs(dayDiff(lastActivity) ?? 0);
+  const questionnaireTitle = row.questionnaire_title ? String(row.questionnaire_title) : undefined;
+  const descriptions: Record<FollowUpReason, string> = {
+    overdue_followup: `Дата следующего контакта прошла ${overdueDays} дн. назад. Нужно связаться или обновить статус.`,
+    today_followup: 'На сегодня запланирован следующий контакт. Лучше обработать до конца дня.',
+    hot_without_task: 'Контакт с высоким приоритетом, но без открытой задачи. Есть риск потерять сильного кандидата на тестирование.',
+    unanswered_questionnaire: `Вопросы для контакта «${questionnaireTitle ?? 'Анкета'}» созданы, но ответов пока нет. Нужно напомнить человеку пройти форму.`,
+    missing_next_action: 'У контакта не заполнен следующий шаг или дата действия. Нужно назначить действие, чтобы контакт не потерялся.',
+    stale_stage: `Последняя активность была ${staleDays} дн. назад, а контакт все еще на рабочей стадии. Нужно вернуть в работу или перевести в паузу.`
+  };
+  const priority: FollowUpRecommendation['priority'] =
+    reason === 'overdue_followup' || (reason === 'today_followup' && score >= 75)
+      ? 'urgent'
+      : reason === 'today_followup' || reason === 'hot_without_task' || (['missing_next_action', 'stale_stage'].includes(reason) && score >= 60)
+        ? 'high'
+        : 'medium';
+
+  return buildRecommendation({
+    lead: {
+      id: leadId,
+      name: String(row.name ?? 'Контакт'),
+      meta: [row.niche, row.city].filter((value) => Boolean(value)).map(String).join(' · ') || 'Контакт',
+      stage: normalizeStageName(String(row.stage_name ?? '')),
+      score,
+      nextStep: row.next_step ? String(row.next_step) : null,
+      nextContactDate,
+      lastActivity
+    },
+    reason,
+    description: descriptions[reason],
+    dueDate: addDays(reason === 'overdue_followup' || reason === 'today_followup' || reason === 'hot_without_task' ? 0 : reason === 'stale_stage' ? 2 : 1),
+    priority,
+    hasOpenTask: Boolean(row.has_open_task),
+    questionnaireId: row.questionnaire_id ? String(row.questionnaire_id) : undefined,
+    questionnaireTitle
+  });
+}
+
+function parseDirectoryRows(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+    .map(recommendationFromDirectoryRow)
+    .filter((item): item is FollowUpRecommendation => item !== null);
+}
+
+function parseDirectoryPayload(value: unknown) {
+  if (!value || typeof value !== 'object') return null;
+  const payload = value as Record<string, unknown>;
+  const rawSummary = payload.summary && typeof payload.summary === 'object'
+    ? payload.summary as Record<string, unknown>
+    : {};
+
+  return {
+    recommendations: parseDirectoryRows(payload.items),
+    bulkCandidates: parseDirectoryRows(payload.bulk_items),
+    total: Math.max(0, safeNumber(payload.total)),
+    summary: {
+      total: Math.max(0, safeNumber(rawSummary.total)),
+      urgent: Math.max(0, safeNumber(rawSummary.urgent)),
+      overdue: Math.max(0, safeNumber(rawSummary.overdue)),
+      today: Math.max(0, safeNumber(rawSummary.today)),
+      hot: Math.max(0, safeNumber(rawSummary.hot)),
+      questionnaires: Math.max(0, safeNumber(rawSummary.questionnaires)),
+      withoutTasks: Math.max(0, safeNumber(rawSummary.without_tasks))
+    }
+  };
+}
+
+async function getFollowUpDirectoryPageFallback(
+  reason: FollowUpReason | undefined,
+  requestedPage: number,
+  pageSize: number
+): Promise<FollowUpDirectoryPage> {
+  const data = await getFollowUpRecommendations();
+  const filtered = reason
+    ? data.recommendations.filter((item) => item.reason === reason)
+    : data.recommendations;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(Math.max(requestedPage, 1), pageCount);
+
+  return {
+    recommendations: filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    bulkCandidates: data.recommendations.filter((item) => !item.hasOpenTask).slice(0, 10),
+    summary: data.summary,
+    total: filtered.length,
+    currentPage,
+    pageCount,
+    pageSize,
+    demoMode: data.demoMode
+  };
+}
+
+function followUpPageParams(reason: FollowUpReason | undefined, page: number, pageSize: number) {
+  return {
+    p_reason: reason ?? null,
+    p_offset: (page - 1) * pageSize,
+    p_limit: pageSize,
+    p_bulk_limit: 10
+  };
+}
+
+export async function getFollowUpDirectoryPage(
+  reason?: FollowUpReason,
+  requestedPage = 1,
+  requestedPageSize = 40
+): Promise<FollowUpDirectoryPage> {
+  const pageSize = Math.min(Math.max(Math.floor(requestedPageSize) || 40, 1), 100);
+  const page = Math.max(Math.floor(requestedPage) || 1, 1);
+  if (!isSupabaseConfigured()) {
+    return getFollowUpDirectoryPageFallback(reason, page, pageSize);
+  }
+
+  try {
+    const supabase = await createClient();
+    const firstResult = await supabase.rpc('get_followup_recommendations_page', followUpPageParams(reason, page, pageSize));
+    if (firstResult.error) return getFollowUpDirectoryPageFallback(reason, page, pageSize);
+
+    const firstPayload = parseDirectoryPayload(firstResult.data);
+    if (!firstPayload) return getFollowUpDirectoryPageFallback(reason, page, pageSize);
+
+    const pageCount = Math.max(1, Math.ceil(firstPayload.total / pageSize));
+    const currentPage = Math.min(page, pageCount);
+    if (currentPage === page) {
+      return { ...firstPayload, currentPage, pageCount, pageSize, demoMode: false };
+    }
+
+    const finalResult = await supabase.rpc('get_followup_recommendations_page', followUpPageParams(reason, currentPage, pageSize));
+    const finalPayload = finalResult.error ? null : parseDirectoryPayload(finalResult.data);
+    return {
+      recommendations: finalPayload?.recommendations ?? [],
+      bulkCandidates: finalPayload?.bulkCandidates ?? firstPayload.bulkCandidates,
+      summary: finalPayload?.summary ?? firstPayload.summary,
+      total: finalPayload?.total ?? firstPayload.total,
+      currentPage,
+      pageCount,
+      pageSize,
+      demoMode: false
+    };
+  } catch {
+    return getFollowUpDirectoryPageFallback(reason, page, pageSize);
+  }
 }
 
 export async function getFollowUpRecommendations(): Promise<FollowUpData> {

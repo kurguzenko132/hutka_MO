@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { can, normalizeRole, type Permission, type UserRole } from '@/lib/roles';
@@ -21,7 +22,7 @@ type ProfileRow = {
   role?: string | null;
 };
 
-export async function getCurrentUserContext(): Promise<CurrentUserContext | null> {
+export const getCurrentUserContext = cache(async (): Promise<CurrentUserContext | null> => {
   if (!isSupabaseConfigured()) return null;
 
   const supabase = await createClient();
@@ -57,7 +58,7 @@ export async function getCurrentUserContext(): Promise<CurrentUserContext | null
     avatarUrl: profile?.avatar_url ? String(profile.avatar_url) : '',
     role: profile?.role ? normalizeRole(profile.role) : 'viewer'
   };
-}
+});
 
 export async function requireUser(nextPath = '/dashboard') {
   const context = await getCurrentUserContext();

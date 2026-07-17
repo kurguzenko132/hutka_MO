@@ -2,24 +2,16 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { campaignStatusToDb } from '@/lib/campaigns';
+import { after } from 'next/server';
+import { campaignStatusToDb, mapCampaignContact, type CampaignContact } from '@/lib/campaigns';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { requirePermission } from '@/lib/permissions';
-import { recordActivityLog } from '@/lib/activity-log';
+import { recordActivityLog, writeActivityLog } from '@/lib/activity-log';
+import { deferSideEffects } from '@/lib/deferred-side-effects';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
-}
-
-async function campaignExists(supabase: Awaited<ReturnType<typeof createClient>>, campaignId: string) {
-  const { data, error } = await supabase.from('campaigns').select('id').eq('id', campaignId).maybeSingle();
-  return !error && Boolean(data?.id);
-}
-
-async function leadExists(supabase: Awaited<ReturnType<typeof createClient>>, leadId: string) {
-  const { data, error } = await supabase.from('leads').select('id').eq('id', leadId).maybeSingle();
-  return !error && Boolean(data?.id);
 }
 
 export async function createCampaignAction(formData: FormData) {
@@ -66,65 +58,108 @@ export async function createCampaignAction(formData: FormData) {
   redirect(`/campaigns/${data.id}`);
 }
 
+export type CampaignContactMutationResult = {
+  ok: boolean;
+  error?: string;
+  contact?: CampaignContact;
+};
+
+async function addLeadToCampaignCore(
+  campaignId: string,
+  leadId: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<CampaignContactMutationResult> {
+  if (!campaignId) return { ok: false, error: 'missing-campaign' };
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!isSupabaseConfigured()) return { ok: true };
+
+  const supabase = await createClient();
+  const [leadResult, relationResult] = await Promise.all([
+    supabase
+      .from('leads')
+      .select('id,name,type,niche,city,priority_score,funnel_stages(name),sources(name)')
+      .eq('id', leadId)
+      .maybeSingle(),
+    supabase
+      .from('campaign_leads')
+      .upsert({ campaign_id: campaignId, lead_id: leadId }, { onConflict: 'campaign_id,lead_id' })
+  ]);
+
+  if (leadResult.error || !leadResult.data?.id) return { ok: false, error: 'lead-not-found' };
+  if (relationResult.error) {
+    return { ok: false, error: relationResult.error.code === '23503' ? 'campaign-not-found' : 'lead-add-failed' };
+  }
+
+  deferSideEffects(
+    async () => {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'note',
+        channel: 'Hutka',
+        text: 'Контакт добавлен в маркетинговую кампанию',
+        result: 'campaign_attached'
+      });
+    },
+    async () => writeActivityLog({
+      userId,
+      action: 'добавил контакт в кампанию',
+      entityType: 'campaign',
+      entityId: campaignId,
+      entityTitle: 'Кампания',
+      details: { lead_id: leadId }
+    })
+  );
+
+  if (shouldRevalidate) {
+    revalidatePath('/campaigns');
+    revalidatePath(`/campaigns/${campaignId}`);
+    revalidatePath(`/people/${leadId}`);
+    revalidatePath('/funnels');
+  }
+
+  return {
+    ok: true,
+    contact: mapCampaignContact(leadResult.data as Record<string, unknown>)
+  };
+}
+
+export async function addLeadToCampaignMutationAction(input: {
+  campaignId: string;
+  leadId: string;
+}): Promise<CampaignContactMutationResult> {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  return addLeadToCampaignCore(input.campaignId.trim(), input.leadId.trim(), user.profileId);
+}
+
 export async function addLeadToCampaignAction(formData: FormData) {
   const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const campaignId = getText(formData, 'campaign_id');
-  const leadId = getText(formData, 'lead_id');
-  if (!campaignId) redirect('/campaigns');
-  if (!leadId) redirect(`/campaigns/${campaignId}?error=missing-lead`);
+  const result = await addLeadToCampaignCore(
+    campaignId,
+    getText(formData, 'lead_id'),
+    user.profileId,
+    true
+  );
 
-  if (!isSupabaseConfigured()) {
-    redirect(`/campaigns/${campaignId}?lead=demo`);
+  if (!result.ok) {
+    if (result.error === 'missing-campaign' || result.error === 'campaign-not-found') {
+      redirect('/campaigns?error=campaign-not-found');
+    }
+    redirect(`/campaigns/${campaignId}?error=${result.error ?? 'lead-add-failed'}`);
   }
-
-  const supabase = await createClient();
-  const [hasCampaign, hasLead] = await Promise.all([
-    campaignExists(supabase, campaignId),
-    leadExists(supabase, leadId)
-  ]);
-
-  if (!hasCampaign) redirect('/campaigns?error=campaign-not-found');
-  if (!hasLead) redirect(`/campaigns/${campaignId}?error=lead-not-found`);
-
-  const { error } = await supabase
-    .from('campaign_leads')
-    .upsert({ campaign_id: campaignId, lead_id: leadId }, { onConflict: 'campaign_id,lead_id' });
-
-  if (error) redirect(`/campaigns/${campaignId}?error=lead-add-failed`);
-
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'note',
-    channel: 'Hutka',
-    text: 'Контакт добавлен в маркетинговую кампанию',
-    result: 'campaign_attached'
-  });
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'добавил контакт в кампанию',
-    entityType: 'campaign',
-    entityId: campaignId,
-    entityTitle: 'Кампания',
-    details: { lead_id: leadId }
-  });
-
-  revalidatePath('/campaigns');
-  revalidatePath(`/campaigns/${campaignId}`);
-  revalidatePath(`/people/${leadId}`);
-  revalidatePath('/funnels');
   redirect(`/campaigns/${campaignId}`);
 }
 
-export async function removeLeadFromCampaignAction(formData: FormData) {
-  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
-  const campaignId = getText(formData, 'campaign_id');
-  const leadId = getText(formData, 'lead_id');
-  if (!campaignId) redirect('/campaigns');
-  if (!leadId) redirect(`/campaigns/${campaignId}?error=missing-lead`);
-
-  if (!isSupabaseConfigured()) {
-    redirect(`/campaigns/${campaignId}?lead=demo-remove`);
-  }
+async function removeLeadFromCampaignCore(
+  campaignId: string,
+  leadId: string,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<CampaignContactMutationResult> {
+  if (!campaignId) return { ok: false, error: 'missing-campaign' };
+  if (!leadId) return { ok: false, error: 'missing-lead' };
+  if (!isSupabaseConfigured()) return { ok: true };
 
   const supabase = await createClient();
   const { error } = await supabase
@@ -133,86 +168,259 @@ export async function removeLeadFromCampaignAction(formData: FormData) {
     .eq('campaign_id', campaignId)
     .eq('lead_id', leadId);
 
-  if (error) redirect(`/campaigns/${campaignId}?error=lead-remove-failed`);
+  if (error) return { ok: false, error: 'lead-remove-failed' };
 
-  await supabase.from('lead_interactions').insert({
-    lead_id: leadId,
-    type: 'note',
-    channel: 'Hutka',
-    text: 'Контакт убран из кампании',
-    result: 'campaign_detached'
-  });
-  await recordActivityLog({
-    userId: user.profileId,
-    action: 'убрал контакт из кампании',
-    entityType: 'campaign',
-    entityId: campaignId,
-    entityTitle: 'Кампания',
-    details: { lead_id: leadId }
-  });
+  deferSideEffects(
+    async () => {
+      await supabase.from('lead_interactions').insert({
+        lead_id: leadId,
+        type: 'note',
+        channel: 'Hutka',
+        text: 'Контакт убран из кампании',
+        result: 'campaign_detached'
+      });
+    },
+    async () => writeActivityLog({
+      userId,
+      action: 'убрал контакт из кампании',
+      entityType: 'campaign',
+      entityId: campaignId,
+      entityTitle: 'Кампания',
+      details: { lead_id: leadId }
+    })
+  );
 
-  revalidatePath('/campaigns');
-  revalidatePath(`/campaigns/${campaignId}`);
-  revalidatePath(`/people/${leadId}`);
-  revalidatePath('/funnels');
+  if (shouldRevalidate) {
+    revalidatePath('/campaigns');
+    revalidatePath(`/campaigns/${campaignId}`);
+    revalidatePath(`/people/${leadId}`);
+    revalidatePath('/funnels');
+  }
+
+  return { ok: true };
+}
+
+export async function removeLeadFromCampaignMutationAction(input: {
+  campaignId: string;
+  leadId: string;
+}): Promise<CampaignContactMutationResult> {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  return removeLeadFromCampaignCore(input.campaignId.trim(), input.leadId.trim(), user.profileId);
+}
+
+export async function removeLeadFromCampaignAction(formData: FormData) {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const campaignId = getText(formData, 'campaign_id');
+  const result = await removeLeadFromCampaignCore(
+    campaignId,
+    getText(formData, 'lead_id'),
+    user.profileId,
+    true
+  );
+
+  if (!result.ok) {
+    if (result.error === 'missing-campaign') redirect('/campaigns');
+    redirect(`/campaigns/${campaignId}?error=${result.error ?? 'lead-remove-failed'}`);
+  }
   redirect(`/campaigns/${campaignId}`);
+}
+
+export type CampaignResultMutationInput = {
+  campaignId: string;
+  status: string;
+  resultNotes: string;
+  endDate: string;
+};
+
+export type CampaignResultMutationResult = {
+  ok: boolean;
+  error?: string;
+  status?: string;
+};
+
+async function updateCampaignResultCore(
+  input: CampaignResultMutationInput,
+  userId?: string | null,
+  shouldRevalidate = false
+): Promise<CampaignResultMutationResult> {
+  const campaignId = input.campaignId.trim();
+  if (!campaignId) return { ok: false, error: 'missing-campaign' };
+
+  const status = campaignStatusToDb[input.status.trim()] ?? 'active';
+  if (!isSupabaseConfigured()) return { ok: true, status };
+
+  const supabase = await createClient();
+  const { data: updatedCampaign, error } = await supabase
+    .from('campaigns')
+    .update({
+      status,
+      result_notes: input.resultNotes.trim() || null,
+      end_date: input.endDate.trim() || null
+    })
+    .eq('id', campaignId)
+    .select('id')
+    .maybeSingle();
+
+  if (error) return { ok: false, error: 'result-save-failed' };
+  if (!updatedCampaign?.id) return { ok: false, error: 'campaign-not-found' };
+
+  after(async () => {
+    try {
+      await writeActivityLog({
+        userId,
+        action: 'изменил кампанию',
+        entityType: 'campaign',
+        entityId: campaignId,
+        entityTitle: 'Кампания',
+        details: { status }
+      });
+    } catch {
+      // Основное изменение уже сохранено; служебный лог не должен задерживать интерфейс.
+    }
+  });
+
+  if (shouldRevalidate) {
+    revalidatePath('/campaigns');
+    revalidatePath(`/campaigns/${campaignId}`);
+    revalidatePath('/funnels');
+    revalidatePath('/dashboard');
+  }
+
+  return { ok: true, status };
+}
+
+export async function updateCampaignResultMutationAction(
+  input: CampaignResultMutationInput
+): Promise<CampaignResultMutationResult> {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  return updateCampaignResultCore(input, user.profileId);
 }
 
 export async function updateCampaignResultAction(formData: FormData) {
   const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
   const campaignId = getText(formData, 'campaign_id');
-  if (!campaignId) redirect('/campaigns');
+  const result = await updateCampaignResultCore({
+    campaignId,
+    status: getText(formData, 'status'),
+    resultNotes: getText(formData, 'result_notes'),
+    endDate: getText(formData, 'end_date')
+  }, user.profileId, true);
 
-  if (!isSupabaseConfigured()) {
-    redirect(`/campaigns/${campaignId}?result=demo`);
+  if (!result.ok) {
+    if (result.error === 'missing-campaign') redirect('/campaigns');
+    if (result.error === 'campaign-not-found') redirect('/campaigns?error=campaign-not-found');
+    redirect(`/campaigns/${campaignId}?error=${result.error ?? 'result-save-failed'}`);
   }
+  redirect(`/campaigns/${campaignId}`);
+}
 
+export async function deleteCampaignAction(formData: FormData) {
+  const campaignId = getText(formData, 'campaign_id');
+  const confirmation = getText(formData, 'confirmation');
+  const result = await deleteCampaignMutation(campaignId, confirmation);
+  if (!result.ok) {
+    if (result.error === 'missing-campaign' || result.error === 'campaign-not-found') redirect('/campaigns?error=campaign-not-found');
+    redirect(`/campaigns/${campaignId}?error=${result.error ?? 'delete-failed'}`);
+  }
+  revalidatePath('/campaigns');
+  revalidatePath('/funnels');
+  revalidatePath('/dashboard');
+  revalidatePath('/reports');
+  redirect('/campaigns?deleted=campaign');
+}
+
+export type CampaignMetadataMutationInput = {
+  id: string;
+  name: string;
+  goal?: string;
+  channel?: string;
+  city?: string;
+  niche?: string;
+  budget?: number;
+  offerText?: string;
+  startDate?: string;
+};
+
+export type CampaignMetadataMutationResult = {
+  ok: boolean;
+  error?: 'demo' | 'missing-campaign' | 'name-required' | 'update-failed' | 'delete-failed' | 'campaign-not-found' | 'confirmation-required';
+  item?: CampaignMetadataMutationInput;
+};
+
+export async function updateCampaignMetadataMutation(input: CampaignMetadataMutationInput): Promise<CampaignMetadataMutationResult> {
+  const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
+  const campaignId = input.id.trim();
+  const name = input.name.trim();
+  if (!campaignId) return { ok: false, error: 'missing-campaign' };
+  if (!name) return { ok: false, error: 'name-required' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
+
+  const goal = input.goal?.trim() || '';
+  const channel = input.channel?.trim() || 'Не указан';
+  const city = input.city?.trim() || '';
+  const niche = input.niche?.trim() || '';
+  const offerText = input.offerText?.trim() || '';
+  const startDate = input.startDate?.trim() || '';
+  const budget = Number.isFinite(input.budget) ? Math.max(0, Number(input.budget)) : 0;
   const supabase = await createClient();
-  if (!(await campaignExists(supabase, campaignId))) redirect('/campaigns?error=campaign-not-found');
-
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('campaigns')
     .update({
-      status: campaignStatusToDb[getText(formData, 'status')] ?? 'active',
-      result_notes: getText(formData, 'result_notes') || null,
-      end_date: getText(formData, 'end_date') || null
+      name,
+      goal: goal || null,
+      channel,
+      city: city || null,
+      niche: niche || null,
+      budget,
+      offer_text: offerText || null,
+      start_date: startDate || null
     })
-    .eq('id', campaignId);
+    .eq('id', campaignId)
+    .select('id,name,goal,channel,city,niche,budget,offer_text,start_date')
+    .maybeSingle();
 
-  if (error) redirect(`/campaigns/${campaignId}?error=result-save-failed`);
-
+  if (error) return { ok: false, error: 'update-failed' };
+  if (!data?.id) return { ok: false, error: 'campaign-not-found' };
   await recordActivityLog({
     userId: user.profileId,
     action: 'изменил кампанию',
     entityType: 'campaign',
     entityId: campaignId,
-    entityTitle: 'Кампания',
-    details: { status: campaignStatusToDb[getText(formData, 'status')] ?? 'active' }
+    entityTitle: name,
+    details: { channel, city: city || null, niche: niche || null }
   });
-  revalidatePath('/campaigns');
-  revalidatePath(`/campaigns/${campaignId}`);
-  revalidatePath('/funnels');
-  revalidatePath('/dashboard');
-  redirect(`/campaigns/${campaignId}`);
+  return {
+    ok: true,
+    item: {
+      id: campaignId,
+      name: String(data.name ?? name),
+      goal: data.goal ? String(data.goal) : undefined,
+      channel: String(data.channel ?? channel),
+      city: data.city ? String(data.city) : undefined,
+      niche: data.niche ? String(data.niche) : undefined,
+      budget: Number(data.budget ?? budget),
+      offerText: data.offer_text ? String(data.offer_text) : undefined,
+      startDate: data.start_date ? String(data.start_date) : undefined
+    }
+  };
 }
 
-export async function deleteCampaignAction(formData: FormData) {
+export async function deleteCampaignMutation(campaignIdValue: string, confirmation: string): Promise<CampaignMetadataMutationResult> {
   const user = await requirePermission('manageCampaigns', '/campaigns?error=forbidden');
-  const campaignId = getText(formData, 'campaign_id');
-  const confirmation = getText(formData, 'confirmation');
-  if (!campaignId) redirect('/campaigns?error=missing-campaign');
-  if (confirmation !== 'УДАЛИТЬ') redirect(`/campaigns/${campaignId}?error=confirmation-required`);
-
-  if (!isSupabaseConfigured()) {
-    redirect('/campaigns?deleted=demo');
-  }
+  const campaignId = campaignIdValue.trim();
+  if (!campaignId) return { ok: false, error: 'missing-campaign' };
+  if (confirmation !== 'УДАЛИТЬ') return { ok: false, error: 'confirmation-required' };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
 
   const supabase = await createClient();
-  const { data: campaign } = await supabase.from('campaigns').select('id,name').eq('id', campaignId).maybeSingle();
-  if (!campaign?.id) redirect('/campaigns?error=campaign-not-found');
-
-  const { error } = await supabase.from('campaigns').delete().eq('id', campaignId);
-  if (error) redirect(`/campaigns/${campaignId}?error=delete-failed`);
+  const { data: campaign, error } = await supabase
+    .from('campaigns')
+    .delete()
+    .eq('id', campaignId)
+    .select('id,name')
+    .maybeSingle();
+  if (error) return { ok: false, error: 'delete-failed' };
+  if (!campaign?.id) return { ok: false, error: 'campaign-not-found' };
 
   await recordActivityLog({
     userId: user.profileId,
@@ -221,9 +429,5 @@ export async function deleteCampaignAction(formData: FormData) {
     entityId: campaignId,
     entityTitle: String(campaign.name ?? 'Кампания')
   });
-  revalidatePath('/campaigns');
-  revalidatePath('/funnels');
-  revalidatePath('/dashboard');
-  revalidatePath('/reports');
-  redirect('/campaigns?deleted=campaign');
+  return { ok: true };
 }

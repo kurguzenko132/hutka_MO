@@ -1,9 +1,8 @@
 import { getCampaigns } from '@/lib/campaigns';
-import { getHypotheses } from '@/lib/hypotheses';
 import { getInsights } from '@/lib/insights';
 import { getSurveys } from '@/lib/surveys';
 import { getRefusalAnalytics, type RefusalAnalytics } from '@/lib/refusals';
-import { getTasks } from '@/lib/tasks';
+import { getTaskReportSummary } from '@/lib/tasks';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { channels as demoChannels, funnel as demoFunnel, insights as demoDashboardInsights, niches as demoNiches } from '@/lib/data';
@@ -52,7 +51,6 @@ export type WeeklyReport = {
   campaignHighlights: ReportHighlight[];
   surveyHighlights: ReportHighlight[];
   insightHighlights: ReportHighlight[];
-  hypothesisHighlights: ReportHighlight[];
   refusalSummary: RefusalAnalytics;
   recommendations: string[];
   teamText: string;
@@ -68,6 +66,18 @@ type RawLead = {
   created_at?: string | null;
   sources?: unknown;
   funnel_stages?: unknown;
+};
+
+type ReportLeadAggregates = {
+  totalContacts: number;
+  newContacts: number;
+  interestedContacts: number;
+  testingContacts: number;
+  weeklyDynamics: ReportBarItem[];
+  stageEntries: Array<[string, number]>;
+  topChannels: ReportBarItem[];
+  topNiches: ReportBarItem[];
+  nicheReaction: ReportBarItem[];
 };
 
 function formatDate(value: Date) {
@@ -211,6 +221,106 @@ async function getRawLeads(): Promise<RawLead[]> {
   return data.map((row) => row as RawLead);
 }
 
+function aggregateRawLeads(leads: RawLead[], now: Date): ReportLeadAggregates {
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - 7);
+  const stageCounts = new Map(canonicalFunnelStageNames.map((stage) => [stage, 0]));
+
+  leads.forEach((lead) => {
+    const stage = normalizeStage(lead.funnel_stages);
+    stageCounts.set(stage, (stageCounts.get(stage) ?? 0) + 1);
+  });
+
+  return {
+    totalContacts: leads.length,
+    newContacts: leads.filter((lead) => isDateWithin(lead.created_at, weekStart)).length,
+    interestedContacts: leads.filter((lead) => isInterestedStage(normalizeStage(lead.funnel_stages)) || (lead.priority_score ?? 0) >= 75).length,
+    testingContacts: leads.filter((lead) => isTestingStage(normalizeStage(lead.funnel_stages))).length,
+    weeklyDynamics: buildWeeklyDynamics(leads, now),
+    stageEntries: canonicalFunnelStageNames.map((stage) => [stage, stageCounts.get(stage) ?? 0]),
+    topChannels: makeBarItems(groupCount(leads.map((lead) => normalizeSource(lead.sources)))),
+    topNiches: makeBarItems(groupCount(leads.map((lead) => lead.niche || 'Не указана'))),
+    nicheReaction: buildNicheReaction(leads)
+  };
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function safeNumber(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function namedValueEntries(value: unknown): Array<[string, number]> {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => [String(item.name ?? 'Не указано'), safeNumber(item.value)]);
+}
+
+function parseReportLeadAggregates(value: unknown): ReportLeadAggregates | null {
+  const payload = payloadRecord(value);
+  if (!payload) return null;
+
+  const summary = payloadRecord(payload.summary) ?? {};
+  const weeklyEntries = (Array.isArray(payload.weekly) ? payload.weekly : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item): [string, number] => {
+      const date = new Date(`${String(item.period_start ?? '')}T00:00:00`);
+      const label = Number.isNaN(date.getTime())
+        ? String(item.period_start ?? '')
+        : date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+      return [label, safeNumber(item.value)];
+    });
+
+  const nicheReactionRows = (Array.isArray(payload.niche_reaction) ? payload.niche_reaction : [])
+    .map((item) => payloadRecord(item))
+    .filter((item): item is Record<string, unknown> => Boolean(item))
+    .map((item) => ({
+      name: String(item.name ?? 'Не указана'),
+      value: safeNumber(item.reacted),
+      total: safeNumber(item.total)
+    }));
+  const maxReaction = Math.max(...nicheReactionRows.map((item) => item.value), 1);
+
+  return {
+    totalContacts: safeNumber(summary.total),
+    newContacts: safeNumber(summary.new_contacts),
+    interestedContacts: safeNumber(summary.interested),
+    testingContacts: safeNumber(summary.testing),
+    weeklyDynamics: makeOrderedBarItems(weeklyEntries),
+    stageEntries: namedValueEntries(payload.stages),
+    topChannels: makeBarItems(namedValueEntries(payload.sources)),
+    topNiches: makeBarItems(namedValueEntries(payload.niches)),
+    nicheReaction: nicheReactionRows.map((item) => ({
+      name: item.name,
+      value: item.value,
+      helper: `${percentage(item.value, item.total)} реакции`,
+      width: item.value > 0 ? `${Math.max(8, Math.round((item.value / maxReaction) * 100))}%` : '0%'
+    }))
+  };
+}
+
+async function getReportLeadAggregates(now: Date): Promise<ReportLeadAggregates> {
+  if (!isSupabaseConfigured()) {
+    return aggregateRawLeads(await getRawLeads(), now);
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('get_report_lead_aggregates');
+  if (!error) {
+    const aggregates = parseReportLeadAggregates(data);
+    if (aggregates) return aggregates;
+  }
+
+  return aggregateRawLeads(await getRawLeads(), now);
+}
+
 function buildRecommendations({
   topChannel,
   topNiche,
@@ -264,31 +374,24 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
   const weekStart = new Date(now);
   weekStart.setDate(now.getDate() - 7);
 
-  const [rawLeads, tasks, campaigns, surveys, insights, hypotheses, refusalSummary] = await Promise.all([
-    getRawLeads(),
-    getTasks(),
+  const [leadAggregates, taskSummary, campaigns, surveys, insights, refusalSummary] = await Promise.all([
+    getReportLeadAggregates(now),
+    getTaskReportSummary(),
     getCampaigns(),
     getSurveys(),
     getInsights(),
-    getHypotheses(),
     getRefusalAnalytics()
   ]);
 
-  const totalContacts = rawLeads.length;
-  const newContacts = rawLeads.filter((lead) => isDateWithin(lead.created_at, weekStart)).length;
-  const interestedContacts = rawLeads.filter((lead) => isInterestedStage(normalizeStage(lead.funnel_stages)) || (lead.priority_score ?? 0) >= 75).length;
-  const testingContacts = rawLeads.filter((lead) => isTestingStage(normalizeStage(lead.funnel_stages))).length;
+  const totalContacts = leadAggregates.totalContacts;
+  const newContacts = leadAggregates.newContacts;
+  const interestedContacts = leadAggregates.interestedContacts;
+  const testingContacts = leadAggregates.testingContacts;
   const surveyResponses = surveys.reduce((sum, survey) => sum + survey.answersCount, 0);
 
-  const stageOrder = canonicalFunnelStageNames;
-  const stages = new Map(stageOrder.map((stage) => [stage, 0]));
-  rawLeads.forEach((lead) => {
-    const stage = normalizeStage(lead.funnel_stages);
-    stages.set(stage, (stages.get(stage) ?? 0) + 1);
-  });
-
-  const funnelItems = stageOrder
-    .map((stage) => [stage, stages.get(stage) ?? 0] as [string, number])
+  const stageValues = new Map(leadAggregates.stageEntries);
+  const funnelItems = canonicalFunnelStageNames
+    .map((stage) => [stage, stageValues.get(stage) ?? 0] as [string, number])
     .filter(([, value]) => value > 0);
 
   const funnel = funnelItems.length > 0
@@ -297,23 +400,23 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
       ? demoFunnel.map((item) => ({ name: item.label, value: item.count, width: item.percent, helper: item.percent }))
       : [];
 
-  const topChannels = rawLeads.length > 0
-    ? makeBarItems(groupCount(rawLeads.map((lead) => normalizeSource(lead.sources))))
+  const topChannels = leadAggregates.topChannels.length > 0
+    ? leadAggregates.topChannels
     : demoMode
       ? demoChannels.map((item) => ({ name: item.name, value: item.value, width: item.width }))
       : [];
 
-  const topNiches = rawLeads.length > 0
-    ? makeBarItems(groupCount(rawLeads.map((lead) => lead.niche || 'Не указана')))
+  const topNiches = leadAggregates.topNiches.length > 0
+    ? leadAggregates.topNiches
     : demoMode
       ? demoNiches.map((item) => ({ name: item.name, value: item.value, width: item.width }))
       : [];
 
-  const weeklyDynamics = buildWeeklyDynamics(rawLeads, now);
+  const weeklyDynamics = leadAggregates.weeklyDynamics;
 
-  const overdueTasks = tasks.filter((task) => task.group === 'Просрочено').length;
-  const todayTasks = tasks.filter((task) => task.group === 'Сегодня').length;
-  const laterTasks = tasks.filter((task) => task.group === 'Позже').length;
+  const overdueTasks = taskSummary.overdue;
+  const todayTasks = taskSummary.today;
+  const laterTasks = taskSummary.later;
 
   const activeCampaigns = campaigns.filter((campaign) => campaign.status === 'active').length;
   const acceptedInsights = insights.filter((insight) => insight.status === 'accepted').length;
@@ -333,7 +436,7 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
       const max = Math.max(...items.map((entry) => entry.value), 1);
       return { ...item, width: item.value > 0 ? `${Math.max(8, Math.round((item.value / max) * 100))}%` : '0%' };
     });
-  const nicheReaction = buildNicheReaction(rawLeads);
+  const nicheReaction = leadAggregates.nicheReaction;
 
   const metrics: ReportMetric[] = [
     { label: 'Всего контактов', value: String(demoMode ? totalContacts || 2842 : totalContacts), helper: `${demoMode ? newContacts || 312 : newContacts} новых за 7 дней`, tone: 'purple' },
@@ -383,14 +486,6 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     tone: insight.importance === 'critical' ? 'red' : insight.importance === 'high' ? 'pink' : 'purple'
   }));
 
-  const hypothesisHighlights: ReportHighlight[] = hypotheses.slice(0, 4).map((hypothesis) => ({
-    id: hypothesis.id,
-    title: hypothesis.title,
-    subtitle: `${hypothesis.statusLabel} · уверенность: ${hypothesis.confidenceLabel}`,
-    href: `/hypotheses/${hypothesis.id}`,
-    tone: hypothesis.status === 'validated' ? 'green' : hypothesis.status === 'invalidated' ? 'red' : hypothesis.status === 'testing' ? 'yellow' : 'blue'
-  }));
-
   const recommendations = buildRecommendations({
     topChannel: topChannels[0]?.name,
     topNiche: topNiches[0]?.name,
@@ -410,7 +505,7 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     campaignEfficiency,
     nicheReaction,
     taskSummary: {
-      total: tasks.length,
+      total: taskSummary.total,
       overdue: overdueTasks,
       today: todayTasks,
       later: laterTasks
@@ -418,7 +513,6 @@ export async function getWeeklyReport(): Promise<WeeklyReport> {
     campaignHighlights,
     surveyHighlights,
     insightHighlights,
-    hypothesisHighlights,
     refusalSummary,
     recommendations
   };

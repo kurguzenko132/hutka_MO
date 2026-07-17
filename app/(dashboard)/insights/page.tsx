@@ -19,7 +19,7 @@ export default async function InsightsPage() {
 
       <div className="grid gap-4 lg:grid-cols-3">
         {items.map((item) => (
-          <Link key={item.id} href={`/insights/${item.id}`}>
+          <Link prefetch={false} key={item.id} href={`/insights/${item.id}`}>
             <Card className="card-hover h-full">
               <CardContent className="flex h-full flex-col">
                 <div className="flex flex-wrap items-center gap-2">

@@ -17,7 +17,7 @@ const sizeClass: Record<ButtonSize, string> = {
   lg: 'min-h-12 rounded-2xl px-5 py-3 text-sm leading-5'
 };
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   asChild?: boolean;

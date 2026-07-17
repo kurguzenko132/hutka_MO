@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { getLeadFormOptions } from '@/lib/lead-form-options';
 import { Button } from '@/components/ui/button';
+import { SubmitButton } from '@/components/ui/submit-button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
@@ -123,10 +124,10 @@ export default async function NewLeadPage({ searchParams }: { searchParams?: Pro
             <Button asChild variant="secondary">
               <Link href="/people">Отмена</Link>
             </Button>
-            <Button type="submit">
+            <SubmitButton>
               <Save className="h-4 w-4" />
               Сохранить контакт
-            </Button>
+            </SubmitButton>
           </div>
         </form>
 

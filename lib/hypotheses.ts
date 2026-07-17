@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { leads as mockLeads } from '@/lib/data';
@@ -265,7 +266,7 @@ const hypothesisSelect = `
   hypothesis_surveys(surveys(id,title))
 `;
 
-export async function getHypotheses(): Promise<HypothesisListItem[]> {
+export const getHypotheses = cache(async (): Promise<HypothesisListItem[]> => {
   if (!isSupabaseConfigured()) return demoHypotheses;
 
   const supabase = await createClient();
@@ -276,7 +277,7 @@ export async function getHypotheses(): Promise<HypothesisListItem[]> {
 
   if (error || !data) return [];
   return data.map((row) => mapHypothesis(row as Record<string, unknown>));
-}
+});
 
 export async function getHypothesisById(id: string): Promise<HypothesisDetail | null> {
   if (!isSupabaseConfigured()) return demoHypotheses.find((item) => item.id === id) ?? null;

@@ -46,6 +46,11 @@ export type FunnelBoard = {
   refusalReasons: FunnelChartItem[];
 };
 
+export type FunnelStagePage = {
+  leads: FunnelLead[];
+  total: number;
+};
+
 const fallbackStages = canonicalFunnelStages.map((stage) => ({
   id: `stage-${stage.id}`,
   name: stage.name,
@@ -88,14 +93,20 @@ function chartItems(entries: Array<[string, number]>): FunnelChartItem[] {
 }
 
 function toFunnelLead(row: Record<string, unknown>): FunnelLead {
-  const score = typeof row.priority_score === 'number' ? row.priority_score : 0;
+  const rawScore = Number(row.priority_score ?? 0);
+  const score = Number.isFinite(rawScore) ? rawScore : 0;
+  const directTags = Array.isArray(row.tags)
+    ? row.tags.map((tag) => String(tag)).filter(Boolean)
+    : [];
   const rawTags = Array.isArray(row.lead_tags) ? row.lead_tags : [];
-  const tags = rawTags
-    .map((item) => {
-      if (!item || typeof item !== 'object') return undefined;
-      return relatedName((item as { tags?: unknown }).tags);
-    })
-    .filter((tag): tag is string => Boolean(tag));
+  const tags = directTags.length > 0
+    ? directTags
+    : rawTags
+      .map((item) => {
+        if (!item || typeof item !== 'object') return undefined;
+        return relatedName((item as { tags?: unknown }).tags);
+      })
+      .filter((tag): tag is string => Boolean(tag));
 
   return {
     id: String(row.id),
@@ -103,8 +114,10 @@ function toFunnelLead(row: Record<string, unknown>): FunnelLead {
     type: String(row.type ?? 'master'),
     niche: String(row.niche ?? 'Не указана'),
     city: String(row.city ?? 'Не указан'),
-    source: relatedName(row.sources) ?? 'Не указан',
-    refusalReason: relatedName(row.refusal_reasons) ?? (row.refusal_reason ? String(row.refusal_reason) : undefined),
+    source: row.source_name ? String(row.source_name) : relatedName(row.sources) ?? 'Не указан',
+    refusalReason: row.refusal_reason_name
+      ? String(row.refusal_reason_name)
+      : relatedName(row.refusal_reasons) ?? (row.refusal_reason ? String(row.refusal_reason) : undefined),
     priority: scoreToPriority(score),
     score,
     nextStep: String(row.next_step ?? 'Связаться'),
@@ -163,19 +176,12 @@ function buildEmptyBoard(columns: FunnelColumn[] = []): FunnelBoard {
   };
 }
 
-export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> {
-  if (!isSupabaseConfigured()) {
-    return buildFallbackBoard();
-  }
-
-  const supabase = await createClient();
-  const { data: stageRows, error: stagesError } = await supabase
-    .from('funnel_stages')
-    .select('id,name,type,order_index,color')
-    .order('order_index', { ascending: true });
-
-  if (stagesError || !stageRows) return buildEmptyBoard();
-
+function buildStageColumns(stageRows: Array<{
+  id: string;
+  name?: string | null;
+  order_index?: number | null;
+  color?: string | null;
+}>) {
   const uniqueStages = new Map<string, FunnelColumn>();
   for (const row of stageRows) {
     const name = normalizeStageName(String(row.name ?? ''));
@@ -184,7 +190,7 @@ export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> 
     uniqueStages.set(name, {
       id: String(row.id),
       name,
-      color: canonical?.color ?? toneFromColor(row.color ? String(row.color) : null),
+      color: canonical?.color ?? toneFromColor(row.color),
       orderIndex: canonical?.orderIndex ?? Number(row.order_index ?? 99),
       contacts: 0,
       hotContacts: 0,
@@ -208,6 +214,95 @@ export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> 
     }
   }
 
+  return uniqueStages;
+}
+
+function safeNumber(value: unknown) {
+  const number = Number(value ?? 0);
+  return Number.isFinite(number) ? number : 0;
+}
+
+function payloadRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseFunnelBoardPayload(
+  value: unknown,
+  stageRows: Array<{ id: string; name?: string | null; order_index?: number | null; color?: string | null }>
+): FunnelBoard | null {
+  const payload = payloadRecord(value);
+  if (!payload) return null;
+
+  const columnsByName = buildStageColumns(stageRows);
+  const rawCounts = Array.isArray(payload.stage_counts) ? payload.stage_counts : [];
+  for (const rawCount of rawCounts) {
+    const count = payloadRecord(rawCount);
+    if (!count) continue;
+    const stageName = normalizeStageName(String(count.stage_name ?? ''));
+    const column = columnsByName.get(stageName);
+    if (!column) continue;
+    column.contacts = safeNumber(count.contacts);
+    column.hotContacts = safeNumber(count.hot_contacts);
+    column.readyContacts = safeNumber(count.ready_contacts);
+  }
+
+  const rawItems = Array.isArray(payload.items) ? payload.items : [];
+  for (const rawItem of rawItems) {
+    const item = payloadRecord(rawItem);
+    if (!item) continue;
+    const stageName = normalizeStageName(String(item.stage_name ?? ''));
+    const column = columnsByName.get(stageName);
+    if (!column) continue;
+    column.leads.push(toFunnelLead(item));
+  }
+
+  const summary = payloadRecord(payload.summary) ?? {};
+  const refusalReasons = (Array.isArray(payload.refusal_reasons) ? payload.refusal_reasons : [])
+    .map((rawReason): [string, number] | null => {
+      const reason = payloadRecord(rawReason);
+      if (!reason) return null;
+      return [String(reason.name ?? 'Причина не указана'), safeNumber(reason.value)];
+    })
+    .filter((item): item is [string, number] => Boolean(item));
+
+  return {
+    columns: Array.from(columnsByName.values()).sort((a, b) => a.orderIndex - b.orderIndex),
+    totalContacts: safeNumber(summary.total),
+    repliedContacts: safeNumber(summary.replied),
+    hotContacts: safeNumber(summary.hot),
+    readyContacts: safeNumber(summary.ready),
+    refusedContacts: safeNumber(summary.refused),
+    activeParticipants: safeNumber(summary.need_action),
+    refusalReasons: chartItems(refusalReasons)
+  };
+}
+
+export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> {
+  if (!isSupabaseConfigured()) {
+    return buildFallbackBoard();
+  }
+
+  const supabase = await createClient();
+  const [stagesResult, boardResult] = await Promise.all([
+    supabase
+      .from('funnel_stages')
+      .select('id,name,type,order_index,color')
+      .order('order_index', { ascending: true }),
+    supabase.rpc('get_funnel_board_page', {
+      p_campaign_id: campaignId || null,
+      p_limit_per_stage: 40
+    })
+  ]);
+
+  if (stagesResult.error || !stagesResult.data) return buildEmptyBoard();
+
+  if (!boardResult.error) {
+    const board = parseFunnelBoardPayload(boardResult.data, stagesResult.data);
+    if (board) return board;
+  }
+
   let campaignLeadIds: string[] | undefined;
   if (campaignId) {
     const { data: links, error: linksError } = await supabase
@@ -215,6 +310,7 @@ export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> 
       .select('lead_id')
       .eq('campaign_id', campaignId);
     if (linksError || !links?.length) {
+      const uniqueStages = buildStageColumns(stagesResult.data);
       return buildEmptyBoard(Array.from(uniqueStages.values()).sort((a, b) => a.orderIndex - b.orderIndex));
     }
     campaignLeadIds = links.map((link) => String(link.lead_id)).filter(Boolean);
@@ -230,6 +326,7 @@ export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> 
   }
 
   const { data: leadRows, error: leadsError } = await leadQuery;
+  const uniqueStages = buildStageColumns(stagesResult.data);
 
   if (leadsError || !leadRows) {
     return buildEmptyBoard(Array.from(uniqueStages.values()).sort((a, b) => a.orderIndex - b.orderIndex));
@@ -281,4 +378,43 @@ export async function getFunnelBoard(campaignId?: string): Promise<FunnelBoard> 
     activeParticipants: allLeads.filter((lead) => !lead.nextStep || lead.nextStep === 'Связаться').length,
     refusalReasons: chartItems(Array.from(refusalReasonCounts.entries()))
   };
+}
+
+export async function getFunnelStagePage(
+  stageName: string,
+  campaignId: string | undefined,
+  requestedOffset = 0,
+  requestedLimit = 40
+): Promise<FunnelStagePage> {
+  const offset = Math.max(Math.floor(requestedOffset) || 0, 0);
+  const limit = Math.min(Math.max(Math.floor(requestedLimit) || 40, 1), 100);
+
+  if (!isSupabaseConfigured()) {
+    const column = buildFallbackBoard().columns.find((item) => item.name === normalizeStageName(stageName));
+    const leads = column?.leads ?? [];
+    return { leads: leads.slice(offset, offset + limit), total: leads.length };
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('get_funnel_stage_page', {
+      p_stage_name: stageName,
+      p_campaign_id: campaignId || null,
+      p_offset: offset,
+      p_limit: limit
+    });
+    const payload = error ? null : payloadRecord(data);
+    if (!payload) return { leads: [], total: 0 };
+
+    const rawItems = Array.isArray(payload.items) ? payload.items : [];
+    return {
+      leads: rawItems
+        .map((item) => payloadRecord(item))
+        .filter((item): item is Record<string, unknown> => Boolean(item))
+        .map((item) => toFunnelLead(item)),
+      total: Math.max(0, safeNumber(payload.total))
+    };
+  } catch {
+    return { leads: [], total: 0 };
+  }
 }

@@ -53,9 +53,32 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
+  let user = null;
+
+  try {
+    const {
+      data: { user: resolvedUser },
+      error
+    } = await supabase.auth.getUser();
+
+    if (error) {
+      if (isDashboardPath(pathname)) {
+        return redirectTo(request, buildLoginPath(pathname + request.nextUrl.search, 'config'));
+      }
+
+      return supabaseResponse;
+    }
+
+    user = resolvedUser;
+  } catch {
+    // A bad production key or a temporary Supabase outage must not turn every
+    // public page into a middleware 500. Protected routes remain unavailable.
+    if (isDashboardPath(pathname)) {
+      return redirectTo(request, buildLoginPath(pathname + request.nextUrl.search, 'config'));
+    }
+
+    return supabaseResponse;
+  }
 
   if (isDashboardPath(pathname) && !user) {
     return redirectTo(request, buildLoginPath(pathname + request.nextUrl.search));

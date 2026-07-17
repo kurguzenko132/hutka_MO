@@ -59,6 +59,12 @@ export type LeadRefusalMutationResult = {
   } | null;
 };
 
+type AtomicLeadRefusalResult =
+  | { status: 'success'; refusal: LeadRefusalMutationResult['refusal'] }
+  | { status: 'business-error'; error: string }
+  | { status: 'unavailable' }
+  | { status: 'failed' };
+
 export type RefusalReasonMutationInput = {
   id?: string;
   name: string;
@@ -90,6 +96,61 @@ function mapRefusalReason(
   };
 }
 
+function isMissingAtomicLeadRefusal(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error) return false;
+  if (error.code === 'PGRST202' || error.code === '42883') return true;
+  const message = `${error.message ?? ''} ${error.details ?? ''}`.toLowerCase();
+  return message.includes('update_lead_refusal') && (
+    message.includes('could not find')
+    || message.includes('does not exist')
+    || message.includes('schema cache')
+  );
+}
+
+async function updateLeadRefusalRpc(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  input: {
+    leadId: string;
+    mode: 'mark' | 'clear';
+    reasonId?: string;
+    reason?: string;
+    comment?: string;
+    actorProfileId: string | null;
+  }
+): Promise<AtomicLeadRefusalResult> {
+  const { data, error } = await supabase.rpc('update_lead_refusal', {
+    p_lead_id: input.leadId,
+    p_mode: input.mode,
+    p_reason_id: input.reasonId?.trim() || null,
+    p_reason: input.reason?.trim() || null,
+    p_comment: input.comment?.trim() || null,
+    p_actor_profile_id: input.actorProfileId
+  });
+
+  if (error) {
+    return isMissingAtomicLeadRefusal(error) ? { status: 'unavailable' } : { status: 'failed' };
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { status: 'failed' };
+  }
+
+  const result = data as Record<string, unknown>;
+  if (result.ok === false && typeof result.error === 'string') {
+    return { status: 'business-error', error: result.error };
+  }
+  if (result.ok !== true) return { status: 'failed' };
+  if (input.mode === 'clear') return { status: 'success', refusal: null };
+
+  return {
+    status: 'success',
+    refusal: {
+      reason: typeof result.reason === 'string' ? result.reason : input.reason?.trim() || 'Причина отказа',
+      comment: typeof result.comment === 'string' ? result.comment : undefined,
+      refusedAt: typeof result.refused_at === 'string' ? result.refused_at : new Date().toISOString()
+    }
+  };
+}
+
 async function markLeadRefusedCore(
   input: LeadRefusalMutationInput,
   userId?: string | null,
@@ -114,6 +175,25 @@ async function markLeadRefusedCore(
   }
 
   const supabase = await createClient();
+  const atomicResult = await updateLeadRefusalRpc(supabase, {
+    leadId,
+    mode: 'mark',
+    reasonId,
+    reason: manualReason,
+    comment,
+    actorProfileId: userId ?? null
+  });
+  if (atomicResult.status === 'success') {
+    if (shouldRevalidate) revalidateRefusals(leadId);
+    return { ok: true, refusal: atomicResult.refusal };
+  }
+  if (atomicResult.status === 'business-error') {
+    return { ok: false, error: atomicResult.error };
+  }
+  if (atomicResult.status === 'failed') {
+    return { ok: false, error: 'refusal-save-failed' };
+  }
+
   const [reasonResult, refusalStageId] = await Promise.all([
     reasonId
       ? supabase.from('refusal_reasons').select('name').eq('id', reasonId).maybeSingle()
@@ -193,6 +273,22 @@ async function clearLeadRefusalCore(
   if (!isSupabaseConfigured()) return { ok: true, refusal: null };
 
   const supabase = await createClient();
+  const atomicResult = await updateLeadRefusalRpc(supabase, {
+    leadId,
+    mode: 'clear',
+    actorProfileId: userId ?? null
+  });
+  if (atomicResult.status === 'success') {
+    if (shouldRevalidate) revalidateRefusals(leadId);
+    return { ok: true, refusal: null };
+  }
+  if (atomicResult.status === 'business-error') {
+    return { ok: false, error: atomicResult.error };
+  }
+  if (atomicResult.status === 'failed') {
+    return { ok: false, error: 'refusal-clear-failed' };
+  }
+
   const { data: lead, error } = await supabase
     .from('leads')
     .update({

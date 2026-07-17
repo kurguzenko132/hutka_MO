@@ -121,6 +121,7 @@ const atomicTaskCreateMigration = readFileSync('supabase/step57-atomic-task-crea
 const atomicLeadActionMigration = readFileSync('supabase/step58-atomic-lead-action.sql', 'utf8');
 const atomicFunnelMoveMigration = readFileSync('supabase/step59-atomic-funnel-move.sql', 'utf8');
 const atomicQuestionnaireCreateMigration = readFileSync('supabase/step60-atomic-lead-questionnaire-create.sql', 'utf8');
+const atomicLeadRefusalMigration = readFileSync('supabase/step61-atomic-lead-refusal.sql', 'utf8');
 const schema = readFileSync('supabase/schema.sql', 'utf8');
 const settingsPage = readFileSync('app/(dashboard)/settings/page.tsx', 'utf8');
 const settingsDirectoryWorkspace = readFileSync('components/settings/settings-directory-workspace.tsx', 'utf8');
@@ -349,6 +350,23 @@ if (
 }
 if (!schema.includes('create or replace function public.create_lead_questionnaire_with_questions(')) {
   violations.push('supabase/schema.sql — отсутствует атомарное создание персональных вопросов из Step 60');
+}
+if (!refusalActions.includes("rpc('update_lead_refusal'")) {
+  violations.push('actions/refusals.actions.ts — фиксация отказа снова выполняется несколькими сетевыми раундами');
+}
+if (
+  !atomicLeadRefusalMigration.includes('security invoker')
+  || !atomicLeadRefusalMigration.includes('update public.leads')
+  || !atomicLeadRefusalMigration.includes('insert into public.lead_interactions')
+  || !atomicLeadRefusalMigration.includes('insert into public.activity_logs')
+  || !atomicLeadRefusalMigration.includes('grant execute on function public.update_lead_refusal(')
+  || !atomicLeadRefusalMigration.includes('to authenticated, service_role')
+  || !atomicLeadRefusalMigration.includes('from anon')
+) {
+  violations.push('supabase/step61-atomic-lead-refusal.sql — фиксация отказа неполная или имеет небезопасные права');
+}
+if (!schema.includes('create or replace function public.update_lead_refusal(')) {
+  violations.push('supabase/schema.sql — отсутствует атомарная фиксация отказа из Step 61');
 }
 if (
   !settingsPage.includes('<SettingsGeneralWorkspace')

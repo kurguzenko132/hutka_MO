@@ -12,6 +12,7 @@
     "start": "pnpm node:check && next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:surveys": "node --experimental-strip-types tests/survey-builder.test.ts",
     "audit:performance": "node scripts/audit-performance.mjs",
     "audit:schema": "node scripts/audit-schema.mjs",
     "smoke:local": "pnpm node:check && node scripts/smoke-local.mjs",

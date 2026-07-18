@@ -153,6 +153,7 @@ const surveyActions = readFileSync('actions/surveys.actions.ts', 'utf8');
 const surveyDetailPage = readFileSync('app/(dashboard)/surveys/[id]/page.tsx', 'utf8');
 const surveyQuestionWorkspace = readFileSync('components/surveys/add-survey-question-form.tsx', 'utf8');
 const surveyMetadataWorkspace = readFileSync('components/surveys/survey-metadata-workspace.tsx', 'utf8');
+const surveyBuilderWorkspace = readFileSync('components/surveys/survey-builder-workspace.tsx', 'utf8');
 const campaignActions = readFileSync('actions/campaigns.actions.ts', 'utf8');
 const campaignDetailPage = readFileSync('app/(dashboard)/campaigns/[id]/page.tsx', 'utf8');
 const campaignWorkspace = readFileSync('components/campaigns/campaign-contacts-workspace.tsx', 'utf8');
@@ -486,11 +487,10 @@ if (
   violations.push('insights/[id] — карточка вывода снова использует полную навигацию для редактирования');
 }
 if (
-  !surveyDetailPage.includes('<SurveyMetadataProvider')
-  || !surveyDetailPage.includes('<SurveyMetadataWorkspace')
-  || !surveyMetadataWorkspace.includes('updateSurveyMetadataMutation')
+  !surveyDetailPage.includes('<SurveyBuilderWorkspace')
+  || !surveyBuilderWorkspace.includes('saveSurveyBuilderMutation')
+  || !surveyBuilderWorkspace.includes('useTransition')
   || !surveyMetadataWorkspace.includes('deleteSurveyMutation')
-  || !surveyMetadataWorkspace.includes('pendingRef')
 ) {
   violations.push('surveys/[id] — настройки анкеты снова используют полную навигацию');
 }

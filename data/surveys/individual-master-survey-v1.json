@@ -1,0 +1,155 @@
+{
+  "schemaVersion": "1.0",
+  "survey": {
+    "key": "individual_master_survey_v1",
+    "title": "Анкета индивидуального мастера",
+    "type": "Мастера",
+    "description": "Помогите понять, как устроена ваша работа и что сделать в Hutka полезнее.",
+    "settings": { "salonSurveyUrl": "" },
+    "startScreen": { "title": "Несколько вопросов о вашей работе", "description": "Заполнение займет около 7 минут." },
+    "completionScreen": { "title": "Спасибо за ответы", "description": "Мы используем их, чтобы улучшать Hutka." }
+  },
+  "sections": [
+    {
+      "key": "about_work",
+      "title": "О вашей работе",
+      "questions": [
+        {
+          "key": "work_format",
+          "type": "single_choice",
+          "title": "В каком формате вы работаете?",
+          "required": true,
+          "options": [
+            { "key": "home", "label": "Самостоятельно дома" },
+            { "key": "rent", "label": "Арендую место" },
+            { "key": "salon_independent", "label": "Работаю в салоне, но сам(а) веду клиентов" },
+            { "key": "mobile", "label": "Выезжаю к клиентам" },
+            { "key": "mixed", "label": "Совмещаю форматы" },
+            { "key": "salon_owner", "label": "Владелец или управляющий салона" },
+            { "key": "not_working", "label": "Временно не работаю" }
+          ]
+        },
+        {
+          "key": "salon_message",
+          "type": "info",
+          "title": "Для салонов предусмотрена отдельная анкета",
+          "description": "Ее ссылку можно настроить в параметрах этой анкеты.",
+          "visibility": { "all": [{ "question": "work_format", "operator": "equals", "value": "salon_owner" }] }
+        },
+        {
+          "key": "specializations",
+          "type": "multiple_choice",
+          "title": "Какие услуги вы оказываете?",
+          "required": true,
+          "options": [
+            { "key": "nails", "label": "Ногтевой сервис" },
+            { "key": "hair", "label": "Волосы" },
+            { "key": "brows", "label": "Брови и ресницы" },
+            { "key": "massage", "label": "Массаж" },
+            { "key": "makeup", "label": "Макияж" },
+            { "key": "other", "label": "Другое" }
+          ]
+        },
+        { "key": "city", "type": "city", "title": "В каком городе вы работаете?", "required": true, "contactMapping": { "field": "city", "mode": "if_empty" } },
+        { "key": "experience", "type": "number", "title": "Сколько лет вы работаете мастером?", "validation": { "min": 0, "max": 60, "unit": "лет" } },
+        { "key": "clients_per_month", "type": "number", "title": "Сколько клиентов у вас в среднем за месяц?", "validation": { "min": 0, "max": 10000 } },
+        { "key": "schedule_occupancy", "type": "scale", "title": "Насколько заполнена ваша запись?", "settings": { "min": 1, "max": 5, "step": 1, "minLabel": "Есть свободные окна", "maxLabel": "Почти нет свободных окон" } },
+        {
+          "key": "current_priorities",
+          "type": "multiple_choice",
+          "title": "Что сейчас для вас важнее всего?",
+          "options": [
+            { "key": "clients", "label": "Больше клиентов" },
+            { "key": "booking", "label": "Удобная запись" },
+            { "key": "income", "label": "Рост дохода" },
+            { "key": "time", "label": "Экономия времени" },
+            { "key": "quality", "label": "Качество сервиса" }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "booking_service",
+      "title": "Запись и клиенты",
+      "questions": [
+        {
+          "key": "current_booking_service",
+          "type": "single_choice",
+          "title": "Как вы сейчас ведете запись?",
+          "required": true,
+          "options": [
+            { "key": "dikidi", "label": "DIKIDI" },
+            { "key": "yclients", "label": "YCLIENTS" },
+            { "key": "other_service", "label": "Другой сервис" },
+            { "key": "calendar", "label": "Календарь или таблица" },
+            { "key": "stopped", "label": "Раньше пользовался(-ась), но перестал(-а)" },
+            { "key": "never", "label": "Никогда не пользовался(-ась)" }
+          ]
+        },
+        {
+          "key": "service_name",
+          "type": "short_text",
+          "title": "Как называется сервис?",
+          "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }
+        },
+        { "key": "service_duration", "type": "single_choice", "title": "Как давно вы им пользуетесь?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }, "options": [{ "key": "less_3m", "label": "Меньше 3 месяцев" }, { "key": "months_3_12", "label": "От 3 до 12 месяцев" }, { "key": "more_year", "label": "Больше года" }] },
+        { "key": "service_features", "type": "multiple_choice", "title": "Какими функциями пользуетесь?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }, "options": [{ "key": "booking", "label": "Онлайн-запись" }, { "key": "reminders", "label": "Напоминания" }, { "key": "payments", "label": "Оплаты" }, { "key": "clients", "label": "База клиентов" }] },
+        { "key": "service_satisfaction", "type": "scale", "title": "Насколько вы довольны сервисом?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }, "settings": { "min": 1, "max": 5, "step": 1 } },
+        { "key": "service_drawbacks", "type": "long_text", "title": "Чего в нем не хватает?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] } },
+        { "key": "service_cost", "type": "number", "title": "Сколько вы платите в месяц?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }, "validation": { "min": 0, "unit": "руб." } },
+        { "key": "switch_readiness", "type": "single_choice", "title": "Готовы ли вы попробовать другой сервис?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "dikidi" }, { "question": "current_booking_service", "operator": "equals", "value": "yclients" }, { "question": "current_booking_service", "operator": "equals", "value": "other_service" }] }, "options": [{ "key": "yes", "label": "Да" }, { "key": "maybe", "label": "Возможно" }, { "key": "no", "label": "Нет" }] },
+        { "key": "switch_conditions", "type": "long_text", "title": "При каких условиях вы бы перешли?", "visibility": { "any": [{ "question": "switch_readiness", "operator": "equals", "value": "yes" }, { "question": "switch_readiness", "operator": "equals", "value": "maybe" }] } },
+        { "key": "service_refusal_reasons", "type": "multiple_choice", "title": "Почему не используете сервис записи?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "calendar" }, { "question": "current_booking_service", "operator": "equals", "value": "stopped" }, { "question": "current_booking_service", "operator": "equals", "value": "never" }] }, "options": [{ "key": "expensive", "label": "Дорого" }, { "key": "complex", "label": "Сложно настроить" }, { "key": "not_needed", "label": "Не нужен" }, { "key": "no_time", "label": "Нет времени разбираться" }] },
+        { "key": "previous_service_experience", "type": "long_text", "title": "Расскажите о прошлом опыте использования", "visibility": { "all": [{ "question": "current_booking_service", "operator": "equals", "value": "stopped" }] } },
+        { "key": "service_try_trigger", "type": "long_text", "title": "Что убедило бы вас попробовать сервис?", "visibility": { "any": [{ "question": "current_booking_service", "operator": "equals", "value": "calendar" }, { "question": "current_booking_service", "operator": "equals", "value": "stopped" }, { "question": "current_booking_service", "operator": "equals", "value": "never" }] } },
+        { "key": "client_sources", "type": "multiple_choice", "title": "Откуда чаще всего приходят клиенты?", "options": [{ "key": "instagram", "label": "Instagram" }, { "key": "telegram", "label": "Telegram" }, { "key": "recommendations", "label": "Рекомендации" }, { "key": "maps", "label": "Карты" }, { "key": "marketplaces", "label": "Площадки" }] }
+      ]
+    },
+    {
+      "key": "work_problems_block",
+      "title": "Сложности в работе",
+      "questions": [
+        { "key": "work_problems", "type": "multiple_choice", "title": "С какими проблемами вы сталкиваетесь?", "required": true, "options": [{ "key": "clients", "label": "Нестабильный поток клиентов" }, { "key": "cancellations", "label": "Отмены и переносы" }, { "key": "schedule", "label": "Сложно вести расписание" }, { "key": "payments", "label": "Учет оплат" }, { "key": "promotion", "label": "Продвижение" }, { "key": "time", "label": "Не хватает времени" }] },
+        { "key": "top_problems", "type": "multiple_choice", "title": "Выберите до трех самых важных проблем", "optionsSource": { "type": "selected_answers", "question": "work_problems" }, "validation": { "maxSelections": 3 } },
+        { "key": "main_problem", "type": "single_choice", "title": "Какая из них главная?", "optionsSource": { "type": "selected_answers", "question": "top_problems" } }
+      ]
+    },
+    {
+      "key": "hutka",
+      "title": "Знакомство с Hutka",
+      "questions": [
+        { "key": "hutka_familiarity", "type": "single_choice", "title": "Насколько вы знакомы с Hutka?", "required": true, "options": [{ "key": "never_heard", "label": "Ничего не слышал(-а)" }, { "key": "heard", "label": "Слышал(-а) название" }, { "key": "demo", "label": "Видел(-а) демонстрацию" }, { "key": "registered", "label": "Зарегистрировался(-ась)" }, { "key": "tested", "label": "Тестировал(-а)" }, { "key": "regular_user", "label": "Регулярно использую" }] },
+        { "key": "new_user_info", "type": "info", "title": "Hutka помогает мастерам работать с клиентами и записью", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "never_heard" }, { "question": "hutka_familiarity", "operator": "equals", "value": "heard" }] } },
+        { "key": "hutka_usefulness", "type": "scale", "title": "Насколько это может быть полезно?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "never_heard" }, { "question": "hutka_familiarity", "operator": "equals", "value": "heard" }] }, "settings": { "min": 1, "max": 5, "step": 1 } },
+        { "key": "needed_features", "type": "multiple_choice", "title": "Какие функции были бы полезны?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "never_heard" }, { "question": "hutka_familiarity", "operator": "equals", "value": "heard" }] }, "options": [{ "key": "booking", "label": "Запись" }, { "key": "clients", "label": "Клиенты" }, { "key": "promotion", "label": "Продвижение" }, { "key": "analytics", "label": "Аналитика" }] },
+        { "key": "demo_interest", "type": "single_choice", "title": "Хотите посмотреть демонстрацию?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "never_heard" }, { "question": "hutka_familiarity", "operator": "equals", "value": "heard" }] }, "options": [{ "key": "yes", "label": "Да" }, { "key": "no", "label": "Нет" }] },
+        { "key": "test_interest", "type": "single_choice", "title": "Готовы попробовать Hutka?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "never_heard" }, { "question": "hutka_familiarity", "operator": "equals", "value": "heard" }] }, "options": [{ "key": "yes", "label": "Да" }, { "key": "maybe", "label": "Возможно" }, { "key": "no", "label": "Нет" }] },
+        { "key": "demo_clarity", "type": "scale", "title": "Насколько понятен продукт после демонстрации?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "demo" }, { "question": "hutka_familiarity", "operator": "equals", "value": "registered" }] }, "settings": { "min": 1, "max": 5, "step": 1 } },
+        { "key": "demo_useful_features", "type": "long_text", "title": "Какие функции показались полезными?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "demo" }, { "question": "hutka_familiarity", "operator": "equals", "value": "registered" }] } },
+        { "key": "demo_questions", "type": "long_text", "title": "Что осталось непонятным или недостающим?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "demo" }, { "question": "hutka_familiarity", "operator": "equals", "value": "registered" }] } },
+        { "key": "demo_try_conditions", "type": "long_text", "title": "Что нужно, чтобы начать тестирование?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "demo" }, { "question": "hutka_familiarity", "operator": "equals", "value": "registered" }] } },
+        { "key": "test_duration", "type": "single_choice", "title": "Как долго вы пользуетесь Hutka?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] }, "options": [{ "key": "less_week", "label": "Меньше недели" }, { "key": "week_month", "label": "От недели до месяца" }, { "key": "more_month", "label": "Больше месяца" }] },
+        { "key": "test_actions", "type": "multiple_choice", "title": "Что уже успели сделать?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] }, "options": [{ "key": "profile", "label": "Заполнил(-а) профиль" }, { "key": "booking", "label": "Настроил(-а) запись" }, { "key": "clients", "label": "Добавил(-а) клиентов" }, { "key": "campaign", "label": "Попробовал(-а) продвижение" }] },
+        { "key": "test_difficulties", "type": "long_text", "title": "Где возникли сложности или ошибки?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] } },
+        { "key": "test_best_feature", "type": "long_text", "title": "Какая функция оказалась самой полезной?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] } },
+        { "key": "continue_using_hutka", "type": "single_choice", "title": "Готовы продолжить пользоваться Hutka?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] }, "options": [{ "key": "yes", "label": "Да" }, { "key": "maybe", "label": "Возможно" }, { "key": "no", "label": "Нет" }] },
+        { "key": "recommendation_probability", "type": "scale", "title": "Какова вероятность, что вы порекомендуете Hutka?", "visibility": { "any": [{ "question": "hutka_familiarity", "operator": "equals", "value": "tested" }, { "question": "hutka_familiarity", "operator": "equals", "value": "regular_user" }] }, "settings": { "min": 0, "max": 10, "step": 1 } },
+        { "key": "pricing", "type": "number", "title": "Какую ежемесячную стоимость вы считаете приемлемой?", "visibility": { "any": [{ "question": "hutka_usefulness", "operator": "greater_or_equal", "value": 4 }, { "question": "demo_interest", "operator": "equals", "value": "yes" }, { "question": "test_interest", "operator": "in", "value": ["yes", "maybe"] }, { "question": "hutka_familiarity", "operator": "in", "value": ["tested", "regular_user"] }, { "question": "continue_using_hutka", "operator": "in", "value": ["yes", "maybe"] }] }, "validation": { "min": 0, "unit": "руб." } }
+      ]
+    },
+    {
+      "key": "contacts",
+      "title": "Связь",
+      "questions": [
+        { "key": "contact_permission", "type": "single_choice", "title": "Можно связаться с вами по поводу ответов?", "required": true, "options": [{ "key": "yes", "label": "Да" }, { "key": "no", "label": "Нет" }] },
+        { "key": "contact_method", "type": "single_choice", "title": "Как удобнее связаться?", "visibility": { "all": [{ "question": "contact_permission", "operator": "equals", "value": "yes" }] }, "options": [{ "key": "telegram", "label": "Telegram" }, { "key": "instagram", "label": "Instagram" }, { "key": "phone", "label": "Телефон" }, { "key": "email", "label": "Email" }] },
+        { "key": "contact_value", "type": "short_text", "title": "Оставьте контакт", "required": true, "visibility": { "all": [{ "question": "contact_permission", "operator": "equals", "value": "yes" }] } },
+        { "key": "contact_time", "type": "short_text", "title": "В какое время удобно написать?", "visibility": { "all": [{ "question": "contact_permission", "operator": "equals", "value": "yes" }] } }
+      ]
+    }
+  ],
+  "classificationRules": [
+    { "key": "interested", "title": "Заинтересован", "priority": 10, "when": { "any": [{ "question": "demo_interest", "operator": "equals", "value": "yes" }, { "question": "test_interest", "operator": "in", "value": ["yes", "maybe"] }, { "question": "continue_using_hutka", "operator": "in", "value": ["yes", "maybe"] }] }, "actions": [{ "type": "set_contact_status", "status": "interested" }, { "type": "create_task", "title": "Связаться по итогам анкеты", "dueInDays": 1, "priority": "high" }] },
+    { "key": "testing", "title": "Тестирует", "priority": 20, "when": { "all": [{ "question": "hutka_familiarity", "operator": "in", "value": ["tested", "regular_user"] }] }, "actions": [{ "type": "set_contact_status", "status": "testing" }] }
+  ]
+}

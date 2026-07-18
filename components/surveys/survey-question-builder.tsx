@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 
-const MAX_QUESTIONS = 50;
+const MAX_QUESTIONS = 500;
 const CHOICE_TYPES = new Set(['single_choice', 'multiple_choice']);
 const DEFAULT_CHOICE_OPTIONS = ['Вариант 1', 'Вариант 2'];
 

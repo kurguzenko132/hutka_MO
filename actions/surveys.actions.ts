@@ -16,6 +16,16 @@ import {
   publicFormLimits
 } from '@/lib/public-form-validation';
 import type { SurveyQuestion } from '@/lib/surveys';
+import { getPublicSurveyBuilder } from '@/lib/surveys';
+import {
+  activeQuestionKeys,
+  classificationActions,
+  inactiveAnswers,
+  validateSurveyDefinition,
+  visibleSurveySections,
+  type SurveyAnswers,
+  type SurveyDefinition
+} from '@/lib/survey-builder';
 
 function getText(formData: FormData, key: string) {
   return String(formData.get(key) ?? '').trim();
@@ -582,4 +592,197 @@ export async function deleteSurveyQuestionAction(formData: FormData) {
     redirect(`/surveys/${surveyId}?error=${result.error ?? 'question-delete-failed'}`);
   }
   redirect(`/surveys/${surveyId}?deleted=question`);
+}
+
+export type SurveyBuilderSaveInput = {
+  surveyId?: string;
+  definition: SurveyDefinition;
+  mode?: 'save' | 'publish';
+};
+
+export type SurveyBuilderSaveResult = {
+  ok: boolean;
+  error?: string;
+  surveyId?: string;
+  slug?: string;
+  validation?: ReturnType<typeof validateSurveyDefinition>;
+};
+
+export async function saveSurveyBuilderMutation(input: SurveyBuilderSaveInput): Promise<SurveyBuilderSaveResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const raw = JSON.stringify(input.definition);
+  if (new TextEncoder().encode(raw).byteLength > 2 * 1024 * 1024) {
+    return { ok: false, error: 'file-too-large' };
+  }
+  const validation = validateSurveyDefinition(input.definition);
+  if (!validation.ok || !validation.definition) return { ok: false, error: 'validation', validation };
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('save_survey_builder_definition', {
+    p_survey_id: input.surveyId || null,
+    p_definition: validation.definition,
+    p_mode: input.mode === 'publish' ? 'publish' : 'save',
+    p_actor_profile_id: user.profileId
+  });
+  const payload = data && typeof data === 'object' ? data as Record<string, unknown> : null;
+  if (error || !payload?.ok) return { ok: false, error: String(payload?.error ?? error?.message ?? 'save-failed'), validation };
+
+  const surveyId = String(payload.survey_id ?? '');
+  revalidatePath('/surveys');
+  if (surveyId) revalidatePath(`/surveys/${surveyId}`);
+  if (payload.slug) revalidatePath(`/s/${String(payload.slug)}`);
+  return { ok: true, surveyId, slug: payload.slug ? String(payload.slug) : undefined, validation };
+}
+
+export async function duplicateSurveyBuilderMutation(surveyId: string): Promise<SurveyBuilderSaveResult> {
+  const user = await requirePermission('manageSurveys', '/surveys?error=forbidden');
+  const source = await getSurveyByIdForDuplicate(surveyId);
+  if (!source) return { ok: false, error: 'survey-not-found' };
+  const duplicate = structuredClone(source);
+  duplicate.survey.key = `${duplicate.survey.key}_copy_${Date.now().toString().slice(-6)}`;
+  duplicate.survey.title = `${duplicate.survey.title} (копия)`;
+  if (!isSupabaseConfigured()) return { ok: false, error: 'demo' };
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('save_survey_builder_definition', {
+    p_survey_id: null,
+    p_definition: duplicate,
+    p_mode: 'save',
+    p_actor_profile_id: user.profileId
+  });
+  const payload = data && typeof data === 'object' ? data as Record<string, unknown> : null;
+  if (error || !payload?.ok) return { ok: false, error: String(payload?.error ?? error?.message ?? 'save-failed') };
+  revalidatePath('/surveys');
+  return { ok: true, surveyId: String(payload.survey_id ?? ''), slug: payload.slug ? String(payload.slug) : undefined };
+}
+
+async function getSurveyByIdForDuplicate(surveyId: string): Promise<SurveyDefinition | null> {
+  if (!isSupabaseConfigured()) return null;
+  const supabase = await createClient();
+  const [{ data: survey }, { data: sections }, { data: questions }, { data: rules }] = await Promise.all([
+    supabase.from('surveys').select('id,survey_key,title,type,description,settings,start_screen,completion_screen').eq('id', surveyId).maybeSingle(),
+    supabase.from('survey_sections').select('id,key,title,description,visibility,order_index').eq('survey_id', surveyId).order('order_index'),
+    supabase.from('survey_questions').select('section_id,key,question_text,question_type,description,required,options,visibility,options_source,validation,settings,contact_mapping,order_index').eq('survey_id', surveyId).order('order_index'),
+    supabase.from('survey_classification_rules').select('key,title,priority,conditions,actions').eq('survey_id', surveyId).order('priority')
+  ]);
+  if (!survey) return null;
+  const sectionQuestions = new Map<string, Record<string, unknown>[]>();
+  (questions ?? []).forEach((item) => {
+    const id = String(item.section_id ?? 'legacy');
+    sectionQuestions.set(id, [...(sectionQuestions.get(id) ?? []), item as Record<string, unknown>]);
+  });
+  const definition = {
+    schemaVersion: '1.0',
+    survey: { key: survey.survey_key, title: survey.title, type: survey.type, description: survey.description, settings: survey.settings, startScreen: survey.start_screen, completionScreen: survey.completion_screen },
+    sections: (sections ?? []).map((section) => ({
+      key: section.key, title: section.title, description: section.description, visibility: section.visibility,
+      questions: (sectionQuestions.get(String(section.id)) ?? []).map((question) => ({
+        key: question.key, title: question.question_text, type: question.question_type, description: question.description,
+        required: question.required, options: question.options, visibility: question.visibility, optionsSource: question.options_source,
+        validation: question.validation, settings: question.settings, contactMapping: question.contact_mapping
+      }))
+    })),
+    classificationRules: (rules ?? []).map((rule) => ({ key: rule.key, title: rule.title, priority: rule.priority, when: rule.conditions, actions: rule.actions }))
+  };
+  return validateSurveyDefinition(definition).definition ?? null;
+}
+
+export type SurveyResponseDraftInput = {
+  surveyId: string;
+  slug: string;
+  token: string;
+  answers: SurveyAnswers;
+  leadId?: string;
+};
+
+function validResponseToken(token: string) {
+  return /^[a-zA-Z0-9_-]{16,120}$/.test(token);
+}
+
+export async function saveSurveyResponseDraftMutation(input: SurveyResponseDraftInput) {
+  if (!isSupabaseServiceConfigured() || !validResponseToken(input.token)) return { ok: false, error: 'config' };
+  if (new TextEncoder().encode(JSON.stringify(input.answers)).byteLength > 200 * 1024) return { ok: false, error: 'too-long' };
+  const survey = await getPublicSurveyBuilder(input.slug);
+  if (!survey || survey.id !== input.surveyId || survey.status !== 'active') return { ok: false, error: 'not-active' };
+  const inactive = inactiveAnswers(survey.definition, input.answers);
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('survey_response_sessions')
+    .upsert({
+      survey_id: survey.id,
+      survey_version: survey.version,
+      response_token: input.token,
+      lead_id: input.leadId || null,
+      answers: input.answers,
+      inactive_answers: inactive,
+      metadata: { source: 'public-survey' },
+      status: 'draft',
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'response_token' })
+    .select('id')
+    .single();
+  return error || !data ? { ok: false, error: 'save-failed' } : { ok: true, sessionId: String(data.id) };
+}
+
+export async function completeSurveyResponseMutation(input: SurveyResponseDraftInput) {
+  const draft = await saveSurveyResponseDraftMutation(input);
+  if (!draft.ok || !draft.sessionId) return draft;
+  const survey = await getPublicSurveyBuilder(input.slug);
+  if (!survey) return { ok: false, error: 'not-active' };
+  const visible = visibleSurveySections(survey.definition, input.answers).flatMap((section) => section.questions);
+  const missing = visible.some((question) => {
+    const answer = input.answers[question.key];
+    return question.required && question.type !== 'info' && question.type !== 'section_break'
+      && (answer === undefined || answer === '' || (Array.isArray(answer) && answer.length === 0));
+  });
+  if (missing) return { ok: false, error: 'required' };
+  const supabase = createServiceClient();
+  const [{ data: session }, { data: questionRows }] = await Promise.all([
+    supabase.from('survey_response_sessions').select('id').eq('id', draft.sessionId).maybeSingle(),
+    supabase.from('survey_questions').select('id,key').eq('survey_id', survey.id)
+  ]);
+  if (!session) return { ok: false, error: 'save-failed' };
+  const byKey = new Map((questionRows ?? []).map((question) => [String(question.key), String(question.id)]));
+  const active = activeQuestionKeys(survey.definition, input.answers);
+  const rows = Object.entries(input.answers)
+    .filter(([key, value]) => active.has(key) && value !== '' && (!Array.isArray(value) || value.length > 0) && byKey.has(key))
+    .map(([key, answer]) => ({ survey_id: survey.id, question_id: byKey.get(key), question_key: key, response_session_id: session.id, response_group_id: session.id, lead_id: input.leadId || null, answer, is_active: true }));
+  if (rows.length) {
+    await supabase.from('survey_answers').delete().eq('response_session_id', session.id);
+    const { error } = await supabase.from('survey_answers').insert(rows);
+    if (error) return { ok: false, error: 'save-failed' };
+  }
+  const actions = classificationActions(survey.definition, input.answers);
+  if (input.leadId) {
+    const { data: lead } = await supabase.from('leads').select('id,name,email,phone,city,telegram,instagram,notes').eq('id', input.leadId).maybeSingle();
+    if (lead) {
+      const patch: Record<string, string> = {};
+      const leadValues: Record<string, unknown> = { ...lead, comment: lead.notes };
+      visible.forEach((question) => {
+        const mapping = question.contactMapping;
+        const value = input.answers[question.key];
+        if (!mapping || typeof value !== 'string' || !value.trim()) return;
+        if (mapping.mode !== 'always' && leadValues[mapping.field] && String(leadValues[mapping.field]).trim()) return;
+        patch[mapping.field === 'comment' ? 'notes' : mapping.field] = value.trim();
+      });
+      if (Object.keys(patch).length) await supabase.from('leads').update({ ...patch, updated_at: new Date().toISOString() }).eq('id', lead.id);
+      for (const item of actions) {
+        if (item.action.type === 'set_contact_status') {
+          const targetName = item.action.status === 'testing' ? 'Тестирует' : item.action.status === 'interested' ? 'Заинтересован' : item.action.status;
+          const { data: stage } = await supabase.from('funnel_stages').select('id').ilike('name', targetName).order('order_index').limit(1).maybeSingle();
+          if (stage?.id) await supabase.from('leads').update({ stage_id: stage.id, updated_at: new Date().toISOString() }).eq('id', lead.id);
+        }
+        if (item.action.type === 'create_task') {
+          const due = new Date(); due.setDate(due.getDate() + (item.action.dueInDays ?? 0));
+          await supabase.from('tasks').insert({ lead_id: lead.id, title: item.action.title, due_date: due.toISOString(), priority: item.action.priority ?? 'none' });
+        }
+      }
+      await supabase.from('lead_interactions').insert({ lead_id: lead.id, type: 'survey_response', channel: 'Анкета', text: `Получены ответы на анкету «${survey.title}».`, result: 'completed' });
+    }
+  }
+  await supabase.from('survey_response_sessions').update({ status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', session.id);
+  await supabase.from('activity_logs').insert({ user_id: null, action: 'получил ответ на анкету', entity_type: 'survey', entity_id: survey.id, entity_title: survey.title, details: { response_session_id: session.id, answers: rows.length, rules: actions.map((item) => item.rule.key) } });
+  revalidatePath('/surveys');
+  revalidatePath(`/surveys/${survey.id}`);
+  return { ok: true, sessionId: String(session.id) };
 }

@@ -3,6 +3,11 @@ import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { createServiceClient, isSupabaseServiceConfigured } from '@/lib/supabase/service';
 import { buildAppUrl } from '@/lib/app-url';
+import {
+  normalizeSurveyDefinition,
+  type SurveyClassificationRule,
+  type SurveyDefinition
+} from '@/lib/survey-builder';
 
 export type SurveyStatus = 'draft' | 'active' | 'archived';
 
@@ -28,11 +33,13 @@ export type SurveyOption = {
 
 export type SurveyQuestion = {
   id: string;
+  key?: string;
   text: string;
   type: string;
   options: string[];
   required: boolean;
   orderIndex: number;
+  description?: string;
 };
 
 export type SurveyResponseGroup = {
@@ -55,6 +62,17 @@ export type SurveyDetail = SurveyListItem & {
     pageSize: number;
     total: number;
   };
+  builderDefinition?: SurveyDefinition;
+  version?: number;
+};
+
+export type PublicSurveyBuilder = {
+  id: string;
+  slug: string;
+  title: string;
+  status: SurveyStatus;
+  version: number;
+  definition: SurveyDefinition;
 };
 
 const demoSurveys: SurveyListItem[] = [
@@ -178,12 +196,97 @@ function mapSurvey(row: Record<string, unknown>): SurveyListItem {
 function mapQuestion(row: Record<string, unknown>): SurveyQuestion {
   return {
     id: String(row.id),
+    key: row.key ? String(row.key) : undefined,
     text: String(row.question_text ?? 'Вопрос'),
     type: String(row.question_type ?? 'short_text'),
     options: parseOptions(row.options),
     required: Boolean(row.required),
-    orderIndex: typeof row.order_index === 'number' ? row.order_index : Number(row.order_index ?? 0)
+    orderIndex: typeof row.order_index === 'number' ? row.order_index : Number(row.order_index ?? 0),
+    description: row.description ? String(row.description) : undefined
   };
+}
+
+function jsonRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== 'string') return undefined;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function jsonArray(value: unknown) {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== 'string') return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parseBuilderQuestion(row: Record<string, unknown>) {
+  const key = String(row.key ?? `legacy_${String(row.id).replace(/-/g, '')}`);
+  const type = String(row.question_type ?? 'short_text');
+  return {
+    key,
+    type,
+    title: String(row.question_text ?? 'Вопрос'),
+    ...(row.description ? { description: String(row.description) } : {}),
+    ...(Boolean(row.required) ? { required: true } : {}),
+    ...(jsonArray(row.options).length ? { options: jsonArray(row.options) } : {}),
+    ...(jsonRecord(row.options_source) && Object.keys(jsonRecord(row.options_source) ?? {}).length ? { optionsSource: jsonRecord(row.options_source) } : {}),
+    ...(jsonRecord(row.visibility) && Object.keys(jsonRecord(row.visibility) ?? {}).length ? { visibility: jsonRecord(row.visibility) } : {}),
+    ...(jsonRecord(row.validation) && Object.keys(jsonRecord(row.validation) ?? {}).length ? { validation: jsonRecord(row.validation) } : {}),
+    ...(jsonRecord(row.settings) && Object.keys(jsonRecord(row.settings) ?? {}).length ? { settings: jsonRecord(row.settings) } : {}),
+    ...(jsonRecord(row.contact_mapping) && Object.keys(jsonRecord(row.contact_mapping) ?? {}).length ? { contactMapping: jsonRecord(row.contact_mapping) } : {})
+  };
+}
+
+function buildDefinitionFromRows(
+  survey: Record<string, unknown>,
+  sectionRows: Record<string, unknown>[],
+  questionRows: Record<string, unknown>[],
+  ruleRows: Record<string, unknown>[]
+): SurveyDefinition | null {
+  const questionsBySection = new Map<string, Record<string, unknown>[]>();
+  questionRows.forEach((question) => {
+    const sectionId = question.section_id ? String(question.section_id) : '__legacy__';
+    questionsBySection.set(sectionId, [...(questionsBySection.get(sectionId) ?? []), question]);
+  });
+  const sections = sectionRows.map((section) => ({
+    key: String(section.key ?? `section_${section.order_index ?? 1}`),
+    title: String(section.title ?? 'Раздел'),
+    ...(section.description ? { description: String(section.description) } : {}),
+    ...(jsonRecord(section.visibility) && Object.keys(jsonRecord(section.visibility) ?? {}).length ? { visibility: jsonRecord(section.visibility) } : {}),
+    questions: (questionsBySection.get(String(section.id)) ?? []).map(parseBuilderQuestion)
+  }));
+  const legacyQuestions = questionsBySection.get('__legacy__') ?? [];
+  if (legacyQuestions.length) sections.push({ key: 'legacy_main', title: 'Вопросы', questions: legacyQuestions.map(parseBuilderQuestion) });
+  const raw = {
+    schemaVersion: '1.0',
+    survey: {
+      key: String(survey.survey_key ?? `legacy_${String(survey.id).replace(/-/g, '')}`),
+      title: String(survey.title ?? 'Анкета'),
+      ...(survey.type ? { type: String(survey.type) } : {}),
+      ...(survey.description ? { description: String(survey.description) } : {}),
+      ...(jsonRecord(survey.settings) ? { settings: jsonRecord(survey.settings) } : {}),
+      ...(jsonRecord(survey.start_screen) ? { startScreen: jsonRecord(survey.start_screen) } : {}),
+      ...(jsonRecord(survey.completion_screen) ? { completionScreen: jsonRecord(survey.completion_screen) } : {})
+    },
+    sections,
+    classificationRules: ruleRows.map((rule) => ({
+      key: String(rule.key),
+      title: String(rule.title),
+      priority: Number(rule.priority ?? 100),
+      when: jsonRecord(rule.conditions) ?? {},
+      actions: jsonArray(rule.actions)
+    })) as SurveyClassificationRule[]
+  };
+  return normalizeSurveyDefinition(raw);
 }
 
 function payloadRecord(value: unknown): Record<string, unknown> | null {
@@ -292,18 +395,28 @@ export async function getSurveyById(
   const supabase = await createClient();
   const { data: surveyRow, error: surveyError } = await supabase
     .from('surveys')
-    .select('id,title,type,description,status,slug,created_at')
+    .select('id,title,type,description,status,slug,created_at,survey_key,schema_version,version,settings,start_screen,completion_screen')
     .eq('id', id)
     .maybeSingle();
 
   if (surveyError || !surveyRow) return null;
 
-  const [{ data: questionRows }, firstResponseResult] = await Promise.all([
+  const [{ data: questionRows }, { data: sectionRows }, { data: ruleRows }, firstResponseResult] = await Promise.all([
     supabase
       .from('survey_questions')
-      .select('id,question_text,question_type,options,required,order_index')
+      .select('id,key,section_id,question_text,question_type,options,required,order_index,description,visibility,options_source,validation,settings,contact_mapping')
       .eq('survey_id', id)
       .order('order_index', { ascending: true }),
+    supabase
+      .from('survey_sections')
+      .select('id,key,title,description,visibility,order_index')
+      .eq('survey_id', id)
+      .order('order_index', { ascending: true }),
+    supabase
+      .from('survey_classification_rules')
+      .select('key,title,priority,conditions,actions')
+      .eq('survey_id', id)
+      .order('priority', { ascending: true }),
     supabase.rpc('get_survey_response_page', {
       p_survey_id: id,
       p_offset: (page - 1) * pageSize,
@@ -388,7 +501,14 @@ export async function getSurveyById(
       pageCount,
       pageSize,
       total: responsePage.total
-    }
+    },
+    builderDefinition: buildDefinitionFromRows(
+      surveyRow as Record<string, unknown>,
+      (sectionRows ?? []) as Record<string, unknown>[],
+      (questionRows ?? []) as Record<string, unknown>[],
+      (ruleRows ?? []) as Record<string, unknown>[]
+    ) ?? undefined,
+    version: Number((surveyRow as Record<string, unknown>).version ?? 1)
   };
 }
 
@@ -409,7 +529,7 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
   const supabase = createServiceClient();
   const { data: surveyRow, error } = await supabase
     .from('surveys')
-    .select('id,title,type,description,status,slug,created_at')
+    .select('id,title,type,description,status,slug,created_at,survey_key,schema_version,version,settings,start_screen,completion_screen')
     .eq('slug', slug)
     .eq('status', 'active')
     .maybeSingle();
@@ -418,7 +538,7 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
 
   const { data: questionRows, error: questionsError } = await supabase
     .from('survey_questions')
-    .select('id,question_text,question_type,options,required,order_index')
+    .select('id,key,section_id,question_text,question_type,options,required,order_index,description,visibility,options_source,validation,settings,contact_mapping')
     .eq('survey_id', surveyRow.id)
     .order('order_index', { ascending: true });
 
@@ -431,10 +551,35 @@ export async function getSurveyBySlug(slug: string): Promise<SurveyDetail | null
     answers_count: 0
   });
 
+  const [{ data: sectionRows }, { data: ruleRows }] = await Promise.all([
+    supabase.from('survey_sections').select('id,key,title,description,visibility,order_index').eq('survey_id', surveyRow.id).order('order_index', { ascending: true }),
+    supabase.from('survey_classification_rules').select('key,title,priority,conditions,actions').eq('survey_id', surveyRow.id).order('priority', { ascending: true })
+  ]);
+
   return {
     ...survey,
     questions,
     responses: [],
-    responsePage: { currentPage: 1, pageCount: 1, pageSize: 20, total: 0 }
+    responsePage: { currentPage: 1, pageCount: 1, pageSize: 20, total: 0 },
+    builderDefinition: buildDefinitionFromRows(
+      surveyRow as Record<string, unknown>,
+      (sectionRows ?? []) as Record<string, unknown>[],
+      (questionRows ?? []) as Record<string, unknown>[],
+      (ruleRows ?? []) as Record<string, unknown>[]
+    ) ?? undefined,
+    version: Number((surveyRow as Record<string, unknown>).version ?? 1)
+  };
+}
+
+export async function getPublicSurveyBuilder(slug: string): Promise<PublicSurveyBuilder | null> {
+  const survey = await getSurveyBySlug(slug);
+  if (!survey?.builderDefinition) return null;
+  return {
+    id: survey.id,
+    slug: survey.slug,
+    title: survey.title,
+    status: survey.status,
+    version: survey.version ?? 1,
+    definition: survey.builderDefinition
   };
 }

@@ -1,5 +1,14 @@
 -- Step 62: full survey builder with stable keys, branching and resumable answers.
 
+do $$
+begin
+  if to_regclass('public.surveys') is null or to_regclass('public.survey_questions') is null then
+    raise exception using
+      errcode = 'P0001',
+      message = 'Базовая схема Hutka не развернута: сначала выполните supabase/schema.sql, затем повторите Step 62 только для существующей базы.';
+  end if;
+end $$;
+
 alter table public.surveys add column if not exists survey_key text;
 alter table public.surveys add column if not exists schema_version text not null default '1.0';
 alter table public.surveys add column if not exists version integer not null default 1;

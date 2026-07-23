@@ -692,11 +692,31 @@ export type SurveyResponseDraftInput = {
   slug: string;
   token: string;
   answers: SurveyAnswers;
-  leadId?: string;
+  inviteToken?: string;
 };
 
 function validResponseToken(token: string) {
   return /^[a-zA-Z0-9_-]{16,120}$/.test(token);
+}
+
+async function resolveInviteLeadId(
+  supabase: ReturnType<typeof createServiceClient>,
+  surveyId: string,
+  inviteToken?: string
+): Promise<{ leadId: string | null; error?: string }> {
+  if (!inviteToken) return { leadId: null };
+  if (!validResponseToken(inviteToken)) return { leadId: null, error: 'invalid-invite' };
+
+  const { data, error } = await supabase
+    .from('survey_lead_invites')
+    .select('lead_id,status')
+    .eq('survey_id', surveyId)
+    .eq('token', inviteToken)
+    .maybeSingle();
+
+  if (error || !data?.lead_id) return { leadId: null, error: 'invalid-invite' };
+  if (data.status !== 'active') return { leadId: null, error: 'invite-completed' };
+  return { leadId: String(data.lead_id) };
 }
 
 export async function saveSurveyResponseDraftMutation(input: SurveyResponseDraftInput) {
@@ -706,22 +726,39 @@ export async function saveSurveyResponseDraftMutation(input: SurveyResponseDraft
   if (!survey || survey.id !== input.surveyId || survey.status !== 'active') return { ok: false, error: 'not-active' };
   const inactive = inactiveAnswers(survey.definition, input.answers);
   const supabase = createServiceClient();
+  const invite = await resolveInviteLeadId(supabase, survey.id, input.inviteToken);
+  if (invite.error) return { ok: false, error: invite.error };
+
+  const { data: existingSession } = await supabase
+    .from('survey_response_sessions')
+    .select('id,survey_id,lead_id,status')
+    .eq('response_token', input.token)
+    .maybeSingle();
+
+  if (existingSession && (
+    String(existingSession.survey_id) !== survey.id
+    || String(existingSession.lead_id ?? '') !== String(invite.leadId ?? '')
+    || existingSession.status === 'completed'
+  )) {
+    return { ok: false, error: existingSession.status === 'completed' ? 'already-completed' : 'save-failed' };
+  }
+
   const { data, error } = await supabase
     .from('survey_response_sessions')
     .upsert({
       survey_id: survey.id,
       survey_version: survey.version,
       response_token: input.token,
-      lead_id: input.leadId || null,
+      lead_id: invite.leadId,
       answers: input.answers,
       inactive_answers: inactive,
-      metadata: { source: 'public-survey' },
+      metadata: { source: 'public-survey', ...(input.inviteToken ? { invite_token: input.inviteToken } : {}) },
       status: 'draft',
       updated_at: new Date().toISOString()
     }, { onConflict: 'response_token' })
     .select('id')
     .single();
-  return error || !data ? { ok: false, error: 'save-failed' } : { ok: true, sessionId: String(data.id) };
+  return error || !data ? { ok: false, error: 'save-failed' } : { ok: true, sessionId: String(data.id), leadId: invite.leadId };
 }
 
 export async function completeSurveyResponseMutation(input: SurveyResponseDraftInput) {
@@ -737,24 +774,29 @@ export async function completeSurveyResponseMutation(input: SurveyResponseDraftI
   });
   if (missing) return { ok: false, error: 'required' };
   const supabase = createServiceClient();
-  const [{ data: session }, { data: questionRows }] = await Promise.all([
+  const leadId = draft.leadId ?? null;
+  const [{ data: session }, { data: questionRows }, leadResult] = await Promise.all([
     supabase.from('survey_response_sessions').select('id').eq('id', draft.sessionId).maybeSingle(),
-    supabase.from('survey_questions').select('id,key').eq('survey_id', survey.id)
+    supabase.from('survey_questions').select('id,key').eq('survey_id', survey.id),
+    leadId
+      ? supabase.from('leads').select('id,name,email,phone,telegram,instagram,notes').eq('id', leadId).maybeSingle()
+      : Promise.resolve({ data: null })
   ]);
   if (!session) return { ok: false, error: 'save-failed' };
+  const lead = leadResult.data;
+  const respondentContact = lead?.email || lead?.telegram || lead?.instagram || lead?.phone || null;
   const byKey = new Map((questionRows ?? []).map((question) => [String(question.key), String(question.id)]));
   const active = activeQuestionKeys(survey.definition, input.answers);
   const rows = Object.entries(input.answers)
     .filter(([key, value]) => active.has(key) && value !== '' && (!Array.isArray(value) || value.length > 0) && byKey.has(key))
-    .map(([key, answer]) => ({ survey_id: survey.id, question_id: byKey.get(key), question_key: key, response_session_id: session.id, response_group_id: session.id, lead_id: input.leadId || null, answer, is_active: true }));
+    .map(([key, answer]) => ({ survey_id: survey.id, question_id: byKey.get(key), question_key: key, response_session_id: session.id, response_group_id: session.id, lead_id: leadId, respondent_name: lead?.name || null, respondent_contact: respondentContact, answer, is_active: true }));
   if (rows.length) {
     await supabase.from('survey_answers').delete().eq('response_session_id', session.id);
     const { error } = await supabase.from('survey_answers').insert(rows);
     if (error) return { ok: false, error: 'save-failed' };
   }
   const actions = classificationActions(survey.definition, input.answers);
-  if (input.leadId) {
-    const { data: lead } = await supabase.from('leads').select('id,name,email,phone,city,telegram,instagram,notes').eq('id', input.leadId).maybeSingle();
+  if (leadId) {
     if (lead) {
       const patch: Record<string, string> = {};
       const leadValues: Record<string, unknown> = { ...lead, comment: lead.notes };
@@ -781,8 +823,16 @@ export async function completeSurveyResponseMutation(input: SurveyResponseDraftI
     }
   }
   await supabase.from('survey_response_sessions').update({ status: 'completed', completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', session.id);
+  if (input.inviteToken) {
+    await supabase
+      .from('survey_lead_invites')
+      .update({ status: 'completed', completed_at: new Date().toISOString(), last_response_session_id: session.id, updated_at: new Date().toISOString() })
+      .eq('survey_id', survey.id)
+      .eq('token', input.inviteToken);
+  }
   await supabase.from('activity_logs').insert({ user_id: null, action: 'получил ответ на анкету', entity_type: 'survey', entity_id: survey.id, entity_title: survey.title, details: { response_session_id: session.id, answers: rows.length, rules: actions.map((item) => item.rule.key) } });
   revalidatePath('/surveys');
   revalidatePath(`/surveys/${survey.id}`);
+  if (leadId) revalidatePath(`/people/${leadId}`);
   return { ok: true, sessionId: String(session.id) };
 }

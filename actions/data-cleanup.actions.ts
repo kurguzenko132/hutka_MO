@@ -16,6 +16,7 @@ const cleanupKeyByTable: Record<string, string> = {
   lead_questionnaires: 'id',
   survey_answers: 'id',
   survey_questions: 'id',
+  survey_lead_invites: 'id',
   hypothesis_leads: 'hypothesis_id',
   hypothesis_insights: 'hypothesis_id',
   hypothesis_campaigns: 'hypothesis_id',

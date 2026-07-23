@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { questionOptions, visibleSurveySections, type SurveyAnswers, type SurveyDefinition, type SurveyOption, type SurveyQuestion } from '@/lib/survey-builder';
 
-function tokenForSurvey(surveyId: string) {
-  const key = `hutka-survey-${surveyId}`;
+function tokenForSurvey(surveyId: string, inviteToken?: string) {
+  const key = `hutka-survey-${surveyId}-${inviteToken ?? 'public'}`;
   const existing = window.localStorage.getItem(key);
   if (existing) return existing;
   const created = crypto.randomUUID().replace(/-/g, '');
@@ -60,7 +60,7 @@ function QuestionInput({ question, definition, answers, update }: { question: Su
   return <Input value={String(value)} onChange={(event) => update(event.target.value)} placeholder={String(question.validation?.placeholder ?? 'Введите ответ')} />;
 }
 
-export function PublicSurveyBuilder({ surveyId, slug, definition, leadId }: { surveyId: string; slug: string; definition: SurveyDefinition; leadId?: string }) {
+export function PublicSurveyBuilder({ surveyId, slug, definition, inviteToken }: { surveyId: string; slug: string; definition: SurveyDefinition; inviteToken?: string }) {
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [token, setToken] = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -71,16 +71,16 @@ export function PublicSurveyBuilder({ surveyId, slug, definition, leadId }: { su
   const questions = sections.flatMap((section) => section.questions).filter((question) => !['info', 'section_break'].includes(question.type));
   const completed = questions.filter((question) => { const value = answers[question.key]; return value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0); }).length;
 
-  useEffect(() => { setToken(tokenForSurvey(surveyId)); }, [surveyId]);
+  useEffect(() => { setToken(tokenForSurvey(surveyId, inviteToken)); }, [inviteToken, surveyId]);
   useEffect(() => {
     if (!token || submitted) return;
     const snapshot = JSON.stringify(answers);
     if (snapshot === lastSaved.current) return;
     const timer = window.setTimeout(() => {
-      saveSurveyResponseDraftMutation({ surveyId, slug, token, answers, leadId }).then((result) => { if (result.ok) lastSaved.current = snapshot; });
+      saveSurveyResponseDraftMutation({ surveyId, slug, token, answers, inviteToken }).then((result) => { if (result.ok) lastSaved.current = snapshot; });
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [answers, leadId, slug, submitted, surveyId, token]);
+  }, [answers, inviteToken, slug, submitted, surveyId, token]);
 
   function update(question: SurveyQuestion, value: unknown) {
     setAnswers((current) => ({ ...current, [question.key]: value }));
@@ -90,8 +90,16 @@ export function PublicSurveyBuilder({ surveyId, slug, definition, leadId }: { su
   function submit() {
     if (!token) return;
     startTransition(async () => {
-      const result = await completeSurveyResponseMutation({ surveyId, slug, token, answers, leadId });
-      if (!result.ok) { setError(result.error === 'required' ? 'Ответьте на все обязательные видимые вопросы.' : 'Не удалось сохранить ответы. Попробуйте еще раз.'); return; }
+      const result = await completeSurveyResponseMutation({ surveyId, slug, token, answers, inviteToken });
+      if (!result.ok) {
+        const errorCode = 'error' in result ? result.error : '';
+        setError(errorCode === 'required'
+          ? 'Ответьте на все обязательные видимые вопросы.'
+          : errorCode === 'invite-completed' || errorCode === 'already-completed'
+            ? 'Ответ по этой ссылке уже получен.'
+            : 'Не удалось сохранить ответы. Попробуйте еще раз.');
+        return;
+      }
       lastSaved.current = JSON.stringify(answers);
       setSubmitted(true);
     });

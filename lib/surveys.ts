@@ -75,6 +75,11 @@ export type PublicSurveyBuilder = {
   definition: SurveyDefinition;
 };
 
+export type PublicSurveyInvite = {
+  token: string;
+  status: 'active' | 'completed' | 'revoked';
+};
+
 const demoSurveys: SurveyListItem[] = [
   {
     id: 'demo-masters',
@@ -582,4 +587,19 @@ export async function getPublicSurveyBuilder(slug: string): Promise<PublicSurvey
     version: survey.version ?? 1,
     definition: survey.builderDefinition
   };
+}
+
+export async function getPublicSurveyInvite(surveyId: string, token?: string): Promise<PublicSurveyInvite | null> {
+  if (!token || !/^[a-zA-Z0-9_-]{16,120}$/.test(token) || !isSupabaseServiceConfigured()) return null;
+
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('survey_lead_invites')
+    .select('token,status')
+    .eq('survey_id', surveyId)
+    .eq('token', token)
+    .maybeSingle();
+
+  if (error || !data || !['active', 'completed', 'revoked'].includes(String(data.status))) return null;
+  return { token: String(data.token), status: String(data.status) as PublicSurveyInvite['status'] };
 }

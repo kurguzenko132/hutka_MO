@@ -103,11 +103,13 @@ export function ContactRelationsHub({
     try {
       const result = await createLeadSurveyInviteMutationAction({ leadId, surveyId: selectedId });
       if (!result.ok || !result.url) {
-        fail('Не удалось создать ссылку на вопросы.');
+        fail(result.error === 'personal-links-not-configured'
+          ? 'Нужно применить миграцию персональных ссылок в Supabase.'
+          : 'Не удалось создать ссылку на вопросы.');
       } else {
         setSurveyLink({ title: result.title ?? 'Анкета', url: result.url });
         setSurveyId('');
-        setNotice('Ссылка создана и записана в историю контакта.');
+        setNotice(result.reused ? 'Для этого контакта уже есть активная персональная ссылка.' : 'Персональная ссылка создана и записана в историю контакта.');
       }
     } catch {
       fail('Не удалось связаться с сервером.');

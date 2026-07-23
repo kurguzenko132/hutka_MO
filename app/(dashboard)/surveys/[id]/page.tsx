@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowLeft, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, ExternalLink } from 'lucide-react';
 import { notFound } from 'next/navigation';
 import { FormSection } from '@/components/forms/form-section';
 import { SurveyBuilderWorkspace } from '@/components/surveys/survey-builder-workspace';
@@ -26,7 +26,10 @@ export default async function SurveyDetailPage({
     <div className="mx-auto max-w-[1440px] space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button asChild variant="secondary"><Link href="/surveys"><ArrowLeft className="h-4 w-4" />Назад</Link></Button>
-        <Button asChild variant="secondary"><Link href={getPublicSurveyUrl(survey.slug)} target="_blank"><ExternalLink className="h-4 w-4" />Открыть форму</Link></Button>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="secondary"><Link href={`/surveys/${survey.id}/export`}><Download className="h-4 w-4" />Выгрузить ответы</Link></Button>
+          <Button asChild variant="secondary"><Link href={getPublicSurveyUrl(survey.slug)} target="_blank"><ExternalLink className="h-4 w-4" />Открыть форму</Link></Button>
+        </div>
       </div>
 
       {survey.builderDefinition ? <SurveyBuilderWorkspace surveyId={survey.id} initialDefinition={survey.builderDefinition} canManage={canManage} /> : <FormSection title="Конструктор пока недоступен"><p className="text-sm text-app-muted">Примените миграцию `step62-survey-builder.sql`, чтобы открыть эту анкету в новом редакторе.</p></FormSection>}

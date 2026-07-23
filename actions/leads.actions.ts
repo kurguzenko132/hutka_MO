@@ -1248,6 +1248,7 @@ export type LeadRelationMutationResult = {
   error?: string;
   title?: string;
   url?: string;
+  reused?: boolean;
 };
 
 async function attachLeadToInsightCore(
@@ -1374,20 +1375,70 @@ async function createLeadSurveyInviteCore(
   const supabase = await createClient();
   const { data: survey, error: surveyError } = await supabase
     .from('surveys')
-    .select('id,title,slug')
+    .select('id,title,slug,status')
     .eq('id', surveyId)
     .maybeSingle();
 
-  if (surveyError || !survey?.id || !survey.slug) return { ok: false, error: 'survey-not-found' };
+  if (surveyError || !survey?.id || !survey.slug || survey.status !== 'active') return { ok: false, error: 'survey-not-found' };
 
-  const surveyUrl = buildAppUrl(`/s/${survey.slug}`);
   const surveyTitle = survey.title ? String(survey.title) : 'анкета';
+  const existingInvite = await supabase
+    .from('survey_lead_invites')
+    .select('token')
+    .eq('survey_id', surveyId)
+    .eq('lead_id', leadId)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (existingInvite.error && existingInvite.error.code !== 'PGRST116') {
+    return { ok: false, error: existingInvite.error.code === 'PGRST205' ? 'personal-links-not-configured' : 'survey-link-create-failed' };
+  }
+
+  const existingToken = existingInvite.data?.token ? String(existingInvite.data.token) : '';
+  if (existingToken) {
+    return {
+      ok: true,
+      title: surveyTitle,
+      url: buildAppUrl(`/s/${survey.slug}?invite=${encodeURIComponent(existingToken)}`),
+      reused: true
+    };
+  }
+
+  const token = crypto.randomUUID().replace(/-/g, '');
+  const inviteResult = await supabase
+    .from('survey_lead_invites')
+    .insert({ survey_id: surveyId, lead_id: leadId, token, created_by: userId || null })
+    .select('token')
+    .single();
+
+  if (inviteResult.error || !inviteResult.data?.token) {
+    if (inviteResult.error?.code === '23505') {
+      const retry = await supabase
+        .from('survey_lead_invites')
+        .select('token')
+        .eq('survey_id', surveyId)
+        .eq('lead_id', leadId)
+        .eq('status', 'active')
+        .maybeSingle();
+      if (retry.data?.token) {
+        return {
+          ok: true,
+          title: surveyTitle,
+          url: buildAppUrl(`/s/${survey.slug}?invite=${encodeURIComponent(String(retry.data.token))}`),
+          reused: true
+        };
+      }
+    }
+    return { ok: false, error: inviteResult.error?.code === 'PGRST205' ? 'personal-links-not-configured' : 'survey-link-create-failed' };
+  }
+
+  const surveyUrl = buildAppUrl(`/s/${survey.slug}?invite=${encodeURIComponent(String(inviteResult.data.token))}`);
 
   const { error: interactionError } = await supabase.from('lead_interactions').insert({
     lead_id: leadId,
     type: 'survey_sent',
     channel: 'Hutka',
-    text: `Создана ссылка на анкету «${surveyTitle}»: ${surveyUrl}`,
+    text: `Создана персональная ссылка на анкету «${surveyTitle}»: ${surveyUrl}`,
     result: 'survey_link_created',
     created_by: userId || null
   });
@@ -1399,7 +1450,7 @@ async function createLeadSurveyInviteCore(
     entityType: 'survey',
     entityId: surveyId,
     entityTitle: surveyTitle,
-    details: { contact_id: leadId, url: surveyUrl }
+    details: { contact_id: leadId, url: surveyUrl, personal: true }
   });
 
   if (shouldRevalidate) {

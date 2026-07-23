@@ -12,6 +12,12 @@ create table if not exists public.profiles (
   created_at timestamptz default now()
 );
 
+-- Some early Hutka installations have a profiles table created before auth
+-- linkage was introduced. Bring it to the current contract before indexes and
+-- auth helpers below use this column.
+alter table public.profiles
+  add column if not exists user_id uuid references auth.users(id) on delete cascade;
+
 create table if not exists public.sources (
   id uuid primary key default uuid_generate_v4(),
   name text not null,

@@ -2,12 +2,15 @@
 
 do $$
 begin
-  if to_regclass('public.surveys') is null or to_regclass('public.survey_questions') is null then
+  if to_regclass('public.surveys') is null or to_regclass('public.survey_questions') is null or to_regclass('public.profiles') is null then
     raise exception using
       errcode = 'P0001',
       message = 'Базовая схема Hutka не развернута: сначала выполните supabase/schema.sql, затем повторите Step 62 только для существующей базы.';
   end if;
 end $$;
+
+alter table public.profiles
+  add column if not exists user_id uuid references auth.users(id) on delete cascade;
 
 alter table public.surveys add column if not exists survey_key text;
 alter table public.surveys add column if not exists schema_version text not null default '1.0';

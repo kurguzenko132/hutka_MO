@@ -17,6 +17,14 @@ create table if not exists public.profiles (
 -- auth helpers below use this column.
 alter table public.profiles
   add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.profiles add column if not exists full_name text;
+alter table public.profiles add column if not exists email text;
+alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists job_title text default 'Маркетолог';
+alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists telegram text;
+alter table public.profiles add column if not exists bio text;
+alter table public.profiles add column if not exists updated_at timestamptz default now();
 
 create table if not exists public.sources (
   id uuid primary key default uuid_generate_v4(),

@@ -8,6 +8,10 @@ import { getPublicSurveyUrl, getSurveys, statusLabel } from '@/lib/surveys';
 import { getCurrentUserContext } from '@/lib/permissions';
 import { can } from '@/lib/roles';
 
+// Survey imports can happen directly in Supabase SQL Editor, outside of a
+// server action that would revalidate this route.
+export const dynamic = 'force-dynamic';
+
 function statusTone(status: string) {
   if (status === 'active') return 'green';
   if (status === 'draft') return 'yellow';

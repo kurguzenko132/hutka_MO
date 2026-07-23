@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import individualMasterTemplate from '../data/surveys/individual-master-survey-v1.json' with { type: 'json' };
+import detailedIndividualMasterTemplate from '../data/surveys/individual-master-research-2026.json' with { type: 'json' };
 import {
   classificationActions,
   evaluateCondition,
@@ -20,6 +21,13 @@ test('individual master template validates and can round-trip through JSON', () 
   assert.ok(validation.summary.questions > 40);
   const exported = JSON.parse(JSON.stringify(definition));
   assert.deepEqual(normalizeSurveyDefinition(exported), definition);
+});
+
+test('detailed individual master research survey validates before it is loaded into Supabase', () => {
+  const validation = validateSurveyDefinition(detailedIndividualMasterTemplate);
+  assert.equal(validation.ok, true, validation.errors.join('\n'));
+  assert.equal(validation.summary.questions, 71);
+  assert.ok(validation.summary.branches > 100);
 });
 
 test('branching hides the booking-service branch that does not match the answer', () => {

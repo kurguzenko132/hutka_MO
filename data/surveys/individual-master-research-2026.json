@@ -1,0 +1,3512 @@
+{
+  "schemaVersion": "1.0",
+  "survey": {
+    "key": "individual_master_research_2026",
+    "title": "Опрос индивидуальных мастеров",
+    "type": "Мастера",
+    "description": "Понять, как мастера ведут запись, работают с клиентами и оценивают Hutka.",
+    "startScreen": {
+      "title": "Несколько вопросов о вашей работе",
+      "description": "Здравствуйте! Мы изучаем, как индивидуальные мастера работают с клиентами, ведут запись и организуют расписание. Опрос займет несколько минут; контакт можно оставить только по желанию."
+    },
+    "completionScreen": {
+      "title": "Спасибо за ответы!",
+      "description": "Ваш опыт поможет сделать Hutka действительно удобным инструментом для самостоятельных мастеров."
+    }
+  },
+  "sections": [
+    {
+      "key": "blok_1_o_mastere",
+      "title": "Блок 1. О мастере",
+      "questions": [
+        {
+          "key": "work_format",
+          "type": "single_choice",
+          "title": "В каком формате вы сейчас работаете?",
+          "required": true,
+          "options": [
+            {
+              "key": "rabotayu_samostoyatelno_doma",
+              "label": "Работаю самостоятельно дома"
+            },
+            {
+              "key": "arenduyu_mesto_ili_kabinet",
+              "label": "Арендую место или кабинет"
+            },
+            {
+              "key": "rabotayu_v_salone_no_samostoyatelno_vedu_svoih_klientov",
+              "label": "Работаю в салоне, но самостоятельно веду своих клиентов"
+            },
+            {
+              "key": "vyezzhayu_k_klientam",
+              "label": "Выезжаю к клиентам"
+            },
+            {
+              "key": "sovmeschayu_neskolko_formatov",
+              "label": "Совмещаю несколько форматов"
+            },
+            {
+              "key": "ya_vladelec_ili_upravlyayuschiy_salona",
+              "label": "Я владелец или управляющий салона"
+            },
+            {
+              "key": "seychas_vremenno_ne_rabotayu_masterom",
+              "label": "Сейчас временно не работаю мастером"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "specializations",
+          "type": "multiple_choice",
+          "title": "В каком направлении вы работаете?",
+          "required": true,
+          "options": [
+            {
+              "key": "parikmaherskie_uslugi",
+              "label": "Парикмахерские услуги"
+            },
+            {
+              "key": "okrashivanie_volos",
+              "label": "Окрашивание волос"
+            },
+            {
+              "key": "keratin_botoks_ili_vosstanovlenie_volos",
+              "label": "Кератин, ботокс или восстановление волос"
+            },
+            {
+              "key": "barber",
+              "label": "Барбер"
+            },
+            {
+              "key": "manikyur_ili_pedikyur",
+              "label": "Маникюр или педикюр"
+            },
+            {
+              "key": "brovi",
+              "label": "Брови"
+            },
+            {
+              "key": "resnicy",
+              "label": "Ресницы"
+            },
+            {
+              "key": "makiyazh",
+              "label": "Макияж"
+            },
+            {
+              "key": "kosmetologiya",
+              "label": "Косметология"
+            },
+            {
+              "key": "massazh",
+              "label": "Массаж"
+            },
+            {
+              "key": "depilyaciya_ili_shugaring",
+              "label": "Депиляция или шугаринг"
+            },
+            {
+              "key": "lazernaya_epilyaciya",
+              "label": "Лазерная эпиляция"
+            },
+            {
+              "key": "tatuirovki_ili_permanentnyy_makiyazh",
+              "label": "Татуировки или перманентный макияж"
+            },
+            {
+              "key": "gruming",
+              "label": "Груминг"
+            },
+            {
+              "key": "repetitorstvo_ili_obuchenie",
+              "label": "Репетиторство или обучение"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "city",
+          "type": "short_text",
+          "title": "В каком городе вы работаете?",
+          "required": true,
+          "contactMapping": {
+            "field": "city",
+            "mode": "if_empty"
+          }
+        },
+        {
+          "key": "experience",
+          "type": "single_choice",
+          "title": "Как давно вы работаете мастером?",
+          "options": [
+            {
+              "key": "menshe_6_mesyacev",
+              "label": "Меньше 6 месяцев"
+            },
+            {
+              "key": "ot_6_mesyacev_do_1_goda",
+              "label": "От 6 месяцев до 1 года"
+            },
+            {
+              "key": "ot_1_goda_do_3_let",
+              "label": "От 1 года до 3 лет"
+            },
+            {
+              "key": "ot_3_do_5_let",
+              "label": "От 3 до 5 лет"
+            },
+            {
+              "key": "bolee_5_let",
+              "label": "Более 5 лет"
+            }
+          ]
+        },
+        {
+          "key": "clients_per_month",
+          "type": "single_choice",
+          "title": "Сколько клиентов вы обычно принимаете за месяц?",
+          "options": [
+            {
+              "key": "menshe_10",
+              "label": "Меньше 10"
+            },
+            {
+              "key": "option_2_10_25",
+              "label": "10–25"
+            },
+            {
+              "key": "option_3_26_50",
+              "label": "26–50"
+            },
+            {
+              "key": "option_4_51_100",
+              "label": "51–100"
+            },
+            {
+              "key": "bolee_100",
+              "label": "Более 100"
+            },
+            {
+              "key": "kolichestvo_silno_menyaetsya",
+              "label": "Количество сильно меняется"
+            },
+            {
+              "key": "poka_slozhno_ocenit",
+              "label": "Пока сложно оценить"
+            }
+          ]
+        },
+        {
+          "key": "schedule_occupancy",
+          "type": "single_choice",
+          "title": "Насколько обычно заполнено ваше расписание?",
+          "options": [
+            {
+              "key": "bolshaya_chast_vremeni_svobodna",
+              "label": "Большая часть времени свободна"
+            },
+            {
+              "key": "zapolneno_primerno_na_chetvert",
+              "label": "Заполнено примерно на четверть"
+            },
+            {
+              "key": "zapolneno_primerno_napolovinu",
+              "label": "Заполнено примерно наполовину"
+            },
+            {
+              "key": "zapolneno_bolshe_chem_napolovinu",
+              "label": "Заполнено больше чем наполовину"
+            },
+            {
+              "key": "pochti_vse_vremya_zanyato",
+              "label": "Почти всё время занято"
+            },
+            {
+              "key": "est_ochered_na_zapis",
+              "label": "Есть очередь на запись"
+            },
+            {
+              "key": "zagruzhennost_silno_menyaetsya_ot_mesyaca_k_mesyacu",
+              "label": "Загруженность сильно меняется от месяца к месяцу"
+            }
+          ]
+        },
+        {
+          "key": "current_priorities",
+          "type": "single_choice",
+          "title": "Что сейчас для вас важнее всего в работе?",
+          "options": [
+            {
+              "key": "nayti_bolshe_novyh_klientov",
+              "label": "Найти больше новых клиентов"
+            },
+            {
+              "key": "uvelichit_kolichestvo_povtornyh_zapisey",
+              "label": "Увеличить количество повторных записей"
+            },
+            {
+              "key": "umenshit_kolichestvo_otmen",
+              "label": "Уменьшить количество отмен"
+            },
+            {
+              "key": "zapolnit_svobodnye_okna",
+              "label": "Заполнить свободные окна"
+            },
+            {
+              "key": "navesti_poryadok_v_raspisanii",
+              "label": "Навести порядок в расписании"
+            },
+            {
+              "key": "tratit_menshe_vremeni_na_perepiski",
+              "label": "Тратить меньше времени на переписки"
+            },
+            {
+              "key": "avtomatizirovat_napominaniya_klientam",
+              "label": "Автоматизировать напоминания клиентам"
+            },
+            {
+              "key": "uvelichit_sredniy_chek",
+              "label": "Увеличить средний чек"
+            },
+            {
+              "key": "luchshe_ponimat_svoi_dohody",
+              "label": "Лучше понимать свои доходы"
+            },
+            {
+              "key": "sformirovat_postoyannuyu_klientskuyu_bazu",
+              "label": "Сформировать постоянную клиентскую базу"
+            },
+            {
+              "key": "razvivat_lichnyy_brend",
+              "label": "Развивать личный бренд"
+            },
+            {
+              "key": "poka_vse_ustraivaet",
+              "label": "Пока всё устраивает"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "validation": {
+            "maxSelections": 3
+          }
+        }
+      ]
+    },
+    {
+      "key": "blok_2_kak_seychas_ustroena_rabota_s_klientami",
+      "title": "Блок 2. Как сейчас устроена работа с клиентами",
+      "questions": [
+        {
+          "key": "client_sources",
+          "type": "multiple_choice",
+          "title": "Откуда к вам чаще всего приходят новые клиенты?",
+          "options": [
+            {
+              "key": "instagram",
+              "label": "Instagram"
+            },
+            {
+              "key": "tiktok",
+              "label": "TikTok"
+            },
+            {
+              "key": "telegram",
+              "label": "Telegram"
+            },
+            {
+              "key": "facebook",
+              "label": "Facebook"
+            },
+            {
+              "key": "vkontakte",
+              "label": "ВКонтакте"
+            },
+            {
+              "key": "rekomendacii_znakomyh_i_klientov",
+              "label": "Рекомендации знакомых и клиентов"
+            },
+            {
+              "key": "karty_i_poiskovye_servisy",
+              "label": "Карты и поисковые сервисы"
+            },
+            {
+              "key": "sayt",
+              "label": "Сайт"
+            },
+            {
+              "key": "servis_onlayn_zapisi",
+              "label": "Сервис онлайн-записи"
+            },
+            {
+              "key": "reklama",
+              "label": "Реклама"
+            },
+            {
+              "key": "klienty_salona",
+              "label": "Клиенты салона"
+            },
+            {
+              "key": "prohodyaschie_mimo_lyudi",
+              "label": "Проходящие мимо люди"
+            },
+            {
+              "key": "seychas_novye_klienty_pochti_ne_prihodyat",
+              "label": "Сейчас новые клиенты почти не приходят"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "booking_channels",
+          "type": "multiple_choice",
+          "title": "Как клиенты обычно записываются к вам?",
+          "required": true,
+          "options": [
+            {
+              "key": "pishut_v_instagram",
+              "label": "Пишут в Instagram"
+            },
+            {
+              "key": "pishut_v_telegram",
+              "label": "Пишут в Telegram"
+            },
+            {
+              "key": "pishut_v_whatsapp_ili_viber",
+              "label": "Пишут в WhatsApp или Viber"
+            },
+            {
+              "key": "zvonyat",
+              "label": "Звонят"
+            },
+            {
+              "key": "zapisyvayutsya_lichno_posle_procedury",
+              "label": "Записываются лично после процедуры"
+            },
+            {
+              "key": "perehodyat_po_ssylke_onlayn_zapisi",
+              "label": "Переходят по ссылке онлайн-записи"
+            },
+            {
+              "key": "zapisyvayutsya_cherez_sayt",
+              "label": "Записываются через сайт"
+            },
+            {
+              "key": "zapisyvayutsya_cherez_dikidi",
+              "label": "Записываются через DIKIDI"
+            },
+            {
+              "key": "zapisyvayutsya_cherez_yclients",
+              "label": "Записываются через YCLIENTS"
+            },
+            {
+              "key": "zapisyvayutsya_cherez_drugoy_servis",
+              "label": "Записываются через другой сервис"
+            },
+            {
+              "key": "zapis_vedet_administrator",
+              "label": "Запись ведёт администратор"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "schedule_storage",
+          "type": "multiple_choice",
+          "title": "Где вы храните своё расписание?",
+          "options": [
+            {
+              "key": "v_bumazhnom_bloknote",
+              "label": "В бумажном блокноте"
+            },
+            {
+              "key": "v_zametkah_telefona",
+              "label": "В заметках телефона"
+            },
+            {
+              "key": "v_kalendare_telefona",
+              "label": "В календаре телефона"
+            },
+            {
+              "key": "v_google_calendar",
+              "label": "В Google Calendar"
+            },
+            {
+              "key": "v_perepiskah_s_klientami",
+              "label": "В переписках с клиентами"
+            },
+            {
+              "key": "v_tablice_excel_ili_google_sheets",
+              "label": "В таблице Excel или Google Sheets"
+            },
+            {
+              "key": "v_dikidi",
+              "label": "В DIKIDI"
+            },
+            {
+              "key": "v_yclients",
+              "label": "В YCLIENTS"
+            },
+            {
+              "key": "v_drugom_servise_zapisi",
+              "label": "В другом сервисе записи"
+            },
+            {
+              "key": "raspisanie_vedet_administrator",
+              "label": "Расписание ведёт администратор"
+            },
+            {
+              "key": "nigde_otdelno_ne_hranyu",
+              "label": "Нигде отдельно не храню"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "self_booking",
+          "type": "single_choice",
+          "title": "Может ли клиент самостоятельно выбрать свободное время и записаться без переписки с вами?",
+          "options": [
+            {
+              "key": "da_vse_klienty_mogut_zapisatsya_samostoyatelno",
+              "label": "Да, все клиенты могут записаться самостоятельно"
+            },
+            {
+              "key": "da_no_etoy_vozmozhnostyu_polzuetsya_tolko_chast_klientov",
+              "label": "Да, но этой возможностью пользуется только часть клиентов"
+            },
+            {
+              "key": "net_ya_lichno_soglasovyvayu_kazhduyu_zapis",
+              "label": "Нет, я лично согласовываю каждую запись"
+            },
+            {
+              "key": "net_zapis_soglasovyvaet_administrator",
+              "label": "Нет, запись согласовывает администратор"
+            },
+            {
+              "key": "u_menya_net_takoy_vozmozhnosti_no_ya_hotel_by_ee_dobavit",
+              "label": "У меня нет такой возможности, но я хотел бы её добавить"
+            },
+            {
+              "key": "mne_ne_nuzhna_samostoyatelnaya_onlayn_zapis",
+              "label": "Мне не нужна самостоятельная онлайн-запись"
+            }
+          ]
+        },
+        {
+          "key": "booking_confirmation",
+          "type": "multiple_choice",
+          "title": "Как вы обычно подтверждаете запись?",
+          "options": [
+            {
+              "key": "otpravlyayu_soobschenie_vruchnuyu",
+              "label": "Отправляю сообщение вручную"
+            },
+            {
+              "key": "zvonyu_klientu",
+              "label": "Звоню клиенту"
+            },
+            {
+              "key": "servis_avtomaticheski_otpravlyaet_podtverzhdenie",
+              "label": "Сервис автоматически отправляет подтверждение"
+            },
+            {
+              "key": "proshu_vnesti_predoplatu",
+              "label": "Прошу внести предоплату"
+            },
+            {
+              "key": "nikak_dopolnitelno_ne_podtverzhdayu",
+              "label": "Никак дополнительно не подтверждаю"
+            },
+            {
+              "key": "podtverzhdeniem_schitaetsya_soobschenie_klienta",
+              "label": "Подтверждением считается сообщение клиента"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "booking_reminders",
+          "type": "single_choice",
+          "title": "Напоминаете ли вы клиентам о предстоящей записи?",
+          "options": [
+            {
+              "key": "da_pishu_kazhdomu_klientu_vruchnuyu",
+              "label": "Да, пишу каждому клиенту вручную"
+            },
+            {
+              "key": "da_zvonyu_klientam",
+              "label": "Да, звоню клиентам"
+            },
+            {
+              "key": "da_napominaniya_otpravlyayutsya_avtomaticheski",
+              "label": "Да, напоминания отправляются автоматически"
+            },
+            {
+              "key": "napominayu_tolko_nekotorym_klientam",
+              "label": "Напоминаю только некоторым клиентам"
+            },
+            {
+              "key": "inogda_napominayu_kogda_ne_zabyvayu",
+              "label": "Иногда напоминаю, когда не забываю"
+            },
+            {
+              "key": "net_ne_napominayu",
+              "label": "Нет, не напоминаю"
+            }
+          ]
+        },
+        {
+          "key": "late_cancellations",
+          "type": "single_choice",
+          "title": "Как часто клиенты отменяют или переносят запись в последний момент?",
+          "options": [
+            {
+              "key": "prakticheski_nikogda",
+              "label": "Практически никогда"
+            },
+            {
+              "key": "rezhe_odnogo_raza_v_mesyac",
+              "label": "Реже одного раза в месяц"
+            },
+            {
+              "key": "neskolko_raz_v_mesyac",
+              "label": "Несколько раз в месяц"
+            },
+            {
+              "key": "primerno_raz_v_nedelyu",
+              "label": "Примерно раз в неделю"
+            },
+            {
+              "key": "neskolko_raz_v_nedelyu",
+              "label": "Несколько раз в неделю"
+            },
+            {
+              "key": "pochti_kazhdyy_den",
+              "label": "Почти каждый день"
+            },
+            {
+              "key": "slozhno_ocenit",
+              "label": "Сложно оценить"
+            }
+          ]
+        },
+        {
+          "key": "no_shows",
+          "type": "single_choice",
+          "title": "Как часто клиент не приходит и заранее не предупреждает?",
+          "options": [
+            {
+              "key": "takogo_prakticheski_ne_byvaet",
+              "label": "Такого практически не бывает"
+            },
+            {
+              "key": "rezhe_odnogo_raza_v_mesyac",
+              "label": "Реже одного раза в месяц"
+            },
+            {
+              "key": "neskolko_raz_v_mesyac",
+              "label": "Несколько раз в месяц"
+            },
+            {
+              "key": "primerno_raz_v_nedelyu",
+              "label": "Примерно раз в неделю"
+            },
+            {
+              "key": "neskolko_raz_v_nedelyu",
+              "label": "Несколько раз в неделю"
+            },
+            {
+              "key": "slozhno_ocenit",
+              "label": "Сложно оценить"
+            }
+          ]
+        },
+        {
+          "key": "prepayment",
+          "type": "single_choice",
+          "title": "Используете ли вы предоплату?",
+          "options": [
+            {
+              "key": "da_dlya_vseh_klientov",
+              "label": "Да, для всех клиентов"
+            },
+            {
+              "key": "da_tolko_dlya_novyh_klientov",
+              "label": "Да, только для новых клиентов"
+            },
+            {
+              "key": "da_tolko_dlya_dorogih_ili_dlitelnyh_uslug",
+              "label": "Да, только для дорогих или длительных услуг"
+            },
+            {
+              "key": "inogda_v_zavisimosti_ot_situacii",
+              "label": "Иногда, в зависимости от ситуации"
+            },
+            {
+              "key": "net_no_rassmatrivayu_takuyu_vozmozhnost",
+              "label": "Нет, но рассматриваю такую возможность"
+            },
+            {
+              "key": "net_predoplata_mne_ne_nuzhna",
+              "label": "Нет, предоплата мне не нужна"
+            }
+          ]
+        },
+        {
+          "key": "client_data_storage",
+          "type": "multiple_choice",
+          "title": "Где вы храните информацию о клиентах?",
+          "options": [
+            {
+              "key": "pomnyu_osnovnuyu_informaciyu",
+              "label": "Помню основную информацию"
+            },
+            {
+              "key": "v_perepiskah",
+              "label": "В переписках"
+            },
+            {
+              "key": "v_kontaktah_telefona",
+              "label": "В контактах телефона"
+            },
+            {
+              "key": "v_zametkah",
+              "label": "В заметках"
+            },
+            {
+              "key": "v_bumazhnom_bloknote",
+              "label": "В бумажном блокноте"
+            },
+            {
+              "key": "v_tablice",
+              "label": "В таблице"
+            },
+            {
+              "key": "v_kartochkah_klientov_vnutri_servisa_zapisi",
+              "label": "В карточках клиентов внутри сервиса записи"
+            },
+            {
+              "key": "nigde_ne_hranyu",
+              "label": "Нигде не храню"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "client_data_saved",
+          "type": "multiple_choice",
+          "title": "Какую информацию о клиентах вы обычно сохраняете?",
+          "options": [
+            {
+              "key": "imya_i_nomer_telefona",
+              "label": "Имя и номер телефона"
+            },
+            {
+              "key": "istoriyu_posescheniy",
+              "label": "Историю посещений"
+            },
+            {
+              "key": "vypolnennye_procedury",
+              "label": "Выполненные процедуры"
+            },
+            {
+              "key": "predpochteniya_klienta",
+              "label": "Предпочтения клиента"
+            },
+            {
+              "key": "ispolzovannye_materialy_cveta_ili_sostavy",
+              "label": "Использованные материалы, цвета или составы"
+            },
+            {
+              "key": "protivopokazaniya_i_vazhnye_osobennosti",
+              "label": "Противопоказания и важные особенности"
+            },
+            {
+              "key": "fotografii_rezultata",
+              "label": "Фотографии результата"
+            },
+            {
+              "key": "datu_sleduyuschey_rekomenduemoy_zapisi",
+              "label": "Дату следующей рекомендуемой записи"
+            },
+            {
+              "key": "razmer_skidki_ili_bonusy",
+              "label": "Размер скидки или бонусы"
+            },
+            {
+              "key": "nichego_otdelno_ne_sohranyayu",
+              "label": "Ничего отдельно не сохраняю"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "income_tracking",
+          "type": "single_choice",
+          "title": "Как вы учитываете доходы и расходы?",
+          "options": [
+            {
+              "key": "ispolzuyu_specialnyy_servis",
+              "label": "Использую специальный сервис"
+            },
+            {
+              "key": "vedu_tablicu",
+              "label": "Веду таблицу"
+            },
+            {
+              "key": "zapisyvayu_v_bloknot_ili_zametki",
+              "label": "Записываю в блокнот или заметки"
+            },
+            {
+              "key": "ispolzuyu_bankovskoe_prilozhenie",
+              "label": "Использую банковское приложение"
+            },
+            {
+              "key": "schitayu_primerno",
+              "label": "Считаю примерно"
+            },
+            {
+              "key": "nikak_ne_uchityvayu",
+              "label": "Никак не учитываю"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "admin_time",
+          "type": "single_choice",
+          "title": "Сколько времени примерно уходит на переписки, запись клиентов, переносы и другие организационные задачи?",
+          "options": [
+            {
+              "key": "menshe_15_minut_v_den",
+              "label": "Меньше 15 минут в день"
+            },
+            {
+              "key": "option_2_15_30_minut_v_den",
+              "label": "15–30 минут в день"
+            },
+            {
+              "key": "option_3_30_60_minut_v_den",
+              "label": "30–60 минут в день"
+            },
+            {
+              "key": "option_4_1_2_chasa_v_den",
+              "label": "1–2 часа в день"
+            },
+            {
+              "key": "bolee_2_chasov_v_den",
+              "label": "Более 2 часов в день"
+            },
+            {
+              "key": "silno_zavisit_ot_dnya",
+              "label": "Сильно зависит от дня"
+            },
+            {
+              "key": "ne_mogu_ocenit",
+              "label": "Не могу оценить"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "blok_3_ispolzovanie_servisov",
+      "title": "Блок 3. Использование сервисов",
+      "questions": [
+        {
+          "key": "booking_service",
+          "type": "single_choice",
+          "title": "Пользуетесь ли вы сейчас специальным сервисом для записи или управления клиентами?",
+          "required": true,
+          "options": [
+            {
+              "key": "da_dikidi",
+              "label": "Да, DIKIDI"
+            },
+            {
+              "key": "da_yclients",
+              "label": "Да, YCLIENTS"
+            },
+            {
+              "key": "da_drugoy_servis",
+              "label": "Да, другой сервис"
+            },
+            {
+              "key": "polzuyus_tolko_obychnym_kalendarem_ili_tablicey",
+              "label": "Пользуюсь только обычным календарём или таблицей"
+            },
+            {
+              "key": "ranshe_polzovalsya_no_perestal",
+              "label": "Раньше пользовался, но перестал"
+            },
+            {
+              "key": "nikogda_ne_polzovalsya_takimi_servisami",
+              "label": "Никогда не пользовался такими сервисами"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "vetka_a_master_polzuetsya_servisom",
+      "title": "Ветка А. Мастер пользуется сервисом",
+      "questions": [
+        {
+          "key": "other_service_name",
+          "type": "short_text",
+          "title": "Как называется сервис, которым вы пользуетесь?",
+          "visibility": {
+            "all": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_duration",
+          "type": "single_choice",
+          "title": "Как давно вы пользуетесь этим сервисом?",
+          "options": [
+            {
+              "key": "menshe_mesyaca",
+              "label": "Меньше месяца"
+            },
+            {
+              "key": "option_2_1_6_mesyacev",
+              "label": "1–6 месяцев"
+            },
+            {
+              "key": "option_3_6_12_mesyacev",
+              "label": "6–12 месяцев"
+            },
+            {
+              "key": "option_4_1_3_goda",
+              "label": "1–3 года"
+            },
+            {
+              "key": "bolee_3_let",
+              "label": "Более 3 лет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_features",
+          "type": "multiple_choice",
+          "title": "Какие функции вы используете?",
+          "options": [
+            {
+              "key": "raspisanie",
+              "label": "Расписание"
+            },
+            {
+              "key": "onlayn_zapis",
+              "label": "Онлайн-запись"
+            },
+            {
+              "key": "ssylka_dlya_zapisi_klientov",
+              "label": "Ссылка для записи клиентов"
+            },
+            {
+              "key": "napominaniya",
+              "label": "Напоминания"
+            },
+            {
+              "key": "kartochki_klientov",
+              "label": "Карточки клиентов"
+            },
+            {
+              "key": "istoriya_posescheniy",
+              "label": "История посещений"
+            },
+            {
+              "key": "uchet_dohodov",
+              "label": "Учёт доходов"
+            },
+            {
+              "key": "raschet_zarplat",
+              "label": "Расчёт зарплат"
+            },
+            {
+              "key": "analitika",
+              "label": "Аналитика"
+            },
+            {
+              "key": "predoplata",
+              "label": "Предоплата"
+            },
+            {
+              "key": "rassylki",
+              "label": "Рассылки"
+            },
+            {
+              "key": "programma_loyalnosti",
+              "label": "Программа лояльности"
+            },
+            {
+              "key": "otzyvy",
+              "label": "Отзывы"
+            },
+            {
+              "key": "prodvizhenie_ili_poisk_novyh_klientov",
+              "label": "Продвижение или поиск новых клиентов"
+            },
+            {
+              "key": "ispolzuyu_tolko_osnovnye_funkcii",
+              "label": "Использую только основные функции"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_satisfaction",
+          "type": "scale",
+          "title": "Насколько вы довольны текущим сервисом?",
+          "options": [
+            {
+              "key": "option_1_1_sovsem_ne_dovolen",
+              "label": "1 — совсем не доволен"
+            },
+            {
+              "key": "option_2_2_skoree_ne_dovolen",
+              "label": "2 — скорее не доволен"
+            },
+            {
+              "key": "option_3_3_neytralno",
+              "label": "3 — нейтрально"
+            },
+            {
+              "key": "option_4_4_skoree_dovolen",
+              "label": "4 — скорее доволен"
+            },
+            {
+              "key": "option_5_5_polnostyu_dovolen",
+              "label": "5 — полностью доволен"
+            }
+          ],
+          "settings": {
+            "min": 1,
+            "max": 5,
+            "step": 1
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_dislikes",
+          "type": "multiple_choice",
+          "title": "Что вам не нравится в текущем сервисе?",
+          "options": [
+            {
+              "key": "slishkom_vysokaya_stoimost",
+              "label": "Слишком высокая стоимость"
+            },
+            {
+              "key": "slozhno_nastroit",
+              "label": "Сложно настроить"
+            },
+            {
+              "key": "slishkom_mnogo_nenuzhnyh_funkciy",
+              "label": "Слишком много ненужных функций"
+            },
+            {
+              "key": "neudobnyy_interfeys",
+              "label": "Неудобный интерфейс"
+            },
+            {
+              "key": "klientam_neudobno_zapisyvatsya",
+              "label": "Клиентам неудобно записываться"
+            },
+            {
+              "key": "servis_rabotaet_medlenno",
+              "label": "Сервис работает медленно"
+            },
+            {
+              "key": "byvayut_oshibki",
+              "label": "Бывают ошибки"
+            },
+            {
+              "key": "neudobno_rabotat_s_telefona",
+              "label": "Неудобно работать с телефона"
+            },
+            {
+              "key": "slozhno_perenosit_zapisi",
+              "label": "Сложно переносить записи"
+            },
+            {
+              "key": "ne_hvataet_avtomaticheskih_napominaniy",
+              "label": "Не хватает автоматических напоминаний"
+            },
+            {
+              "key": "ne_hvataet_informacii_o_klientah",
+              "label": "Не хватает информации о клиентах"
+            },
+            {
+              "key": "slabaya_analitika",
+              "label": "Слабая аналитика"
+            },
+            {
+              "key": "ne_pomogaet_nahodit_novyh_klientov",
+              "label": "Не помогает находить новых клиентов"
+            },
+            {
+              "key": "klienty_vse_ravno_prodolzhayut_pisat_mne_lichno",
+              "label": "Клиенты всё равно продолжают писать мне лично"
+            },
+            {
+              "key": "tehnicheskaya_podderzhka_rabotaet_ploho",
+              "label": "Техническая поддержка работает плохо"
+            },
+            {
+              "key": "menya_vse_ustraivaet",
+              "label": "Меня всё устраивает"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_price",
+          "type": "single_choice",
+          "title": "Сколько вы платите за сервис в месяц?",
+          "options": [
+            {
+              "key": "polzuyus_besplatno",
+              "label": "Пользуюсь бесплатно"
+            },
+            {
+              "key": "do_10_byn",
+              "label": "До 10 BYN"
+            },
+            {
+              "key": "option_3_11_20_byn",
+              "label": "11–20 BYN"
+            },
+            {
+              "key": "option_4_21_30_byn",
+              "label": "21–30 BYN"
+            },
+            {
+              "key": "option_5_31_50_byn",
+              "label": "31–50 BYN"
+            },
+            {
+              "key": "bolee_50_byn",
+              "label": "Более 50 BYN"
+            },
+            {
+              "key": "oplachivaet_salon",
+              "label": "Оплачивает салон"
+            },
+            {
+              "key": "ne_hochu_otvechat",
+              "label": "Не хочу отвечать"
+            },
+            {
+              "key": "ne_znayu",
+              "label": "Не знаю"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_switch_interest",
+          "type": "single_choice",
+          "title": "Рассмотрели бы вы переход на другой сервис?",
+          "options": [
+            {
+              "key": "da_uzhe_ischu_zamenu",
+              "label": "Да, уже ищу замену"
+            },
+            {
+              "key": "da_esli_novyy_servis_budet_udobnee",
+              "label": "Да, если новый сервис будет удобнее"
+            },
+            {
+              "key": "da_esli_novyy_servis_budet_deshevle",
+              "label": "Да, если новый сервис будет дешевле"
+            },
+            {
+              "key": "da_esli_on_pomozhet_privlekat_klientov",
+              "label": "Да, если он поможет привлекать клиентов"
+            },
+            {
+              "key": "vozmozhno_no_perehodit_budet_slozhno",
+              "label": "Возможно, но переходить будет сложно"
+            },
+            {
+              "key": "skoree_net",
+              "label": "Скорее нет"
+            },
+            {
+              "key": "tochno_net",
+              "label": "Точно нет"
+            },
+            {
+              "key": "poka_ne_znayu",
+              "label": "Пока не знаю"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_switch_conditions",
+          "type": "long_text",
+          "title": "Что должно быть в новом сервисе, чтобы вы решили перейти?",
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_dikidi"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_yclients"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "da_drugoy_servis"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "vetka_b_master_ne_polzuetsya_specialnym_servisom",
+      "title": "Ветка Б. Мастер не пользуется специальным сервисом",
+      "questions": [
+        {
+          "key": "no_service_reasons",
+          "type": "multiple_choice",
+          "title": "Почему вы сейчас не используете специальный сервис?",
+          "options": [
+            {
+              "key": "mne_hvataet_bloknota_zametok_ili_kalendarya",
+              "label": "Мне хватает блокнота, заметок или календаря"
+            },
+            {
+              "key": "u_menya_poka_malo_klientov",
+              "label": "У меня пока мало клиентов"
+            },
+            {
+              "key": "klienty_vse_ravno_predpochitayut_pisat_lichno",
+              "label": "Клиенты всё равно предпочитают писать лично"
+            },
+            {
+              "key": "ne_vizhu_dostatochnoy_polzy",
+              "label": "Не вижу достаточной пользы"
+            },
+            {
+              "key": "servisy_slishkom_dorogie",
+              "label": "Сервисы слишком дорогие"
+            },
+            {
+              "key": "servisy_kazhutsya_slozhnymi",
+              "label": "Сервисы кажутся сложными"
+            },
+            {
+              "key": "ne_hochu_tratit_vremya_na_nastroyku",
+              "label": "Не хочу тратить время на настройку"
+            },
+            {
+              "key": "ne_znayu_kakoy_servis_vybrat",
+              "label": "Не знаю, какой сервис выбрать"
+            },
+            {
+              "key": "boyus_poteryat_zapisi_ili_dannye",
+              "label": "Боюсь потерять записи или данные"
+            },
+            {
+              "key": "ne_hochu_zaviset_ot_prilozheniya",
+              "label": "Не хочу зависеть от приложения"
+            },
+            {
+              "key": "ranshe_polzovalsya_no_bylo_neudobno",
+              "label": "Раньше пользовался, но было неудобно"
+            },
+            {
+              "key": "mne_pomogaet_administrator",
+              "label": "Мне помогает администратор"
+            },
+            {
+              "key": "nikogda_serezno_ob_etom_ne_zadumyvalsya",
+              "label": "Никогда серьёзно об этом не задумывался"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "polzuyus_tolko_obychnym_kalendarem_ili_tablicey"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "ranshe_polzovalsya_no_perestal"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "nikogda_ne_polzovalsya_takimi_servisami"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_previous_experience",
+          "type": "single_choice",
+          "title": "Пробовали ли вы раньше пользоваться сервисами записи?",
+          "options": [
+            {
+              "key": "da_proboval_dikidi",
+              "label": "Да, пробовал DIKIDI"
+            },
+            {
+              "key": "da_proboval_yclients",
+              "label": "Да, пробовал YCLIENTS"
+            },
+            {
+              "key": "da_proboval_drugoy_servis",
+              "label": "Да, пробовал другой сервис"
+            },
+            {
+              "key": "registrirovalsya_no_ne_nachal_polzovatsya",
+              "label": "Регистрировался, но не начал пользоваться"
+            },
+            {
+              "key": "net_nikogda_ne_proboval",
+              "label": "Нет, никогда не пробовал"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "polzuyus_tolko_obychnym_kalendarem_ili_tablicey"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "ranshe_polzovalsya_no_perestal"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "nikogda_ne_polzovalsya_takimi_servisami"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_stopped_reasons",
+          "type": "multiple_choice",
+          "title": "Почему вы перестали пользоваться сервисом или не начали после регистрации?",
+          "options": [
+            {
+              "key": "bylo_slozhno_razobratsya",
+              "label": "Было сложно разобраться"
+            },
+            {
+              "key": "bylo_dolgo_nastraivat",
+              "label": "Было долго настраивать"
+            },
+            {
+              "key": "servis_okazalsya_platnym",
+              "label": "Сервис оказался платным"
+            },
+            {
+              "key": "ne_uvidel_polzy",
+              "label": "Не увидел пользы"
+            },
+            {
+              "key": "klienty_ne_polzovalis_onlayn_zapisyu",
+              "label": "Клиенты не пользовались онлайн-записью"
+            },
+            {
+              "key": "prodolzhil_vesti_zapis_privychnym_sposobom",
+              "label": "Продолжил вести запись привычным способом"
+            },
+            {
+              "key": "ne_hvatalo_nuzhnyh_funkciy",
+              "label": "Не хватало нужных функций"
+            },
+            {
+              "key": "bylo_slishkom_mnogo_nenuzhnyh_funkciy",
+              "label": "Было слишком много ненужных функций"
+            },
+            {
+              "key": "voznikli_tehnicheskie_problemy",
+              "label": "Возникли технические проблемы"
+            },
+            {
+              "key": "ne_bylo_vremeni_zanimatsya_nastroykoy",
+              "label": "Не было времени заниматься настройкой"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "all": [
+              {
+                "question": "service_previous_experience",
+                "operator": "not_equals",
+                "value": "net_nikogda_ne_proboval"
+              }
+            ]
+          }
+        },
+        {
+          "key": "service_try_trigger",
+          "type": "single_choice",
+          "title": "Что могло бы убедить вас попробовать сервис записи?",
+          "options": [
+            {
+              "key": "besplatnyy_probnyy_period",
+              "label": "Бесплатный пробный период"
+            },
+            {
+              "key": "polnostyu_besplatnaya_versiya",
+              "label": "Полностью бесплатная версия"
+            },
+            {
+              "key": "prostaya_nastroyka_za_neskolko_minut",
+              "label": "Простая настройка за несколько минут"
+            },
+            {
+              "key": "pomosch_pri_nastroyke",
+              "label": "Помощь при настройке"
+            },
+            {
+              "key": "perenos_moih_klientov_i_zapisey",
+              "label": "Перенос моих клиентов и записей"
+            },
+            {
+              "key": "vozmozhnost_prinimat_onlayn_zapis",
+              "label": "Возможность принимать онлайн-запись"
+            },
+            {
+              "key": "avtomaticheskie_napominaniya",
+              "label": "Автоматические напоминания"
+            },
+            {
+              "key": "pomosch_v_poiske_novyh_klientov",
+              "label": "Помощь в поиске новых клиентов"
+            },
+            {
+              "key": "umenshenie_otmen_i_propuschennyh_zapisey",
+              "label": "Уменьшение отмен и пропущенных записей"
+            },
+            {
+              "key": "udobnyy_uchet_dohodov",
+              "label": "Удобный учёт доходов"
+            },
+            {
+              "key": "rekomendaciya_drugogo_mastera",
+              "label": "Рекомендация другого мастера"
+            },
+            {
+              "key": "ponyatnaya_demonstraciya_servisa",
+              "label": "Понятная демонстрация сервиса"
+            },
+            {
+              "key": "nichego_poka_servis_mne_ne_nuzhen",
+              "label": "Ничего, пока сервис мне не нужен"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "validation": {
+            "maxSelections": 3
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "polzuyus_tolko_obychnym_kalendarem_ili_tablicey"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "ranshe_polzovalsya_no_perestal"
+              },
+              {
+                "question": "booking_service",
+                "operator": "equals",
+                "value": "nikogda_ne_polzovalsya_takimi_servisami"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "blok_4_problemy_i_slozhnosti",
+      "title": "Блок 4. Проблемы и сложности",
+      "questions": [
+        {
+          "key": "work_problems",
+          "type": "multiple_choice",
+          "title": "С какими ситуациями вы сталкиваетесь в работе?",
+          "required": true,
+          "options": [
+            {
+              "key": "ne_uspevayu_bystro_otvechat_klientam",
+              "label": "Не успеваю быстро отвечать клиентам"
+            },
+            {
+              "key": "inogda_zabyvayu_otvetit",
+              "label": "Иногда забываю ответить"
+            },
+            {
+              "key": "soobscheniya_ili_dogovorennosti_teryayutsya",
+              "label": "Сообщения или договорённости теряются"
+            },
+            {
+              "key": "prihoditsya_dolgo_soglasovyvat_svobodnoe_vremya",
+              "label": "Приходится долго согласовывать свободное время"
+            },
+            {
+              "key": "voznikayut_nakladki_v_raspisanii",
+              "label": "Возникают накладки в расписании"
+            },
+            {
+              "key": "klienty_zabyvayut_o_zapisi",
+              "label": "Клиенты забывают о записи"
+            },
+            {
+              "key": "klienty_otmenyayut_zapis_v_posledniy_moment",
+              "label": "Клиенты отменяют запись в последний момент"
+            },
+            {
+              "key": "klienty_ne_prihodyat_bez_preduprezhdeniya",
+              "label": "Клиенты не приходят без предупреждения"
+            },
+            {
+              "key": "poyavlyayutsya_svobodnye_okna_kotorye_ne_udaetsya_zapolnit",
+              "label": "Появляются свободные окна, которые не удаётся заполнить"
+            },
+            {
+              "key": "slozhno_vozvraschat_klientov_na_povtornuyu_zapis",
+              "label": "Сложно возвращать клиентов на повторную запись"
+            },
+            {
+              "key": "ne_znayu_kto_iz_klientov_davno_ne_prihodil",
+              "label": "Не знаю, кто из клиентов давно не приходил"
+            },
+            {
+              "key": "slozhno_hranit_istoriyu_klienta",
+              "label": "Сложно хранить историю клиента"
+            },
+            {
+              "key": "slishkom_mnogo_vremeni_uhodit_na_organizacionnye_zadachi",
+              "label": "Слишком много времени уходит на организационные задачи"
+            },
+            {
+              "key": "slozhno_uchityvat_dohody",
+              "label": "Сложно учитывать доходы"
+            },
+            {
+              "key": "slozhno_ponimat_kakie_uslugi_naibolee_pribylnye",
+              "label": "Сложно понимать, какие услуги наиболее прибыльные"
+            },
+            {
+              "key": "ne_hvataet_novyh_klientov",
+              "label": "Не хватает новых клиентов"
+            },
+            {
+              "key": "tekuschiy_servis_slishkom_dorogoy",
+              "label": "Текущий сервис слишком дорогой"
+            },
+            {
+              "key": "tekuschiy_servis_slishkom_slozhnyy",
+              "label": "Текущий сервис слишком сложный"
+            },
+            {
+              "key": "klienty_ne_hotyat_polzovatsya_onlayn_zapisyu",
+              "label": "Клиенты не хотят пользоваться онлайн-записью"
+            },
+            {
+              "key": "suschestvennyh_problem_seychas_net",
+              "label": "Существенных проблем сейчас нет"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "top_problems",
+          "type": "single_choice",
+          "title": "Выберите до трёх проблем, которые сильнее всего мешают вашей работе.",
+          "validation": {
+            "maxSelections": 3
+          },
+          "optionsSource": {
+            "type": "selected_answers",
+            "question": "work_problems"
+          }
+        },
+        {
+          "key": "main_problem",
+          "type": "single_choice",
+          "title": "Какая одна проблема сейчас является для вас самой важной?",
+          "optionsSource": {
+            "type": "selected_answers",
+            "question": "top_problems"
+          }
+        },
+        {
+          "key": "problem_impact",
+          "type": "multiple_choice",
+          "title": "Как эта проблема влияет на вашу работу?",
+          "options": [
+            {
+              "key": "teryayu_potencialnyh_klientov",
+              "label": "Теряю потенциальных клиентов"
+            },
+            {
+              "key": "teryayu_dengi",
+              "label": "Теряю деньги"
+            },
+            {
+              "key": "trachu_mnogo_vremeni",
+              "label": "Трачу много времени"
+            },
+            {
+              "key": "poyavlyayutsya_svobodnye_okna",
+              "label": "Появляются свободные окна"
+            },
+            {
+              "key": "voznikayut_konflikty_ili_nedovolstvo_klientov",
+              "label": "Возникают конфликты или недовольство клиентов"
+            },
+            {
+              "key": "ispytyvayu_stress",
+              "label": "Испытываю стресс"
+            },
+            {
+              "key": "prihoditsya_rabotat_v_neudobnoe_vremya",
+              "label": "Приходится работать в неудобное время"
+            },
+            {
+              "key": "ne_mogu_normalno_planirovat_svoy_den",
+              "label": "Не могу нормально планировать свой день"
+            },
+            {
+              "key": "meshaet_razvivat_biznes",
+              "label": "Мешает развивать бизнес"
+            },
+            {
+              "key": "suschestvenno_ne_vliyaet",
+              "label": "Существенно не влияет"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ]
+        },
+        {
+          "key": "problem_importance",
+          "type": "scale",
+          "title": "Насколько важно для вас решить эту проблему?",
+          "options": [
+            {
+              "key": "option_1_1_sovsem_ne_vazhno",
+              "label": "1 — совсем не важно"
+            },
+            {
+              "key": "option_2_2_skoree_ne_vazhno",
+              "label": "2 — скорее не важно"
+            },
+            {
+              "key": "option_3_3_bylo_by_polezno",
+              "label": "3 — было бы полезно"
+            },
+            {
+              "key": "option_4_4_vazhno",
+              "label": "4 — важно"
+            },
+            {
+              "key": "option_5_5_eto_odna_iz_glavnyh_zadach_seychas",
+              "label": "5 — это одна из главных задач сейчас"
+            }
+          ],
+          "settings": {
+            "min": 1,
+            "max": 5,
+            "step": 1
+          }
+        }
+      ]
+    },
+    {
+      "key": "blok_5_znakomstvo_s_hutka",
+      "title": "Блок 5. Знакомство с Hutka",
+      "questions": [
+        {
+          "key": "hutka_familiarity",
+          "type": "single_choice",
+          "title": "Насколько вы уже знакомы с Hutka?",
+          "required": true,
+          "options": [
+            {
+              "key": "ranshe_nichego_ne_slyshal_o_hutka",
+              "label": "Раньше ничего не слышал о Hutka"
+            },
+            {
+              "key": "slyshal_nazvanie_no_ne_videl_servis",
+              "label": "Слышал название, но не видел сервис"
+            },
+            {
+              "key": "videl_prezentaciyu_ili_demonstraciyu",
+              "label": "Видел презентацию или демонстрацию"
+            },
+            {
+              "key": "zaregistrirovalsya_no_pochti_ne_polzovalsya",
+              "label": "Зарегистрировался, но почти не пользовался"
+            },
+            {
+              "key": "uzhe_testiroval_servis",
+              "label": "Уже тестировал сервис"
+            },
+            {
+              "key": "uzhe_regulyarno_ispolzuyu_servis",
+              "label": "Уже регулярно использую сервис"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "vetka_1_chelovek_esche_ne_videl_hutka",
+      "title": "Ветка 1. Человек ещё не видел Hutka",
+      "questions": [
+        {
+          "key": "hutka_usefulness",
+          "type": "scale",
+          "title": "Насколько такой сервис был бы полезен лично вам?",
+          "options": [
+            {
+              "key": "option_1_1_sovsem_ne_nuzhen",
+              "label": "1 — совсем не нужен"
+            },
+            {
+              "key": "option_2_2_skoree_ne_nuzhen",
+              "label": "2 — скорее не нужен"
+            },
+            {
+              "key": "option_3_3_poka_ne_uveren",
+              "label": "3 — пока не уверен"
+            },
+            {
+              "key": "option_4_4_skoree_polezen",
+              "label": "4 — скорее полезен"
+            },
+            {
+              "key": "option_5_5_ochen_polezen",
+              "label": "5 — очень полезен"
+            }
+          ],
+          "settings": {
+            "min": 1,
+            "max": 5,
+            "step": 1
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "needed_features",
+          "type": "single_choice",
+          "title": "Какие функции были бы для вас наиболее полезными?",
+          "options": [
+            {
+              "key": "udobnoe_raspisanie",
+              "label": "Удобное расписание"
+            },
+            {
+              "key": "ssylka_dlya_samostoyatelnoy_onlayn_zapisi",
+              "label": "Ссылка для самостоятельной онлайн-записи"
+            },
+            {
+              "key": "avtomaticheskie_podtverzhdeniya_zapisi",
+              "label": "Автоматические подтверждения записи"
+            },
+            {
+              "key": "avtomaticheskie_napominaniya",
+              "label": "Автоматические напоминания"
+            },
+            {
+              "key": "perenos_i_otmena_zapisi_klientom",
+              "label": "Перенос и отмена записи клиентом"
+            },
+            {
+              "key": "predoplata",
+              "label": "Предоплата"
+            },
+            {
+              "key": "kartochka_klienta",
+              "label": "Карточка клиента"
+            },
+            {
+              "key": "istoriya_posescheniy",
+              "label": "История посещений"
+            },
+            {
+              "key": "fotografii_i_zametki_po_klientu",
+              "label": "Фотографии и заметки по клиенту"
+            },
+            {
+              "key": "napominaniya_o_povtornoy_zapisi",
+              "label": "Напоминания о повторной записи"
+            },
+            {
+              "key": "spisok_klientov_kotorye_davno_ne_prihodili",
+              "label": "Список клиентов, которые давно не приходили"
+            },
+            {
+              "key": "zapolnenie_svobodnyh_okon",
+              "label": "Заполнение свободных окон"
+            },
+            {
+              "key": "list_ozhidaniya",
+              "label": "Лист ожидания"
+            },
+            {
+              "key": "uchet_dohodov_i_rashodov",
+              "label": "Учёт доходов и расходов"
+            },
+            {
+              "key": "analitika",
+              "label": "Аналитика"
+            },
+            {
+              "key": "otzyvy_klientov",
+              "label": "Отзывы клиентов"
+            },
+            {
+              "key": "portfolio_mastera",
+              "label": "Портфолио мастера"
+            },
+            {
+              "key": "poisk_novyh_klientov_cherez_prilozhenie",
+              "label": "Поиск новых клиентов через приложение"
+            },
+            {
+              "key": "rassylki_i_predlozheniya_klientam",
+              "label": "Рассылки и предложения клиентам"
+            },
+            {
+              "key": "import_suschestvuyuschey_klientskoy_bazy",
+              "label": "Импорт существующей клиентской базы"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "validation": {
+            "maxSelections": 5
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "main_feature",
+          "type": "single_choice",
+          "title": "Какая одна функция была бы для вас самой ценной?",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          },
+          "optionsSource": {
+            "type": "selected_answers",
+            "question": "needed_features"
+          }
+        },
+        {
+          "key": "adoption_barriers",
+          "type": "multiple_choice",
+          "title": "Что может помешать вам начать пользоваться таким сервисом?",
+          "options": [
+            {
+              "key": "vysokaya_stoimost",
+              "label": "Высокая стоимость"
+            },
+            {
+              "key": "slozhnaya_nastroyka",
+              "label": "Сложная настройка"
+            },
+            {
+              "key": "neobhodimost_perenosit_klientov_i_zapisi",
+              "label": "Необходимость переносить клиентов и записи"
+            },
+            {
+              "key": "ne_hochu_menyat_privychnyy_sposob_raboty",
+              "label": "Не хочу менять привычный способ работы"
+            },
+            {
+              "key": "klienty_mogut_ne_zahotet_polzovatsya_prilozheniem",
+              "label": "Клиенты могут не захотеть пользоваться приложением"
+            },
+            {
+              "key": "boyus_poteryat_dannye",
+              "label": "Боюсь потерять данные"
+            },
+            {
+              "key": "ne_hochu_tratit_vremya_na_izuchenie",
+              "label": "Не хочу тратить время на изучение"
+            },
+            {
+              "key": "ne_vizhu_dostatochnoy_polzy",
+              "label": "Не вижу достаточной пользы"
+            },
+            {
+              "key": "mne_ne_nuzhen_esche_odin_servis",
+              "label": "Мне не нужен ещё один сервис"
+            },
+            {
+              "key": "nuzhnyh_funkciy_mozhet_ne_okazatsya",
+              "label": "Нужных функций может не оказаться"
+            },
+            {
+              "key": "nichego_ne_meshaet",
+              "label": "Ничего не мешает"
+            },
+            {
+              "key": "poka_slozhno_otvetit",
+              "label": "Пока сложно ответить"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_interest",
+          "type": "single_choice",
+          "title": "Хотели бы вы посмотреть короткую демонстрацию Hutka?",
+          "options": [
+            {
+              "key": "da",
+              "label": "Да"
+            },
+            {
+              "key": "vozmozhno_no_snachala_hochu_uznat_bolshe",
+              "label": "Возможно, но сначала хочу узнать больше"
+            },
+            {
+              "key": "poka_ne_uveren",
+              "label": "Пока не уверен"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_interest",
+          "type": "single_choice",
+          "title": "Были бы вы готовы бесплатно протестировать Hutka и поделиться впечатлениями?",
+          "options": [
+            {
+              "key": "da_gotov_nachat_v_blizhayshee_vremya",
+              "label": "Да, готов начать в ближайшее время"
+            },
+            {
+              "key": "da_no_nemnogo_pozzhe",
+              "label": "Да, но немного позже"
+            },
+            {
+              "key": "vozmozhno_posle_demonstracii",
+              "label": "Возможно, после демонстрации"
+            },
+            {
+              "key": "poka_ne_uveren",
+              "label": "Пока не уверен"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "ranshe_nichego_ne_slyshal_o_hutka"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "slyshal_nazvanie_no_ne_videl_servis"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "vetka_2_chelovek_videl_demonstraciyu_hutka",
+      "title": "Ветка 2. Человек видел демонстрацию Hutka",
+      "questions": [
+        {
+          "key": "demo_clarity",
+          "type": "scale",
+          "title": "Насколько понятным показался вам сервис?",
+          "options": [
+            {
+              "key": "option_1_1_nichego_ne_ponyal",
+              "label": "1 — ничего не понял"
+            },
+            {
+              "key": "option_2_2_mnogoe_ostalos_neponyatnym",
+              "label": "2 — многое осталось непонятным"
+            },
+            {
+              "key": "option_3_3_v_celom_ponyatno",
+              "label": "3 — в целом понятно"
+            },
+            {
+              "key": "option_4_4_pochti_vse_ponyatno",
+              "label": "4 — почти всё понятно"
+            },
+            {
+              "key": "option_5_5_polnostyu_ponyatno",
+              "label": "5 — полностью понятно"
+            }
+          ],
+          "settings": {
+            "min": 1,
+            "max": 5,
+            "step": 1
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_useful_features",
+          "type": "multiple_choice",
+          "title": "Что в Hutka показалось вам наиболее полезным?",
+          "options": [
+            {
+              "key": "raspisanie",
+              "label": "Расписание"
+            },
+            {
+              "key": "onlayn_zapis",
+              "label": "Онлайн-запись"
+            },
+            {
+              "key": "napominaniya",
+              "label": "Напоминания"
+            },
+            {
+              "key": "kartochki_klientov",
+              "label": "Карточки клиентов"
+            },
+            {
+              "key": "istoriya_posescheniy",
+              "label": "История посещений"
+            },
+            {
+              "key": "povtornye_zapisi",
+              "label": "Повторные записи"
+            },
+            {
+              "key": "zapolnenie_svobodnyh_okon",
+              "label": "Заполнение свободных окон"
+            },
+            {
+              "key": "analitika",
+              "label": "Аналитика"
+            },
+            {
+              "key": "poisk_novyh_klientov",
+              "label": "Поиск новых клиентов"
+            },
+            {
+              "key": "interfeys_i_udobstvo",
+              "label": "Интерфейс и удобство"
+            },
+            {
+              "key": "poka_nichego",
+              "label": "Пока ничего"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_difficulties",
+          "type": "long_text",
+          "title": "Что показалось непонятным или сложным?",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_missing_features",
+          "type": "long_text",
+          "title": "Каких функций вам не хватило во время демонстрации?",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_comparison",
+          "type": "single_choice",
+          "title": "По сравнению с вашим текущим способом работы Hutka выглядит:",
+          "options": [
+            {
+              "key": "namnogo_udobnee",
+              "label": "Намного удобнее"
+            },
+            {
+              "key": "nemnogo_udobnee",
+              "label": "Немного удобнее"
+            },
+            {
+              "key": "primerno_tak_zhe",
+              "label": "Примерно так же"
+            },
+            {
+              "key": "menee_udobno",
+              "label": "Менее удобно"
+            },
+            {
+              "key": "namnogo_menee_udobno",
+              "label": "Намного менее удобно"
+            },
+            {
+              "key": "poka_ne_mogu_sravnit",
+              "label": "Пока не могу сравнить"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_try_interest",
+          "type": "single_choice",
+          "title": "После демонстрации захотелось ли вам попробовать Hutka?",
+          "options": [
+            {
+              "key": "da_gotov_poprobovat",
+              "label": "Да, готов попробовать"
+            },
+            {
+              "key": "skoree_da",
+              "label": "Скорее да"
+            },
+            {
+              "key": "poka_ne_uveren",
+              "label": "Пока не уверен"
+            },
+            {
+              "key": "skoree_net",
+              "label": "Скорее нет"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        },
+        {
+          "key": "demo_try_conditions",
+          "type": "multiple_choice",
+          "title": "Что должно произойти, чтобы вы решили начать тестирование?",
+          "options": [
+            {
+              "key": "nuzhna_pomosch_s_nastroykoy",
+              "label": "Нужна помощь с настройкой"
+            },
+            {
+              "key": "nuzhno_perenesti_klientov",
+              "label": "Нужно перенести клиентов"
+            },
+            {
+              "key": "nuzhno_perenesti_buduschie_zapisi",
+              "label": "Нужно перенести будущие записи"
+            },
+            {
+              "key": "nuzhna_besplatnaya_versiya",
+              "label": "Нужна бесплатная версия"
+            },
+            {
+              "key": "nuzhen_probnyy_period",
+              "label": "Нужен пробный период"
+            },
+            {
+              "key": "nuzhno_dobavit_opredelennuyu_funkciyu",
+              "label": "Нужно добавить определённую функцию"
+            },
+            {
+              "key": "hochu_snachala_uvidet_otzyvy_drugih_masterov",
+              "label": "Хочу сначала увидеть отзывы других мастеров"
+            },
+            {
+              "key": "hochu_dozhdatsya_polnocennogo_zapuska",
+              "label": "Хочу дождаться полноценного запуска"
+            },
+            {
+              "key": "uzhe_gotov_nachat",
+              "label": "Уже готов начать"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "videl_prezentaciyu_ili_demonstraciyu"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "vetka_3_chelovek_testiroval_hutka",
+      "title": "Ветка 3. Человек тестировал Hutka",
+      "questions": [
+        {
+          "key": "test_duration",
+          "type": "single_choice",
+          "title": "Как долго вы пользовались Hutka?",
+          "options": [
+            {
+              "key": "tolko_zaregistrirovalsya",
+              "label": "Только зарегистрировался"
+            },
+            {
+              "key": "menshe_odnogo_dnya",
+              "label": "Меньше одного дня"
+            },
+            {
+              "key": "neskolko_dney",
+              "label": "Несколько дней"
+            },
+            {
+              "key": "option_4_1_2_nedeli",
+              "label": "1–2 недели"
+            },
+            {
+              "key": "bolee_dvuh_nedel",
+              "label": "Более двух недель"
+            },
+            {
+              "key": "polzuyus_regulyarno",
+              "label": "Пользуюсь регулярно"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_actions",
+          "type": "multiple_choice",
+          "title": "Что вам удалось сделать самостоятельно?",
+          "options": [
+            {
+              "key": "zaregistrirovatsya",
+              "label": "Зарегистрироваться"
+            },
+            {
+              "key": "zapolnit_profil",
+              "label": "Заполнить профиль"
+            },
+            {
+              "key": "dobavit_uslugi",
+              "label": "Добавить услуги"
+            },
+            {
+              "key": "nastroit_rabochee_vremya",
+              "label": "Настроить рабочее время"
+            },
+            {
+              "key": "dobavit_pereryvy_ili_vyhodnye",
+              "label": "Добавить перерывы или выходные"
+            },
+            {
+              "key": "dobavit_klienta",
+              "label": "Добавить клиента"
+            },
+            {
+              "key": "sozdat_zapis",
+              "label": "Создать запись"
+            },
+            {
+              "key": "perenesti_zapis",
+              "label": "Перенести запись"
+            },
+            {
+              "key": "otmenit_zapis",
+              "label": "Отменить запись"
+            },
+            {
+              "key": "otpravit_klientu_ssylku",
+              "label": "Отправить клиенту ссылку"
+            },
+            {
+              "key": "poluchit_onlayn_zapis",
+              "label": "Получить онлайн-запись"
+            },
+            {
+              "key": "posmotret_istoriyu_klienta",
+              "label": "Посмотреть историю клиента"
+            },
+            {
+              "key": "posmotret_analitiku",
+              "label": "Посмотреть аналитику"
+            },
+            {
+              "key": "nichego_ne_udalos_sdelat",
+              "label": "Ничего не удалось сделать"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_difficulty_stage",
+          "type": "multiple_choice",
+          "title": "На каком этапе возникли сложности?",
+          "options": [
+            {
+              "key": "registraciya",
+              "label": "Регистрация"
+            },
+            {
+              "key": "nastroyka_profilya",
+              "label": "Настройка профиля"
+            },
+            {
+              "key": "dobavlenie_uslug",
+              "label": "Добавление услуг"
+            },
+            {
+              "key": "nastroyka_raspisaniya",
+              "label": "Настройка расписания"
+            },
+            {
+              "key": "dobavlenie_klientov",
+              "label": "Добавление клиентов"
+            },
+            {
+              "key": "sozdanie_zapisi",
+              "label": "Создание записи"
+            },
+            {
+              "key": "perenos_ili_otmena_zapisi",
+              "label": "Перенос или отмена записи"
+            },
+            {
+              "key": "onlayn_zapis_klienta",
+              "label": "Онлайн-запись клиента"
+            },
+            {
+              "key": "uvedomleniya",
+              "label": "Уведомления"
+            },
+            {
+              "key": "rabota_s_klientskoy_bazoy",
+              "label": "Работа с клиентской базой"
+            },
+            {
+              "key": "analitika",
+              "label": "Аналитика"
+            },
+            {
+              "key": "slozhnostey_ne_bylo",
+              "label": "Сложностей не было"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_main_difficulty",
+          "type": "long_text",
+          "title": "Опишите самую серьёзную сложность, с которой вы столкнулись.",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_errors",
+          "type": "single_choice",
+          "title": "Сталкивались ли вы с ошибками или неправильной работой сервиса?",
+          "options": [
+            {
+              "key": "da_neskolko_raz",
+              "label": "Да, несколько раз"
+            },
+            {
+              "key": "da_odin_raz",
+              "label": "Да, один раз"
+            },
+            {
+              "key": "vozmozhno_no_ya_ne_uveren",
+              "label": "Возможно, но я не уверен"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_best_feature",
+          "type": "single_choice",
+          "title": "Какая функция Hutka оказалась наиболее полезной?",
+          "options": [
+            {
+              "key": "raspisanie",
+              "label": "Расписание"
+            },
+            {
+              "key": "onlayn_zapis",
+              "label": "Онлайн-запись"
+            },
+            {
+              "key": "napominaniya",
+              "label": "Напоминания"
+            },
+            {
+              "key": "kartochki_klientov",
+              "label": "Карточки клиентов"
+            },
+            {
+              "key": "istoriya_posescheniy",
+              "label": "История посещений"
+            },
+            {
+              "key": "povtornye_zapisi",
+              "label": "Повторные записи"
+            },
+            {
+              "key": "analitika",
+              "label": "Аналитика"
+            },
+            {
+              "key": "poisk_novyh_klientov",
+              "label": "Поиск новых клиентов"
+            },
+            {
+              "key": "poka_ni_odna",
+              "label": "Пока ни одна"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_missing_feature",
+          "type": "long_text",
+          "title": "Чего вам больше всего не хватило?",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_usability",
+          "type": "scale",
+          "title": "Насколько удобно вам было пользоваться Hutka?",
+          "options": [
+            {
+              "key": "option_1_1_ochen_neudobno",
+              "label": "1 — очень неудобно"
+            },
+            {
+              "key": "option_2_2_skoree_neudobno",
+              "label": "2 — скорее неудобно"
+            },
+            {
+              "key": "option_3_3_normalno",
+              "label": "3 — нормально"
+            },
+            {
+              "key": "option_4_4_udobno",
+              "label": "4 — удобно"
+            },
+            {
+              "key": "option_5_5_ochen_udobno",
+              "label": "5 — очень удобно"
+            }
+          ],
+          "settings": {
+            "min": 1,
+            "max": 5,
+            "step": 1
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "continue_using_hutka",
+          "type": "single_choice",
+          "title": "Готовы ли вы продолжить пользоваться Hutka?",
+          "options": [
+            {
+              "key": "da_gotov_polzovatsya_postoyanno",
+              "label": "Да, готов пользоваться постоянно"
+            },
+            {
+              "key": "da_esli_budut_ispravleny_otdelnye_problemy",
+              "label": "Да, если будут исправлены отдельные проблемы"
+            },
+            {
+              "key": "da_esli_poyavyatsya_nuzhnye_funkcii",
+              "label": "Да, если появятся нужные функции"
+            },
+            {
+              "key": "vozmozhno_hochu_esche_protestirovat",
+              "label": "Возможно, хочу ещё протестировать"
+            },
+            {
+              "key": "skoree_net",
+              "label": "Скорее нет"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "test_needed_changes",
+          "type": "long_text",
+          "title": "Что необходимо исправить или добавить, чтобы вы продолжили пользоваться Hutka?",
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        },
+        {
+          "key": "recommendation_probability",
+          "type": "scale",
+          "title": "Насколько вероятно, что вы порекомендуете Hutka другому мастеру?",
+          "options": [
+            {
+              "key": "option_1_0_tochno_ne_porekomenduyu",
+              "label": "0 — точно не порекомендую"
+            },
+            {
+              "key": "option_2_10_obyazatelno_porekomenduyu",
+              "label": "10 — обязательно порекомендую"
+            }
+          ],
+          "settings": {
+            "min": 0,
+            "max": 10,
+            "step": 1
+          },
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "zaregistrirovalsya_no_pochti_ne_polzovalsya"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_testiroval_servis"
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "equals",
+                "value": "uzhe_regulyarno_ispolzuyu_servis"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "blok_6_stoimost",
+      "title": "Блок 6. Стоимость",
+      "questions": [
+        {
+          "key": "willingness_to_pay",
+          "type": "single_choice",
+          "title": "При условии, что сервис решает ваши основные задачи, готовы ли вы платить за него?",
+          "options": [
+            {
+              "key": "da",
+              "label": "Да"
+            },
+            {
+              "key": "skoree_da",
+              "label": "Скорее да"
+            },
+            {
+              "key": "zavisit_ot_vozmozhnostey",
+              "label": "Зависит от возможностей"
+            },
+            {
+              "key": "gotov_polzovatsya_tolko_besplatno",
+              "label": "Готов пользоваться только бесплатно"
+            },
+            {
+              "key": "poka_ne_znayu",
+              "label": "Пока не знаю"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_usefulness",
+                "operator": "greater_or_equal",
+                "value": 4
+              },
+              {
+                "question": "demo_interest",
+                "operator": "in",
+                "value": [
+                  "da",
+                  "vozmozhno_no_snachala_hochu_uznat_bolshe"
+                ]
+              },
+              {
+                "question": "test_interest",
+                "operator": "in",
+                "value": [
+                  "da_gotov_nachat_v_blizhayshee_vremya",
+                  "da_no_nemnogo_pozzhe",
+                  "vozmozhno_posle_demonstracii"
+                ]
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "in",
+                "value": [
+                  "zaregistrirovalsya_no_pochti_ne_polzovalsya",
+                  "uzhe_testiroval_servis",
+                  "uzhe_regulyarno_ispolzuyu_servis"
+                ]
+              },
+              {
+                "question": "continue_using_hutka",
+                "operator": "in",
+                "value": [
+                  "da_gotov_polzovatsya_postoyanno",
+                  "da_esli_budut_ispravleny_otdelnye_problemy",
+                  "da_esli_poyavyatsya_nuzhnye_funkcii"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "key": "acceptable_price",
+          "type": "single_choice",
+          "title": "Какую стоимость в месяц вы считаете приемлемой?",
+          "options": [
+            {
+              "key": "do_10_byn",
+              "label": "До 10 BYN"
+            },
+            {
+              "key": "option_2_11_20_byn",
+              "label": "11–20 BYN"
+            },
+            {
+              "key": "option_3_21_30_byn",
+              "label": "21–30 BYN"
+            },
+            {
+              "key": "option_4_31_40_byn",
+              "label": "31–40 BYN"
+            },
+            {
+              "key": "option_5_41_50_byn",
+              "label": "41–50 BYN"
+            },
+            {
+              "key": "bolee_50_byn_esli_servis_deystvitelno_polezen",
+              "label": "Более 50 BYN, если сервис действительно полезен"
+            },
+            {
+              "key": "poka_ne_mogu_ocenit",
+              "label": "Пока не могу оценить"
+            }
+          ],
+          "visibility": {
+            "all": [
+              {
+                "any": [
+                  {
+                    "question": "hutka_usefulness",
+                    "operator": "greater_or_equal",
+                    "value": 4
+                  },
+                  {
+                    "question": "demo_interest",
+                    "operator": "in",
+                    "value": [
+                      "da",
+                      "vozmozhno_no_snachala_hochu_uznat_bolshe"
+                    ]
+                  },
+                  {
+                    "question": "test_interest",
+                    "operator": "in",
+                    "value": [
+                      "da_gotov_nachat_v_blizhayshee_vremya",
+                      "da_no_nemnogo_pozzhe",
+                      "vozmozhno_posle_demonstracii"
+                    ]
+                  },
+                  {
+                    "question": "hutka_familiarity",
+                    "operator": "in",
+                    "value": [
+                      "zaregistrirovalsya_no_pochti_ne_polzovalsya",
+                      "uzhe_testiroval_servis",
+                      "uzhe_regulyarno_ispolzuyu_servis"
+                    ]
+                  },
+                  {
+                    "question": "continue_using_hutka",
+                    "operator": "in",
+                    "value": [
+                      "da_gotov_polzovatsya_postoyanno",
+                      "da_esli_budut_ispravleny_otdelnye_problemy",
+                      "da_esli_poyavyatsya_nuzhnye_funkcii"
+                    ]
+                  }
+                ]
+              },
+              {
+                "question": "willingness_to_pay",
+                "operator": "not_equals",
+                "value": "net"
+              }
+            ]
+          }
+        },
+        {
+          "key": "payment_format",
+          "type": "single_choice",
+          "title": "Какой формат оплаты был бы для вас удобнее?",
+          "options": [
+            {
+              "key": "ezhemesyachnaya_podpiska",
+              "label": "Ежемесячная подписка"
+            },
+            {
+              "key": "oplata_srazu_za_god_so_skidkoy",
+              "label": "Оплата сразу за год со скидкой"
+            },
+            {
+              "key": "besplatnaya_bazovaya_versiya_i_platnye_dopolnitelnye_funkcii",
+              "label": "Бесплатная базовая версия и платные дополнительные функции"
+            },
+            {
+              "key": "komissiya_tolko_s_zapisey_poluchennyh_cherez_hutka",
+              "label": "Комиссия только с записей, полученных через Hutka"
+            },
+            {
+              "key": "razovaya_oplata",
+              "label": "Разовая оплата"
+            },
+            {
+              "key": "poka_ne_znayu",
+              "label": "Пока не знаю"
+            },
+            {
+              "key": "drugoe",
+              "label": "Другое"
+            }
+          ],
+          "visibility": {
+            "any": [
+              {
+                "question": "hutka_usefulness",
+                "operator": "greater_or_equal",
+                "value": 4
+              },
+              {
+                "question": "demo_interest",
+                "operator": "in",
+                "value": [
+                  "da",
+                  "vozmozhno_no_snachala_hochu_uznat_bolshe"
+                ]
+              },
+              {
+                "question": "test_interest",
+                "operator": "in",
+                "value": [
+                  "da_gotov_nachat_v_blizhayshee_vremya",
+                  "da_no_nemnogo_pozzhe",
+                  "vozmozhno_posle_demonstracii"
+                ]
+              },
+              {
+                "question": "hutka_familiarity",
+                "operator": "in",
+                "value": [
+                  "zaregistrirovalsya_no_pochti_ne_polzovalsya",
+                  "uzhe_testiroval_servis",
+                  "uzhe_regulyarno_ispolzuyu_servis"
+                ]
+              },
+              {
+                "question": "continue_using_hutka",
+                "operator": "in",
+                "value": [
+                  "da_gotov_polzovatsya_postoyanno",
+                  "da_esli_budut_ispravleny_otdelnye_problemy",
+                  "da_esli_poyavyatsya_nuzhnye_funkcii"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "key": "blok_7_sleduyuschiy_shag",
+      "title": "Блок 7. Следующий шаг",
+      "questions": [
+        {
+          "key": "next_interest",
+          "type": "multiple_choice",
+          "title": "Что вам было бы интересно дальше?",
+          "options": [
+            {
+              "key": "posmotret_demonstraciyu_hutka",
+              "label": "Посмотреть демонстрацию Hutka"
+            },
+            {
+              "key": "besplatno_protestirovat_servis",
+              "label": "Бесплатно протестировать сервис"
+            },
+            {
+              "key": "pouchastvovat_v_lichnom_intervyu",
+              "label": "Поучаствовать в личном интервью"
+            },
+            {
+              "key": "poluchat_novosti_o_razvitii_hutka",
+              "label": "Получать новости о развитии Hutka"
+            },
+            {
+              "key": "uznat_kogda_servis_budet_polnostyu_gotov",
+              "label": "Узнать, когда сервис будет полностью готов"
+            },
+            {
+              "key": "nachat_polzovatsya_posle_zapuska",
+              "label": "Начать пользоваться после запуска"
+            },
+            {
+              "key": "vernutsya_k_etomu_voprosu_pozzhe",
+              "label": "Вернуться к этому вопросу позже"
+            },
+            {
+              "key": "nichego_iz_perechislennogo",
+              "label": "Ничего из перечисленного"
+            }
+          ]
+        },
+        {
+          "key": "contact_permission",
+          "type": "single_choice",
+          "title": "Можно ли связаться с вами по поводу Hutka?",
+          "required": true,
+          "options": [
+            {
+              "key": "da",
+              "label": "Да"
+            },
+            {
+              "key": "net",
+              "label": "Нет"
+            }
+          ]
+        },
+        {
+          "key": "contact_method",
+          "type": "single_choice",
+          "title": "Как с вами удобнее связаться?",
+          "options": [
+            {
+              "key": "instagram",
+              "label": "Instagram"
+            },
+            {
+              "key": "telegram",
+              "label": "Telegram"
+            },
+            {
+              "key": "whatsapp_ili_viber",
+              "label": "WhatsApp или Viber"
+            },
+            {
+              "key": "telefon",
+              "label": "Телефон"
+            },
+            {
+              "key": "elektronnaya_pochta",
+              "label": "Электронная почта"
+            }
+          ],
+          "visibility": {
+            "all": [
+              {
+                "question": "contact_permission",
+                "operator": "equals",
+                "value": "da"
+              }
+            ]
+          }
+        },
+        {
+          "key": "contact_value",
+          "type": "short_text",
+          "title": "Оставьте ваш контакт.",
+          "visibility": {
+            "all": [
+              {
+                "question": "contact_permission",
+                "operator": "equals",
+                "value": "da"
+              }
+            ]
+          },
+          "contactMapping": {
+            "field": "comment",
+            "mode": "always"
+          }
+        },
+        {
+          "key": "contact_time",
+          "type": "multiple_choice",
+          "title": "Когда с вами удобнее связаться?",
+          "options": [
+            {
+              "key": "v_pervoy_polovine_dnya",
+              "label": "В первой половине дня"
+            },
+            {
+              "key": "dnem",
+              "label": "Днём"
+            },
+            {
+              "key": "vecherom",
+              "label": "Вечером"
+            },
+            {
+              "key": "v_budnie_dni",
+              "label": "В будние дни"
+            },
+            {
+              "key": "v_vyhodnye",
+              "label": "В выходные"
+            },
+            {
+              "key": "v_lyuboe_vremya",
+              "label": "В любое время"
+            },
+            {
+              "key": "luchshe_snachala_napisat_soobschenie",
+              "label": "Лучше сначала написать сообщение"
+            }
+          ],
+          "visibility": {
+            "all": [
+              {
+                "question": "contact_permission",
+                "operator": "equals",
+                "value": "da"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "classificationRules": [
+    {
+      "key": "demo_ready",
+      "title": "Готов к демонстрации",
+      "priority": 10,
+      "when": {
+        "all": [
+          {
+            "question": "next_interest",
+            "operator": "contains",
+            "value": "posmotret_demonstraciyu_hutka"
+          },
+          {
+            "question": "contact_permission",
+            "operator": "equals",
+            "value": "da"
+          },
+          {
+            "question": "contact_value",
+            "operator": "is_answered"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_contact_status",
+          "status": "interested"
+        },
+        {
+          "type": "create_task",
+          "title": "Договориться о демонстрации Hutka",
+          "dueInDays": 1,
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "key": "testing_ready",
+      "title": "Готов тестировать",
+      "priority": 20,
+      "when": {
+        "all": [
+          {
+            "question": "test_interest",
+            "operator": "in",
+            "value": [
+              "da_gotov_nachat_v_blizhayshee_vremya",
+              "da_no_nemnogo_pozzhe"
+            ]
+          },
+          {
+            "question": "contact_permission",
+            "operator": "equals",
+            "value": "da"
+          },
+          {
+            "question": "contact_value",
+            "operator": "is_answered"
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_contact_status",
+          "status": "interested"
+        },
+        {
+          "type": "create_task",
+          "title": "Помочь с регистрацией и настройкой Hutka",
+          "dueInDays": 1,
+          "priority": "high"
+        }
+      ]
+    },
+    {
+      "key": "active_tester",
+      "title": "Тестирует",
+      "priority": 30,
+      "when": {
+        "all": [
+          {
+            "question": "hutka_familiarity",
+            "operator": "in",
+            "value": [
+              "zaregistrirovalsya_no_pochti_ne_polzovalsya",
+              "uzhe_testiroval_servis",
+              "uzhe_regulyarno_ispolzuyu_servis"
+            ]
+          },
+          {
+            "question": "continue_using_hutka",
+            "operator": "in",
+            "value": [
+              "da_gotov_polzovatsya_postoyanno",
+              "da_esli_budut_ispravleny_otdelnye_problemy",
+              "da_esli_poyavyatsya_nuzhnye_funkcii"
+            ]
+          }
+        ]
+      },
+      "actions": [
+        {
+          "type": "set_contact_status",
+          "status": "testing"
+        },
+        {
+          "type": "create_task",
+          "title": "Собрать обратную связь по тестированию Hutka",
+          "dueInDays": 3,
+          "priority": "medium"
+        }
+      ]
+    }
+  ]
+}

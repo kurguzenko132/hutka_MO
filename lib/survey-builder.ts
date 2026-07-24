@@ -425,11 +425,11 @@ export function evaluateCondition(condition: SurveyConditionNode | undefined, an
     case 'is_answered': return answerValues.length > 0;
     case 'is_not_answered': return answerValues.length === 0;
     case 'equals': return answerValues.some((item) => equals(item, condition.value));
-    case 'not_equals': return answerValues.every((item) => !equals(item, condition.value));
+    case 'not_equals': return answerValues.length > 0 && answerValues.every((item) => !equals(item, condition.value));
     case 'contains': return answerValues.some((item) => targetValues.some((target) => String(item).includes(String(target)) || equals(item, target)));
     case 'not_contains': return answerValues.every((item) => targetValues.every((target) => !String(item).includes(String(target)) && !equals(item, target)));
     case 'in': return answerValues.some((item) => targetValues.some((target) => equals(item, target)));
-    case 'not_in': return answerValues.every((item) => targetValues.every((target) => !equals(item, target)));
+    case 'not_in': return answerValues.length > 0 && answerValues.every((item) => targetValues.every((target) => !equals(item, target)));
     case 'greater_than': return Number.isFinite(numeric) && numeric > targetNumeric;
     case 'greater_or_equal': return Number.isFinite(numeric) && numeric >= targetNumeric;
     case 'less_than': return Number.isFinite(numeric) && numeric < targetNumeric;

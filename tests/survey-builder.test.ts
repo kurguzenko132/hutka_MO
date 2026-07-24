@@ -41,9 +41,26 @@ test('branching hides the booking-service branch that does not match the answer'
   assert.ok(!questions.includes('service_satisfaction'));
 });
 
+test('a master using a service does not see the no-service branch', () => {
+  const sections = visibleSurveySections(detailedDefinition!, { booking_service: 'da_dikidi' });
+  const questions = sections.flatMap((section) => section.questions.map((question) => question.key));
+  assert.ok(questions.includes('service_duration'));
+  assert.ok(!questions.includes('no_service_reasons'));
+  assert.ok(!questions.includes('service_stopped_reasons'));
+});
+
+test('a no-service master sees the follow-up only after confirming prior experience', () => {
+  const baseAnswers = { booking_service: 'ranshe_polzovalsya_no_perestal' };
+  const beforeAnswer = visibleSurveySections(detailedDefinition!, baseAnswers).flatMap((section) => section.questions.map((question) => question.key));
+  const afterAnswer = visibleSurveySections(detailedDefinition!, { ...baseAnswers, service_previous_experience: 'da_proboval_dikidi' }).flatMap((section) => section.questions.map((question) => question.key));
+  assert.ok(!beforeAnswer.includes('service_stopped_reasons'));
+  assert.ok(afterAnswer.includes('service_stopped_reasons'));
+});
+
 test('nested conditions and comparisons evaluate without eval', () => {
   assert.equal(evaluateCondition({ all: [{ question: 'score', operator: 'greater_or_equal', value: 4 }, { any: [{ question: 'choice', operator: 'equals', value: 'yes' }, { question: 'choice', operator: 'equals', value: 'maybe' }] }] }, { score: '4', choice: 'yes' }), true);
   assert.equal(evaluateCondition({ all: [{ question: 'score', operator: 'greater_than', value: 4 }] }, { score: '4' }), false);
+  assert.equal(evaluateCondition({ all: [{ question: 'choice', operator: 'not_equals', value: 'no' }] }, {}), false);
 });
 
 test('dynamic options use selected answers from a preceding question', () => {

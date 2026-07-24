@@ -264,6 +264,57 @@ function conditionCount(condition: SurveyConditionNode | undefined): number {
   return collectConditionQuestions(condition).length;
 }
 
+export type SurveyReferenceCleanup = {
+  definition: SurveyDefinition;
+  clearedVisibility: number;
+  clearedOptionSources: number;
+  removedRules: number;
+};
+
+export function removeSurveyQuestions(
+  definition: SurveyDefinition,
+  questionKeys: Iterable<string>
+): SurveyReferenceCleanup {
+  const removed = new Set(questionKeys);
+  if (removed.size === 0) return { definition, clearedVisibility: 0, clearedOptionSources: 0, removedRules: 0 };
+
+  let clearedVisibility = 0;
+  let clearedOptionSources = 0;
+  const usesRemovedQuestion = (condition: SurveyConditionNode | undefined) => collectConditionQuestions(condition).some((key) => removed.has(key));
+  const clearVisibility = <T extends { visibility?: SurveyConditionGroup }>(item: T) => {
+    if (!usesRemovedQuestion(item.visibility)) return item;
+    clearedVisibility += 1;
+    const { visibility: _visibility, ...rest } = item;
+    return rest as T;
+  };
+
+  const sections = definition.sections
+    .map((section) => {
+      const visibleSection = clearVisibility(section);
+      return {
+        ...visibleSection,
+        questions: section.questions
+          .filter((question) => !removed.has(question.key))
+          .map((question) => {
+            const visibleQuestion = clearVisibility(question);
+            if (!visibleQuestion.optionsSource || !removed.has(visibleQuestion.optionsSource.question)) return visibleQuestion;
+            clearedOptionSources += 1;
+            const { optionsSource: _optionsSource, ...rest } = visibleQuestion;
+            return rest as SurveyQuestion;
+          })
+      };
+    })
+    .filter((section) => section.questions.length > 0);
+
+  const rules = (definition.classificationRules ?? []).filter((rule) => !usesRemovedQuestion(rule.when));
+  return {
+    definition: { ...definition, sections, classificationRules: rules },
+    clearedVisibility,
+    clearedOptionSources,
+    removedRules: (definition.classificationRules?.length ?? 0) - rules.length
+  };
+}
+
 export function validateSurveyDefinition(input: unknown): SurveyValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
@@ -391,6 +442,23 @@ export function questionOptions(question: SurveyQuestion, answers: SurveyAnswers
   if (!question.optionsSource) return question.options ?? [];
   const selected = values(answers[question.optionsSource.question]).map(String);
   return selected.map((value, index) => ({ key: `${question.optionsSource?.question}_${index + 1}`, label: value, value }));
+}
+
+export function surveyOptionLabel(definition: SurveyDefinition, questionKey: string, value: unknown): string {
+  const questions = definition.sections.flatMap((section) => section.questions);
+  const visited = new Set<string>();
+  const findLabel = (key: string): string => {
+    if (visited.has(key)) return String(value);
+    visited.add(key);
+    const question = questions.find((item) => item.key === key);
+    if (!question) return String(value);
+    const stored = String(value);
+    const option = question.options?.find((item) => (item.value ?? item.key) === stored || item.key === stored);
+    if (option) return option.label;
+    return question.optionsSource ? findLabel(question.optionsSource.question) : stored;
+  };
+
+  return findLabel(questionKey);
 }
 
 export function visibleSurveySections(definition: SurveyDefinition, answers: SurveyAnswers) {

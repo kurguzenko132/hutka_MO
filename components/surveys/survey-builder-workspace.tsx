@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   emptySurveyDefinition,
   normalizeSurveyDefinition,
+  removeSurveyQuestions,
   surveyElementTypes,
   validateSurveyDefinition,
   type SurveyCondition,
@@ -138,8 +139,13 @@ export function SurveyBuilderWorkspace({
 
   function removeSection(index: number) {
     if (definition.sections.length < 2) return;
-    setDefinition((current) => ({ ...current, sections: current.sections.filter((_, itemIndex) => itemIndex !== index) }));
+    const removedKeys = definition.sections[index]?.questions.map((item) => item.key) ?? [];
+    const cleanup = removeSurveyQuestions(definition, removedKeys);
+    setDefinition(cleanup.definition);
     setSelected({ section: 0, question: 0 });
+    if (cleanup.clearedVisibility || cleanup.clearedOptionSources || cleanup.removedRules) {
+      setNotice({ tone: 'success', text: `Раздел удален. Очищено: условий ${cleanup.clearedVisibility}, источников вариантов ${cleanup.clearedOptionSources}, правил ${cleanup.removedRules}.` });
+    }
   }
 
   function addQuestion(sectionIndex: number) {
@@ -150,8 +156,14 @@ export function SurveyBuilderWorkspace({
 
   function removeQuestion(sectionIndex: number, questionIndex: number) {
     if (definition.sections[sectionIndex].questions.length < 2) return;
-    setDefinition((current) => ({ ...current, sections: current.sections.map((item, index) => index !== sectionIndex ? item : { ...item, questions: item.questions.filter((_, qIndex) => qIndex !== questionIndex) }) }));
+    const key = definition.sections[sectionIndex]?.questions[questionIndex]?.key;
+    if (!key) return;
+    const cleanup = removeSurveyQuestions(definition, [key]);
+    setDefinition(cleanup.definition);
     setSelected({ section: sectionIndex, question: 0 });
+    if (cleanup.clearedVisibility || cleanup.clearedOptionSources || cleanup.removedRules) {
+      setNotice({ tone: 'success', text: `Вопрос удален. Очищено: условий ${cleanup.clearedVisibility}, источников вариантов ${cleanup.clearedOptionSources}, правил ${cleanup.removedRules}.` });
+    }
   }
 
   function updateOptions(value: string) {

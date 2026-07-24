@@ -6,7 +6,7 @@ import { completeSurveyResponseMutation, saveSurveyResponseDraftMutation } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { questionOptions, visibleSurveySections, type SurveyAnswers, type SurveyDefinition, type SurveyOption, type SurveyQuestion } from '@/lib/survey-builder';
+import { questionOptions, surveyOptionLabel, visibleSurveySections, type SurveyAnswers, type SurveyDefinition, type SurveyOption, type SurveyQuestion } from '@/lib/survey-builder';
 
 function tokenForSurvey(surveyId: string, inviteToken?: string) {
   const key = `hutka-survey-${surveyId}-${inviteToken ?? 'public'}`;
@@ -23,12 +23,10 @@ function selected(value: unknown, item: string) {
 
 function sourceOptions(definition: SurveyDefinition, question: SurveyQuestion, answers: SurveyAnswers): SurveyOption[] {
   if (!question.optionsSource) return questionOptions(question, answers);
-  const source = definition.sections.flatMap((section) => section.questions).find((item) => item.key === question.optionsSource?.question);
   const selectedValues = Array.isArray(answers[question.optionsSource.question]) ? answers[question.optionsSource.question] as unknown[] : [answers[question.optionsSource.question]];
   return selectedValues.filter((value) => value !== undefined && value !== '').map((value, index) => {
     const stored = String(value);
-    const original = source?.options?.find((option) => (option.value ?? option.key) === stored || option.key === stored);
-    return { key: `selected_${index + 1}_${stored}`, value: stored, label: original?.label ?? stored };
+    return { key: `selected_${index + 1}_${stored}`, value: stored, label: surveyOptionLabel(definition, question.optionsSource!.question, stored) };
   });
 }
 

@@ -8,12 +8,16 @@ import {
   inactiveAnswers,
   normalizeSurveyDefinition,
   questionOptions,
+  removeSurveyQuestions,
+  surveyOptionLabel,
   validateSurveyDefinition,
   visibleSurveySections
 } from '../lib/survey-builder.ts';
 
 const definition = normalizeSurveyDefinition(individualMasterTemplate);
+const detailedDefinition = normalizeSurveyDefinition(detailedIndividualMasterTemplate);
 assert.ok(definition, 'The bundled master questionnaire must parse');
+assert.ok(detailedDefinition, 'The detailed master questionnaire must parse');
 
 test('individual master template validates and can round-trip through JSON', () => {
   const validation = validateSurveyDefinition(definition);
@@ -46,6 +50,19 @@ test('dynamic options use selected answers from a preceding question', () => {
   const topProblems = definition!.sections.flatMap((section) => section.questions).find((question) => question.key === 'top_problems')!;
   const options = questionOptions(topProblems, { work_problems: ['clients', 'time'] });
   assert.deepEqual(options.map((option) => option.value), ['clients', 'time']);
+});
+
+test('nested dynamic options keep the original option label', () => {
+  const label = surveyOptionLabel(detailedDefinition!, 'top_problems', 'tekuschiy_servis_slishkom_slozhnyy');
+  assert.equal(label, 'Текущий сервис слишком сложный');
+});
+
+test('removing questions clears dependent logic and automation rules', () => {
+  const cleanup = removeSurveyQuestions(detailedDefinition!, ['hutka_familiarity', 'next_interest', 'contact_permission', 'contact_value', 'test_interest']);
+  const validation = validateSurveyDefinition(cleanup.definition);
+  assert.equal(validation.ok, true, validation.errors.join('\n'));
+  assert.ok(cleanup.clearedVisibility > 0);
+  assert.ok(cleanup.removedRules > 0);
 });
 
 test('inactive branch answers remain available but are excluded from final active answers', () => {

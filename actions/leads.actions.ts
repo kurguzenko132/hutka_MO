@@ -1466,7 +1466,7 @@ export async function createLeadSurveyInviteMutationAction(input: {
   surveyId: string;
 }): Promise<LeadRelationMutationResult> {
   const user = await requirePermission('manageSurveys', '/people?error=forbidden');
-  return createLeadSurveyInviteCore(input.leadId, input.surveyId, user.profileId);
+  return createLeadSurveyInviteCore(input.leadId, input.surveyId, user.profileId, true);
 }
 
 export async function createLeadSurveyInviteAction(formData: FormData) {

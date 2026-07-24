@@ -31,6 +31,14 @@ export type SurveyOption = {
   publicUrl: string;
 };
 
+export type LeadSurveyInvite = {
+  id: string;
+  surveyId: string;
+  title: string;
+  url: string;
+  createdAt: string;
+};
+
 export type SurveyQuestion = {
   id: string;
   key?: string;
@@ -366,6 +374,39 @@ export async function getSurveyOptions(): Promise<SurveyOption[]> {
     status: survey.status,
     publicUrl: getPublicSurveyUrl(survey.slug)
   }));
+}
+
+export async function getLeadSurveyInvites(leadId: string): Promise<LeadSurveyInvite[]> {
+  if (!leadId || !isSupabaseConfigured()) return [];
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('survey_lead_invites')
+    .select('id,survey_id,token,created_at,surveys(title,slug)')
+    .eq('lead_id', leadId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false });
+
+  if (error || !data) return [];
+
+  return data.flatMap((row) => {
+    const record = row as Record<string, unknown>;
+    const surveyValue = Array.isArray(record.surveys) ? record.surveys[0] : record.surveys;
+    const survey = jsonRecord(surveyValue);
+    const surveyId = String(record.survey_id ?? '');
+    const token = String(record.token ?? '');
+    const slug = survey?.slug ? String(survey.slug) : '';
+
+    if (!surveyId || !token || !slug) return [];
+
+    return [{
+      id: String(record.id),
+      surveyId,
+      title: survey?.title ? String(survey.title) : 'Анкета',
+      url: buildAppUrl(`/s/${slug}?invite=${encodeURIComponent(token)}`),
+      createdAt: formatDateTime(record.created_at ? String(record.created_at) : null)
+    }];
+  });
 }
 
 export async function getSurveyById(

@@ -12,7 +12,7 @@ import {
   type LeadSurveyResponseGroup
 } from '@/lib/leads';
 import { getInsightOptions } from '@/lib/insights';
-import { getSurveyOptions } from '@/lib/surveys';
+import { getLeadSurveyInvites, getSurveyOptions } from '@/lib/surveys';
 import { getLeadQuestionnaires, getLeadQuestionnaireResponses, type LeadQuestionnaireResponseGroup } from '@/lib/lead-questionnaires';
 import { getQuestionPacks } from '@/lib/question-packs';
 import { getRefusalReasons } from '@/lib/refusals';
@@ -243,6 +243,7 @@ function loadLeadProfileDetails(id: string) {
     getCampaignOptions(),
     getInsightOptions(),
     getSurveyOptions(),
+    getLeadSurveyInvites(id),
     getLeadQuestionnaires(id),
     getLeadQuestionnaireResponses(id),
     getRefusalReasons(),
@@ -285,6 +286,7 @@ async function LeadProfileDetails({
       campaignOptions,
       insightOptions,
       surveyOptions,
+      surveyInvites,
       leadQuestionnaires,
       leadQuestionnaireResponses,
       refusalReasons,
@@ -317,6 +319,7 @@ async function LeadProfileDetails({
               surveys={surveyOptions}
               initialCampaignIds={related.campaigns.map((item) => item.id)}
               initialInsightIds={related.insights.map((item) => item.id)}
+              initialSurveyLinks={surveyInvites}
               canManageCampaigns={canManageCampaigns}
               canManageSurveys={canManageSurveys}
               canManageInsights={canManageInsights}

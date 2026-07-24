@@ -22,7 +22,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
 import type { CampaignOption } from '@/lib/campaigns';
 import type { InsightOption } from '@/lib/insight-shared';
-import type { SurveyOption } from '@/lib/surveys';
+import type { LeadSurveyInvite, SurveyOption } from '@/lib/surveys';
 
 type PendingAction = 'campaign' | 'survey' | 'insight' | '';
 
@@ -33,6 +33,7 @@ export function ContactRelationsHub({
   surveys,
   initialCampaignIds = [],
   initialInsightIds = [],
+  initialSurveyLinks = [],
   canManageCampaigns = false,
   canManageSurveys = false,
   canManageInsights = false
@@ -43,6 +44,7 @@ export function ContactRelationsHub({
   surveys: SurveyOption[];
   initialCampaignIds?: string[];
   initialInsightIds?: string[];
+  initialSurveyLinks?: LeadSurveyInvite[];
   canManageCampaigns?: boolean;
   canManageSurveys?: boolean;
   canManageInsights?: boolean;
@@ -52,7 +54,7 @@ export function ContactRelationsHub({
   const [insightId, setInsightId] = useState('');
   const [linkedCampaignIds, setLinkedCampaignIds] = useState(() => new Set(initialCampaignIds));
   const [linkedInsightIds, setLinkedInsightIds] = useState(() => new Set(initialInsightIds));
-  const [surveyLink, setSurveyLink] = useState<{ title: string; url: string } | null>(null);
+  const [surveyLinks, setSurveyLinks] = useState(initialSurveyLinks);
   const [pending, setPending] = useState<PendingAction>('');
   const [notice, setNotice] = useState('');
   const [noticeError, setNoticeError] = useState(false);
@@ -107,7 +109,17 @@ export function ContactRelationsHub({
           ? 'Нужно применить миграцию персональных ссылок в Supabase.'
           : 'Не удалось создать ссылку на вопросы.');
       } else {
-        setSurveyLink({ title: result.title ?? 'Анкета', url: result.url });
+        const surveyUrl = result.url;
+        setSurveyLinks((current) => [
+          {
+            id: `new-${selectedId}`,
+            surveyId: selectedId,
+            title: result.title ?? 'Анкета',
+            url: surveyUrl,
+            createdAt: 'Только что'
+          },
+          ...current.filter((link) => link.surveyId !== selectedId)
+        ]);
         setSurveyId('');
         setNotice(result.reused ? 'Для этого контакта уже есть активная персональная ссылка.' : 'Персональная ссылка создана и записана в историю контакта.');
       }
@@ -141,8 +153,7 @@ export function ContactRelationsHub({
     }
   }
 
-  async function copySurveyLink() {
-    if (!surveyLink) return;
+  async function copySurveyLink(surveyLink: LeadSurveyInvite) {
     try {
       const absoluteUrl = new URL(surveyLink.url, window.location.origin).toString();
       await navigator.clipboard.writeText(absoluteUrl);
@@ -212,22 +223,30 @@ export function ContactRelationsHub({
           </form>
         )}
 
-        {surveyLink && (
-          <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
-            <p className="text-sm font-bold text-app-text">{surveyLink.title}</p>
-            <p className="break-all text-xs leading-5 text-app-muted">{surveyLink.url}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" variant="secondary" onClick={() => void copySurveyLink()}>
-                <Copy className="h-4 w-4" />
-                Копировать
-              </Button>
-              <Button asChild size="sm">
-                <a href={surveyLink.url} target="_blank" rel="noreferrer">
-                  <ExternalLink className="h-4 w-4" />
-                  Открыть
-                </a>
-              </Button>
-            </div>
+        {surveyLinks.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-sm font-bold text-app-text">Активные ссылки на вопросы</p>
+            {surveyLinks.map((surveyLink) => (
+              <div key={surveyLink.id} className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                <div>
+                  <p className="text-sm font-bold text-app-text">{surveyLink.title}</p>
+                  <p className="mt-1 text-xs text-app-muted">Создана: {surveyLink.createdAt}</p>
+                </div>
+                <p className="break-all text-xs leading-5 text-app-muted">{surveyLink.url}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => void copySurveyLink(surveyLink)}>
+                    <Copy className="h-4 w-4" />
+                    Копировать
+                  </Button>
+                  <Button asChild size="sm">
+                    <a href={surveyLink.url} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                      Открыть
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
 
